@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Canadian Retirement Planner with tax-aware retirement income projections, CPP/OAS timing, private pension planning, spouse benefits, and Newfoundland and Labrador (NL) as the default province." />
+  <meta name="keywords" content="Canadian retirement planner, retirement income calculator Canada, Newfoundland retirement planning, NL retirement planner, CPP OAS planner, retirement tax calculator Canada" />
+  <meta name="author" content="Ashley Skinner" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="application-name" content="Canadian Retirement Planner" />
+  <meta name="apple-mobile-web-app-title" content="Canadian Retirement Planner" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="en_CA" />
+  <meta property="og:site_name" content="Canadian Retirement Planner" />
+  <meta property="og:title" content="Canadian Retirement Planner | Tax-Aware CPP/OAS & Pension Forecasting" />
+  <meta property="og:description" content="Plan retirement income in Canada with tax-aware withdrawals, CPP/OAS timing, private pensions, spouse benefits, and NL as the default province." />
+  <meta property="og:url" content="https://your-domain.ca/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Canadian Retirement Planner" />
+  <meta name="twitter:description" content="Canadian retirement planning tool with tax-aware income forecasting, CPP/OAS timing, and Newfoundland (NL) default province." />
+  <meta name="theme-color" content="#0f6abf" />
+  <link rel="canonical" href="https://your-domain.ca/" />
+  <title>Canadian Retirement Planner | Newfoundland (NL) Default Province</title>
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Canadian Retirement Planner",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Web",
+      "description": "Canadian retirement planner with tax-aware retirement income forecasting, CPP/OAS timing, private pensions, spouse benefits, and Newfoundland and Labrador as the default province.",
+      "areaServed": [
+        {
+          "@type": "Country",
+          "name": "Canada"
+        },
+        {
+          "@type": "AdministrativeArea",
+          "name": "Newfoundland and Labrador"
+        }
+      ],
+      "inLanguage": "en-CA",
+      "url": "https://your-domain.ca/"
+    }
+  </script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero" aria-labelledby="heroTitle">
+      <div class="hero-content">
+        <p class="eyebrow">Canadian Retirement Planner • Local-first • NL default province</p>
+        <h1 id="heroTitle">Retirement Plan Title</h1>
+        <p class="hero-subtitle">Plan Canadian retirement savings, tax-aware withdrawals, CPP/OAS timing, and private pension income.</p>
+        <p class="hero-proof">Built from your current template kit style with browser-only storage and export/import backups.</p>
+        <div class="hero-cta-row no-print">
+          <button id="saveBtn" class="btn btn-primary" type="button">Save now</button>
+          <button id="exportBtn" class="btn btn-secondary" type="button">Export JSON</button>
+          <button id="importBtn" class="btn btn-secondary" type="button">Import JSON</button>
+          <button id="resetBtn" class="btn btn-secondary" type="button">Reset demo</button>
+          <a
+            class="btn btn-secondary support-link-btn"
+            href="https://buymeacoffee.com/ashleysnl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >☕ Buy me a coffee</a>
+        </div>
+        <div class="hero-perfect-for" aria-label="Planner highlights">
+          <span class="hero-perfect-label">Includes:</span>
+          <ul class="hero-perfect-list">
+            <li>Assumption editor</li>
+            <li>Projection chart</li>
+            <li>Tax table</li>
+            <li>Pension scenarios</li>
+          </ul>
+        </div>
+      </div>
+      <div class="hero-actions" aria-label="Status">
+        <div class="status-card">
+          <span class="status-label">Storage</span>
+          <strong id="storageStatus">Unsaved changes</strong>
+          <span class="status-note">Saved in this browser only</span>
+        </div>
+        <div class="status-card">
+          <span class="status-label">Risk Key</span>
+          <strong id="riskBadge">Balanced</strong>
+          <span id="riskKeyText" class="status-note">Conservative 0 • Aggressive 1</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="trip-snapshot" aria-labelledby="snapshotTitle">
+      <div class="trip-snapshot-head">
+        <div>
+          <h2 id="snapshotTitle">Planner Snapshot</h2>
+          <p class="muted small-copy">Updates instantly from your assumptions and pension timing choices.</p>
+        </div>
+        <div class="offline-badge-wrap">
+          <span class="offline-badge">Works offline</span>
+          <span class="offline-badge-note">No accounts required</span>
+          <span class="offline-badge-trust">Your data stays local</span>
+        </div>
+      </div>
+      <div id="snapshotGrid" class="trip-snapshot-grid" aria-live="polite"></div>
+    </section>
+
+    <main class="planner-grid">
+      <section class="panel" aria-labelledby="assumptionsTitle">
+        <div class="panel-header">
+          <h2 id="assumptionsTitle">Assumptions</h2>
+          <p>Inspired by your spreadsheet layout, rebuilt as an interactive Canadian retirement planning form (NL is the default province).</p>
+        </div>
+        <div class="mode-toggle" role="group" aria-label="Planner complexity mode">
+          <button id="guidedModeBtn" type="button" class="mode-btn active" aria-pressed="true">Guided</button>
+          <button id="simpleModeBtn" type="button" class="mode-btn" aria-pressed="false">Simple</button>
+          <button id="advancedModeBtn" type="button" class="mode-btn" aria-pressed="false">Advanced</button>
+          <span id="modeHint" class="mode-hint">Step-by-step mode with plain-language guidance.</span>
+        </div>
+        <section id="guidedPanel" class="guided-panel" aria-labelledby="guidedStepTitle">
+          <div class="guided-progress-row">
+            <span id="guidedStepCount" class="guided-step-count">Step 1 of 5</span>
+            <div class="guided-progress" aria-hidden="true">
+              <span id="guidedProgressFill" class="guided-progress-fill"></span>
+            </div>
+          </div>
+          <h3 id="guidedStepTitle">You today</h3>
+          <p id="guidedStepDescription" class="guided-step-description">Start with a few basics about where you are right now.</p>
+          <div id="guidedStepSummary" class="guided-step-summary"></div>
+          <div class="guided-actions">
+            <button id="guidedPrevBtn" type="button" class="mode-btn">Back</button>
+            <button id="guidedNextBtn" type="button" class="mode-btn active">Next</button>
+          </div>
+        </section>
+        <div class="assumption-legend" aria-label="Conservative vs aggressive indicator legend">
+          <div class="assumption-legend-title">Assumption indicators</div>
+          <div class="assumption-legend-item">
+            <span class="legend-chip legend-dot bias-live-conservative" aria-hidden="true"></span>
+            <span class="legend-text">Conservative estimate</span>
+          </div>
+          <div class="assumption-legend-item">
+            <span class="legend-chip legend-dot bias-live-balanced" aria-hidden="true"></span>
+            <span class="legend-text">Balanced / typical range</span>
+          </div>
+          <div class="assumption-legend-item">
+            <span class="legend-chip legend-dot bias-live-aggressive" aria-hidden="true"></span>
+            <span class="legend-text">Aggressive estimate (caution)</span>
+          </div>
+          <div class="assumption-legend-item">
+            <span class="legend-chip legend-dot bias-live-info" aria-hidden="true"></span>
+            <span class="legend-text">Reference / strategy-dependent input</span>
+          </div>
+        </div>
+        <form id="plannerForm" class="planner-form" novalidate>
+          <div class="form-section-title" data-step-title="you_today">Profile & timeline</div>
+          <label><span class="label-row">Planner title <span class="legend-chip bias-neutral" title="Display title only.">C/A</span></span><input id="plannerTitle" type="text" placeholder="Retirement Plan Title" /></label>
+          <label><span class="label-row">Province / territory for tax estimate <span class="legend-chip bias-neutral" title="Used for provincial/territorial tax estimate only.">C/A</span></span>
+            <select id="provinceCode">
+              <option value="NL">Newfoundland and Labrador</option>
+              <option value="AB">Alberta</option>
+              <option value="BC">British Columbia</option>
+              <option value="MB">Manitoba</option>
+              <option value="NB">New Brunswick</option>
+              <option value="NS">Nova Scotia</option>
+              <option value="ON">Ontario</option>
+              <option value="PE">Prince Edward Island</option>
+              <option value="SK">Saskatchewan</option>
+              <option value="YT">Yukon</option>
+              <option value="NT">Northwest Territories</option>
+              <option value="NU">Nunavut</option>
+              <option value="QC">Quebec</option>
+            </select>
+          </label>
+          <label><span class="label-row">Year of birth <span class="legend-chip bias-neutral" title="Depends on your actual age; not a risk preference input.">C/A</span></span><input id="birthYear" type="number" min="1900" max="2100" /></label>
+          <label data-complexity="advanced"><span class="label-row">Current year <span class="legend-chip bias-neutral" title="Reference year only.">C/A</span></span><input id="currentYear" type="number" min="2000" max="2100" /></label>
+          <label><span class="label-row">Retirement age <span class="legend-chip bias-up" title="Later retirement is generally more conservative; earlier retirement is more aggressive.">C↑ A↓</span></span><input id="retirementAge" type="number" min="40" max="80" /></label>
+          <label><span class="label-row">Life expectancy <span class="legend-chip bias-up" title="Planning for a longer lifespan is generally more conservative.">C↑ A↓</span></span><input id="lifeExpectancy" type="number" min="60" max="110" /></label>
+
+          <div class="form-section-title" data-step-title="saving_plan">Savings & contributions</div>
+          <label><span class="label-row">Current savings ($) <span class="legend-chip bias-up" title="Higher starting savings is a more conservative planning position.">C↑ A↓</span></span><input id="currentSavings" type="number" min="0" step="1000" /></label>
+          <label><span class="label-row">Annual contribution ($) <span class="legend-chip bias-up" title="Higher contributions are generally more conservative.">C↑ A↓</span></span><input id="annualContribution" type="number" min="0" step="500" /></label>
+          <label data-complexity="advanced"><span class="label-row">Contribution increase (%/yr) <span class="legend-chip bias-up" title="Higher annual savings growth is generally more conservative.">C↑ A↓</span></span><input id="contributionIncrease" type="number" min="0" max="15" step="0.1" /></label>
+          <label data-complexity="advanced"><span class="label-row">Inflation (%/yr) <span class="legend-chip bias-up" title="Assuming higher inflation is generally more conservative.">C↑ A↓</span></span><input id="inflationRate" type="number" min="0" max="15" step="0.1" /></label>
+
+          <div class="form-section-title" data-step-title="retirement_goal">Returns & retirement target</div>
+          <label><span class="label-row">Risk profile <span class="legend-chip bias-neutral" title="This is the explicit conservative/aggressive setting.">C/A</span></span>
+            <select id="riskProfile">
+              <option value="conservative">Conservative</option>
+              <option value="balanced">Balanced</option>
+              <option value="aggressive">Aggressive</option>
+            </select>
+          </label>
+          <label data-complexity="advanced"><span class="label-row">Pre-retirement return (%/yr) <span class="legend-chip bias-down" title="Assuming lower returns is more conservative; higher returns is more aggressive.">C↓ A↑</span></span><input id="growthRate" type="number" min="0" max="20" step="0.1" /></label>
+          <label data-complexity="advanced"><span class="label-row">Retirement return (%/yr) <span class="legend-chip bias-down" title="Assuming lower retirement returns is more conservative.">C↓ A↑</span></span><input id="retirementReturn" type="number" min="0" max="20" step="0.1" /></label>
+          <label><span class="label-row">Desired retirement spending ($/yr today, after tax) <span class="legend-chip bias-up" title="Planning for higher spending is generally more conservative.">C↑ A↓</span></span><input id="desiredIncome" type="number" min="0" step="1000" /></label>
+
+          <div class="form-section-title" data-step-title="benefits">Pensions & government benefits</div>
+          <label><span class="label-row">Private pension name <span class="legend-chip bias-neutral" title="Reference label for your pension source.">C/A</span></span><input id="privatePensionName" type="text" placeholder="ACME Private Pension" /></label>
+          <label><span class="label-row">Private pension ($/yr) <span class="legend-chip bias-up" title="Higher guaranteed pension income is generally more conservative.">C↑ A↓</span></span><input id="privatePensionAnnual" type="number" min="0" step="100" /></label>
+          <label><span class="label-row">Private pension start age <span class="legend-chip bias-neutral" title="Timing depends on your plan and pension rules.">C/A</span></span><input id="privatePensionStartAge" type="number" min="40" max="80" step="1" /></label>
+          <label data-complexity="advanced"><span class="label-row">Private pension increase (%/yr) <span class="legend-chip bias-up" title="Modeling pension increases is generally more conservative than assuming none.">C↑ A↓</span></span><input id="privatePensionIncrease" type="number" min="0" max="15" step="0.1" /></label>
+          <label class="toggle-label"><span class="label-row">Include spouse pensions / benefits <span class="legend-chip bias-neutral" title="Enable spouse pension and government benefit inputs.">C/A</span></span>
+            <input id="spouseEnabled" type="checkbox" />
+          </label>
+          <label data-spouse-field><span class="label-row">Spouse private pension name <span class="legend-chip bias-neutral" title="Reference label for spouse pension source.">C/A</span></span><input id="spousePrivatePensionName" type="text" placeholder="Spouse Pension" /></label>
+          <label data-spouse-field><span class="label-row">Spouse private pension ($/yr) <span class="legend-chip bias-up" title="Higher guaranteed pension income is generally more conservative.">C↑ A↓</span></span><input id="spousePrivatePensionAnnual" type="number" min="0" step="100" /></label>
+          <label data-spouse-field><span class="label-row">Spouse private pension start age <span class="legend-chip bias-neutral" title="Timing depends on plan and pension rules.">C/A</span></span><input id="spousePrivatePensionStartAge" type="number" min="40" max="80" step="1" /></label>
+          <label data-complexity="advanced" data-spouse-field><span class="label-row">Spouse private pension increase (%/yr) <span class="legend-chip bias-up" title="Modeling pension increases is generally more conservative than assuming none.">C↑ A↓</span></span><input id="spousePrivatePensionIncrease" type="number" min="0" max="15" step="0.1" /></label>
+          <label data-complexity="advanced"><span class="label-row">CPP at 65 ($/yr) <span class="legend-chip bias-down" title="Using a lower estimated CPP amount is more conservative.">C↓ A↑</span></span><input id="cppAt65" type="number" min="0" step="100" /></label>
+          <label><span class="label-row">CPP start age <span class="legend-chip bias-neutral" title="Timing choice depends on longevity, cash flow, and other income sources.">C/A</span></span><input id="cppStartAge" type="number" min="60" max="70" step="1" /></label>
+          <label data-complexity="advanced"><span class="label-row">OAS at 65 ($/yr) <span class="legend-chip bias-down" title="Using a lower estimated OAS amount is more conservative.">C↓ A↑</span></span><input id="oasAt65" type="number" min="0" step="100" /></label>
+          <label><span class="label-row">OAS start age <span class="legend-chip bias-neutral" title="Timing choice depends on your broader retirement drawdown strategy.">C/A</span></span><input id="oasStartAge" type="number" min="65" max="70" step="1" /></label>
+          <label data-complexity="advanced" data-spouse-field><span class="label-row">Spouse CPP at 65 ($/yr) <span class="legend-chip bias-down" title="Using a lower estimated spouse CPP amount is more conservative.">C↓ A↑</span></span><input id="spouseCppAt65" type="number" min="0" step="100" /></label>
+          <label data-spouse-field><span class="label-row">Spouse CPP start age <span class="legend-chip bias-neutral" title="Timing depends on the spouse retirement income plan.">C/A</span></span><input id="spouseCppStartAge" type="number" min="60" max="70" step="1" /></label>
+          <label data-complexity="advanced" data-spouse-field><span class="label-row">Spouse OAS at 65 ($/yr) <span class="legend-chip bias-down" title="Using a lower estimated spouse OAS amount is more conservative.">C↓ A↑</span></span><input id="spouseOasAt65" type="number" min="0" step="100" /></label>
+          <label data-spouse-field><span class="label-row">Spouse OAS start age <span class="legend-chip bias-neutral" title="Timing depends on the spouse retirement income plan.">C/A</span></span><input id="spouseOasStartAge" type="number" min="65" max="70" step="1" /></label>
+          <label class="toggle-label" data-complexity="advanced"><span class="label-row">Estimate OAS clawback <span class="legend-chip bias-neutral" title="Optional planning assumption for OAS recovery tax.">C/A</span></span>
+            <input id="oasClawbackEnabled" type="checkbox" />
+          </label>
+          <label data-complexity="advanced"><span class="label-row">OAS clawback threshold (per recipient $/yr) <span class="legend-chip bias-neutral" title="Planning threshold used for the estimated OAS clawback calculation.">C/A</span></span><input id="oasClawbackThreshold" type="number" min="0" step="100" /></label>
+          <label data-complexity="advanced"><span class="label-row">OAS clawback rate (%) <span class="legend-chip bias-neutral" title="Recovery rate applied above the threshold (commonly 15%).">C/A</span></span><input id="oasClawbackRate" type="number" min="0" max="100" step="0.1" /></label>
+          <label class="toggle-label" data-complexity="advanced"><span class="label-row">Escalate tax brackets with inflation <span class="legend-chip bias-neutral" title="Modeling choice; use based on planning assumptions and forecast year.">C/A</span></span>
+            <input id="escalateBrackets" type="checkbox" />
+          </label>
+        </form>
+      </section>
+
+      <section class="panel panel-stack" aria-labelledby="resultsTitle">
+        <div class="panel-header">
+          <h2 id="resultsTitle">Forecast Results</h2>
+          <p>Estimated balances, income coverage, and drawdown timing based on your inputs.</p>
+        </div>
+
+        <div class="results-grid" id="resultsGrid"></div>
+
+        <div class="subpanel" aria-labelledby="retirementBreakdownTitle">
+          <div class="subpanel-head">
+            <h3 id="retirementBreakdownTitle">Year 1 Retirement Income Breakdown</h3>
+            <p class="muted small-copy">Estimated sources and taxes for your first retirement year (target is after-tax spending).</p>
+          </div>
+          <dl id="retirementBreakdownDetails" class="detail-list"></dl>
+        </div>
+
+        <div class="subpanel" aria-labelledby="taxTitle" data-complexity="advanced">
+          <div class="subpanel-head">
+            <h3 id="taxTitle">2026 Effective Tax Rate (Province Estimate)</h3>
+            <p id="taxSubtitle" class="muted small-copy">Uses 2026 official federal + selected province/territory thresholds/rates (planning estimate, not filing).</p>
+            <button id="taxAssumptionsBtn" type="button" class="text-link-btn no-print">Tax estimate assumptions</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Income</th>
+                  <th>Federal Tax</th>
+                  <th>Provincial Tax</th>
+                  <th>Total Tax</th>
+                  <th>Effective Rate</th>
+                </tr>
+              </thead>
+              <tbody id="taxTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="dual-subpanels" data-complexity="advanced">
+          <div class="subpanel" aria-labelledby="pensionScenariosTitle">
+            <div class="subpanel-head">
+              <h3 id="pensionScenariosTitle">Pension Estimate Scenarios</h3>
+              <p class="muted small-copy">Projected government benefit totals by pension start age (private pension shown separately).</p>
+            </div>
+            <div class="table-wrap compact">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Age</th>
+                    <th>CPP / yr</th>
+                    <th>OAS / yr</th>
+                    <th>Total / yr</th>
+                  </tr>
+                </thead>
+                <tbody id="pensionScenarioBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="subpanel" aria-labelledby="selectedPensionTitle">
+            <div class="subpanel-head">
+              <h3 id="selectedPensionTitle">Selected Income Timing</h3>
+              <p class="muted small-copy">Government benefits plus private pension values used in the forecast.</p>
+            </div>
+            <dl id="selectedPensionDetails" class="detail-list"></dl>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel-span-2" aria-labelledby="chartTitle">
+        <div class="panel-header panel-header-inline">
+          <div>
+            <h2 id="chartTitle">Savings and Retirement Cash Flow Forecast</h2>
+            <p>Blue area shows projected savings balance; dark line shows annual retirement spending target (after tax, inflation-adjusted).</p>
+          </div>
+        </div>
+        <div class="legend legend-chart" aria-label="Chart legend">
+          <div class="legend-title">Chart legend</div>
+          <span class="legend-item"><i class="legend-swatch legend-balance" aria-hidden="true"></i><span>Savings balance</span></span>
+          <span class="legend-item"><i class="legend-swatch legend-band" aria-hidden="true"></i><span>Uncertainty band (illustrative range)</span></span>
+          <span class="legend-item"><i class="legend-swatch legend-spend" aria-hidden="true"></i><span>Spending target (after tax)</span></span>
+          <span class="legend-item"><i class="legend-swatch legend-pension" aria-hidden="true"></i><span>Pensions and benefits income</span></span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="projectionChart" width="1200" height="420" aria-label="Projection chart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel panel-span-2" aria-labelledby="notesTitle">
+        <div class="panel-header">
+          <h2 id="notesTitle">Planning Notes</h2>
+          <p>Editable notes area for assumptions, tax strategy reminders, and next questions for your advisor.</p>
+        </div>
+        <textarea id="plannerNotes" class="template-notes" rows="10"></textarea>
+      </section>
+
+      <section class="panel panel-span-2" aria-labelledby="canadianPlannerAboutTitle">
+        <div class="panel-header">
+          <h2 id="canadianPlannerAboutTitle">Canadian Retirement Planner (NL Default)</h2>
+          <p>Built for Canadian retirement planning with CPP, OAS, private pensions, spouse benefits, and tax-aware retirement withdrawal estimates.</p>
+        </div>
+        <p class="muted small-copy">The default province is <strong>Newfoundland and Labrador (NL)</strong> for tax estimates. You can switch provinces or territories in the assumptions panel to compare retirement planning outcomes across Canada.</p>
+      </section>
+
+      <section class="panel panel-span-2" aria-labelledby="referencesTitle">
+        <div class="panel-header">
+          <h2 id="referencesTitle">Official References</h2>
+          <p>CRA sources used for 2026 federal and provincial/territorial payroll tax rate thresholds in this planning estimate.</p>
+        </div>
+        <ul class="resource-links">
+          <li><a href="https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html" target="_blank" rel="noopener noreferrer">CRA T4127 Payroll Deductions Formulas (Effective January 1, 2026)</a></li>
+          <li><a href="https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4032-payroll-deductions-tables.html" target="_blank" rel="noopener noreferrer">CRA T4032 Payroll Deductions Tables (current year guides)</a></li>
+          <li><a href="https://www.canada.ca/en/revenue-agency/services/e-services/digital-services-businesses/payroll-deductions-online-calculator.html" target="_blank" rel="noopener noreferrer">CRA Payroll Deductions Online Calculator (PDOC)</a></li>
+          <li><a href="https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll.html" target="_blank" rel="noopener noreferrer">CRA Payroll (official payroll deductions hub)</a></li>
+          <li><a href="https://www.revenuquebec.ca/en/citizens/income-tax-return/completing-your-income-tax-return/income-tax-rates/" target="_blank" rel="noopener noreferrer">Revenu Québec - Income Tax Rates (includes 2026 Quebec rates)</a></li>
+          <li><a href="https://www.revenuquebec.ca/en/businesses/source-deductions-and-employer-contributions/employers-kit/principal-changes-for-2026-employers-kit/" target="_blank" rel="noopener noreferrer">Revenu Québec - Principal Changes for 2026 (Employer's Kit)</a></li>
+        </ul>
+        <p class="muted small-copy">Quebec provincial income tax is administered separately by Revenu Québec; this tool uses Revenu Québec 2026 rate thresholds for Quebec and CRA sources for federal + other provinces/territories.</p>
+      </section>
+    </main>
+  </div>
+
+  <input id="importFile" type="file" accept="application/json" hidden />
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="taxAssumptionsModal" class="modal-backdrop no-print" hidden aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="taxAssumptionsModalTitle">
+      <div class="modal-head">
+        <h2 id="taxAssumptionsModalTitle">Tax Estimate Assumptions</h2>
+        <button id="taxAssumptionsCloseBtn" type="button" class="icon-close-btn" aria-label="Close tax estimate assumptions">×</button>
+      </div>
+      <div class="modal-body-copy">
+        <p>This planner uses a simplified tax estimate to help gross-up retirement withdrawals for after-tax spending targets.</p>
+        <p><strong>Included:</strong> 2026 federal rates + selected province/territory marginal rates (or Revenu Québec rates for Quebec), with optional inflation scaling in future years.</p>
+        <p><strong>Not included (yet):</strong> basic personal amounts and credits, surtaxes, provincial health premiums, Quebec-specific payroll contributions, pension splitting, account-type tax treatment (RRSP/RRIF vs TFSA vs non-registered), or spouse/household optimization.</p>
+        <p><strong>Optional estimate:</strong> OAS clawback can be enabled as a planning assumption in Advanced mode. The current implementation uses a household approximation (per-recipient threshold x number of OAS recipients).</p>
+        <p>Use this as a planning estimate, not a filing calculation. For decision-grade tax planning, verify with CRA/Revenu Québec tools and a qualified tax professional.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
