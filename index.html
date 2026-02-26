@@ -54,7 +54,7 @@
         <p class="eyebrow">Canadian Retirement Planner • Local-first • NL default province</p>
         <h1 id="heroTitle">Retirement Plan Title</h1>
         <p class="hero-subtitle">Plan Canadian retirement savings, tax-aware withdrawals, CPP/OAS timing, and private pension income.</p>
-        <p class="hero-proof">Built from your current template kit style with browser-only storage and export/import backups.</p>
+        <p class="hero-hookline">Built for Canadians with pensions retiring before 65 (bridge-to-CPP/OAS planning).</p>
         <div class="hero-cta-row no-print">
           <button id="saveBtn" class="btn btn-primary" type="button">Save now</button>
           <button id="exportBtn" class="btn btn-secondary" type="button">Export JSON</button>
@@ -262,11 +262,6 @@
               <h3 id="outcomeSummaryTitle">Outcome Summary</h3>
               <p class="muted small-copy">Quick answers for non-experts using your current assumptions.</p>
             </div>
-            <div class="support-inline-cta no-print">
-              <p>If this tool saved you time or gave you clarity, consider supporting future Canadian-focused upgrades.</p>
-              <p class="small-copy muted">No ads. No tracking. Local-first.</p>
-              <a class="btn btn-secondary support-link-btn" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Support development</a>
-            </div>
           </div>
           <div id="outcomeSummaryCard" class="outcome-summary-card" aria-live="polite"></div>
         </div>
@@ -292,6 +287,7 @@
               <tbody id="scenarioTableBody"></tbody>
             </table>
           </div>
+          <p id="scenarioInterpretationLine" class="scenario-interpretation-line" aria-live="polite"></p>
         </div>
 
         <div id="stressTestPanel" class="subpanel" data-complexity="advanced" hidden aria-labelledby="stressTestTitle">
@@ -299,6 +295,10 @@
             <h3 id="stressTestTitle">Stress Test Mode</h3>
             <p class="muted small-copy">Fast matrix of outcome summaries across return and inflation combinations.</p>
           </div>
+          <p class="stress-legend-line muted small-copy">
+            <strong>Legend:</strong> Green = funded, Yellow = tight margin, Red = depletion/shortfall.
+            <span class="inline-info-dot" tabindex="0" role="img" aria-label="Tight margin means shortfall is within about 2 percent of first retirement-year spending." title="Tight margin = no depletion and peak shortfall is within about 2% of first retirement-year spending.">i</span>
+          </p>
           <div class="table-wrap">
             <table>
               <thead>

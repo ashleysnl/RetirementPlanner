@@ -236,6 +236,7 @@ const el = {
   outcomeSummaryCard: document.getElementById("outcomeSummaryCard"),
   scenarioTableBody: document.getElementById("scenarioTableBody"),
   scenarioTableNote: document.getElementById("scenarioTableNote"),
+  scenarioInterpretationLine: document.getElementById("scenarioInterpretationLine"),
   stressTestPanel: document.getElementById("stressTestPanel"),
   stressTestBody: document.getElementById("stressTestBody"),
   retirementBreakdownDetails: document.getElementById("retirementBreakdownDetails"),
@@ -1000,6 +1001,24 @@ function buildPlannerAnalytics(inputs, projection) {
     ? "Your plan is close, but it becomes sensitive to return and inflation assumptions. Review the scenario table and stress test results before relying on this plan."
     : "Your current assumptions likely need changes to retire on your target timeline. Use the suggested actions below to test the biggest levers first.";
 
+  const conservativeScenario = scenarios.find((s) => s.key === "conservative");
+  let scenarioInterpretationLine = "Scenario interpretation unavailable.";
+  if (conservativeScenario) {
+    const d = conservativeScenario.diagnostics;
+    if (d.peakShortfall > 0) {
+      scenarioInterpretationLine = `To survive the Conservative case, reduce after-tax retirement spending by about ${money(d.peakShortfall)}/yr, or delay retirement and rerun the plan.`;
+    } else if (d.depletionAge) {
+      const conservativeEarliest = findEarliestRetirementAge(inputs, currentAge, conservativeScenario.overrides);
+      if (Number.isFinite(conservativeEarliest) && conservativeEarliest > inputs.retirementAge) {
+        scenarioInterpretationLine = `To survive the Conservative case, target retirement age ≈ ${conservativeEarliest} (about +${conservativeEarliest - inputs.retirementAge} years from your current target).`;
+      } else {
+        scenarioInterpretationLine = `The Conservative case depletes around age ${d.depletionAge}. Test a later retirement age or lower spending to add margin.`;
+      }
+    } else {
+      scenarioInterpretationLine = "Even the Conservative case remains funded; your main risk is spending drift or inflation.";
+    }
+  }
+
   return {
     baseDiag,
     scenarios,
@@ -1009,6 +1028,7 @@ function buildPlannerAnalytics(inputs, projection) {
     age65Coverage,
     stressMatrix,
     scenarioMethodNote,
+    scenarioInterpretationLine,
     explanation,
   };
 }
@@ -1225,42 +1245,63 @@ function estimateGuaranteedCoverageAtAge(inputs, age, baseDiag) {
 function renderOutcomeSummary(analytics) {
   if (!el.outcomeSummaryCard) return;
   const { status, earliestRetirementAge, baseDiag, retireCoverage, age65Coverage, explanation } = analytics;
+  const targetAge = state.inputs.retirementAge;
   const depletionText = baseDiag.depletionAge ? `Portfolio depletes around age ${baseDiag.depletionAge}` : "No portfolio depletion before your selected life expectancy";
-  const shortfallText = baseDiag.shortfallAtTargetRetirement > 0
-    ? `${money(baseDiag.shortfallAtTargetRetirement)} / yr after-tax shortfall at target retirement age`
-    : "No first-year after-tax shortfall at your target retirement age in the base scenario";
+  const shortfallValue = baseDiag.shortfallAtTargetRetirement > 0 ? money(baseDiag.shortfallAtTargetRetirement) : "$0";
+  const verdictLine = `${status.icon} ${status.label} for age ${targetAge}`;
 
   el.outcomeSummaryCard.innerHTML = `
-    <div class="outcome-status-pill status-${escapeHtml(status.key)}" role="status" aria-live="polite">
-      <span class="status-icon" aria-hidden="true">${escapeHtml(status.icon)}</span>
-      <span>${escapeHtml(status.label)}</span>
+    <div class="outcome-verdict-block">
+      <div class="outcome-status-pill large status-${escapeHtml(status.key)}" role="status" aria-live="polite">
+        <span class="status-icon" aria-hidden="true">${escapeHtml(status.icon)}</span>
+        <span>${escapeHtml(status.label)}</span>
+      </div>
+      <div class="outcome-verdict-line">${escapeHtml(verdictLine)}</div>
+      <div class="outcome-verdict-note">${escapeHtml(depletionText)}</div>
     </div>
     <div class="outcome-metrics-grid">
       <div class="outcome-metric">
-        <span class="label">Earliest retirement age that meets target</span>
-        <strong>${earliestRetirementAge === null ? "Not found (<= 70)" : escapeHtml(String(earliestRetirementAge))}</strong>
-      </div>
-      <div class="outcome-metric">
         <span class="label">Shortfall at target retirement age</span>
-        <strong>${escapeHtml(shortfallText)}</strong>
+        <div class="value-row">
+          <strong class="value-main">${escapeHtml(shortfallValue)} / yr</strong>
+        </div>
+        <span class="value-sub">After tax (annual)</span>
       </div>
       <div class="outcome-metric">
-        <span class="label">Guaranteed income coverage at retirement age</span>
-        <strong>${escapeHtml(pct(Math.max(0, retireCoverage.coverage)))} (${escapeHtml(money(retireCoverage.guaranteedNet))} net est.)</strong>
+        <span class="label">Earliest retirement age (base)</span>
+        <div class="value-row">
+          <strong class="value-main">${earliestRetirementAge === null ? "Not found" : `Earliest: ${escapeHtml(String(earliestRetirementAge))}`}</strong>
+        </div>
+        <span class="value-sub">Scan under base assumptions (to age 70)</span>
       </div>
       <div class="outcome-metric">
-        <span class="label">Guaranteed income coverage at age 65</span>
-        <strong>${escapeHtml(pct(Math.max(0, age65Coverage.coverage)))} (${escapeHtml(money(age65Coverage.guaranteedNet))} net est.)</strong>
+        <span class="label">Guaranteed income coverage</span>
+        <div class="value-row">
+          <strong class="value-main">At retirement: ${escapeHtml(pct(Math.max(0, retireCoverage.coverage)))}</strong>
+        </div>
+        <span class="value-sub">At 65: ${escapeHtml(pct(Math.max(0, age65Coverage.coverage)))}</span>
+      </div>
+      <div class="outcome-metric">
+        <span class="label">Guaranteed income (net est.)</span>
+        <div class="value-row">
+          <strong class="value-main">${escapeHtml(money(retireCoverage.guaranteedNet))}</strong>
+        </div>
+        <span class="value-sub">At 65: ${escapeHtml(money(age65Coverage.guaranteedNet))}</span>
       </div>
     </div>
+    <div class="support-inline-cta no-print">
+      <p>If this tool saved you time or gave you clarity, consider supporting future Canadian-focused upgrades.</p>
+      <a class="btn btn-secondary support-link-btn" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Support development</a>
+      <p class="small-copy muted">No ads. No tracking. Local-first.</p>
+    </div>
     <p class="outcome-explainer">${escapeHtml(explanation)}</p>
-    <p class="muted small-copy">${escapeHtml(depletionText)}</p>
   `;
 }
 
 function renderScenarioTable(analytics) {
   if (!el.scenarioTableBody) return;
   if (el.scenarioTableNote) el.scenarioTableNote.textContent = analytics.scenarioMethodNote;
+  if (el.scenarioInterpretationLine) el.scenarioInterpretationLine.textContent = analytics.scenarioInterpretationLine || "";
 
   el.scenarioTableBody.innerHTML = analytics.scenarios
     .map((row) => {
@@ -1288,19 +1329,35 @@ function renderStressTest(analytics) {
   el.stressTestBody.innerHTML = analytics.stressMatrix
     .map((row) => {
       const cells = row.cells
-        .map((cell) => `
+        .map((cell) => {
+          const stressState = classifyStressCellStatus(cell.diagnostics);
+          return `
           <td>
             <div class="stress-cell">
-              <span class="stress-badge status-${escapeHtml(cell.status.key)}">${escapeHtml(cell.status.icon)} ${escapeHtml(cell.status.label)}</span>
+              <span class="stress-badge stress-${escapeHtml(stressState.key)}">${escapeHtml(stressState.label)}</span>
               <span>Earliest: ${cell.earliestRetirementAge ?? "n/a"}</span>
-              <span>Depletion: ${cell.diagnostics.depletionAge ? `Age ${cell.diagnostics.depletionAge}` : "Never"}</span>
+              <span>Depletion: ${stressState.key === "depletes" && cell.diagnostics.depletionAge ? `Age ${cell.diagnostics.depletionAge}` : "—"}</span>
               <span>Shortfall: ${cell.diagnostics.shortfallAtTargetRetirement > 0 ? money(cell.diagnostics.shortfallAtTargetRetirement) : "None"}</span>
             </div>
-          </td>`)
+          </td>`;
+        })
         .join("");
       return `<tr><th>${row.growthRate.toFixed(1)}%</th>${cells}</tr>`;
     })
     .join("");
+}
+
+function classifyStressCellStatus(diagnostics) {
+  const baseSpending = diagnostics.retirementRow?.spending || state.inputs.desiredIncome || 0;
+  const tolerance = Math.max(0, baseSpending * 0.02);
+  const peakShortfall = diagnostics.peakShortfall || 0;
+  if ((diagnostics.depletionAge && diagnostics.depletionAge <= diagnostics.lifeExpectancy) || peakShortfall > tolerance) {
+    return { key: "depletes", label: "Depletes" };
+  }
+  if (!diagnostics.depletionAge && peakShortfall > 0) {
+    return { key: "tight", label: "Tight" };
+  }
+  return { key: "funded", label: "Funded" };
 }
 
 function renderTaxGuidance(inputs, projection, analytics) {
@@ -1340,7 +1397,43 @@ function renderTaxGuidance(inputs, projection, analytics) {
     whyItems.push(`Your account buckets differ from total current savings by about ${money(bucketGap)}. Update the optional bucket balances for more accurate withdrawal guidance.`);
   }
 
+  const selectedStrategyName =
+    inputs.withdrawalStrategy === "taxSmart"
+      ? "Tax-smart (heuristic)"
+      : inputs.withdrawalStrategy === "rrspFirst"
+      ? "Simple (RRSP first)"
+      : "TFSA first (comparison)";
+
+  let strategyIntro = "This is a planning heuristic intended to smooth taxable income and preserve flexibility.";
+  let strategyPracticeItems = [
+    "Review the bridge period (retirement to age 65) and age-65+ guidance cards below.",
+    "Compare this strategy with another option using the same assumptions before deciding.",
+    "Use the Year 1 retirement breakdown and scenario table to see how sensitive your plan is.",
+  ];
+
+  if (inputs.withdrawalStrategy === "rrspFirst") {
+    strategyIntro = "RRSP-first is simple and can be reasonable when you need straightforward cash flow, expect lower retirement tax rates, or have limited TFSA room.";
+    strategyPracticeItems = [
+      "Expect taxable income to rise faster if RRSP/RRIF withdrawals are your first funding source.",
+      "This may be easier to manage early, but can reduce flexibility later if markets or spending change.",
+      "Compare against Tax-smart mode if OAS clawback or higher later-life taxable income is a concern.",
+    ];
+  } else if (inputs.withdrawalStrategy === "tfsaFirst") {
+    strategyIntro = "TFSA-first can reduce taxable income early, but it may leave larger taxable RRSP/RRIF balances for later years.";
+    strategyPracticeItems = [
+      "Early retirement cash flow may look cleaner because TFSA withdrawals do not increase taxable income.",
+      "Later taxable withdrawals may increase if RRSP/RRIF balances keep compounding while untouched.",
+      "Use this as a comparison scenario, especially if your base plan depends on preserving low tax brackets later.",
+    ];
+  }
+
   el.taxGuidanceBody.innerHTML = `
+    <section class="guidance-card" aria-labelledby="guidanceStrategyTitle">
+      <h4 id="guidanceStrategyTitle">Selected strategy: ${escapeHtml(selectedStrategyName)}</h4>
+      <p class="muted small-copy">${escapeHtml(strategyIntro)}</p>
+      <h4>What this means in practice</h4>
+      <ul>${strategyPracticeItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    </section>
     <section class="guidance-card" aria-labelledby="guidanceBridgeTitle">
       <h4 id="guidanceBridgeTitle">Bridge period (retirement to 65)</h4>
       <ul>${bridgeItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
@@ -1352,9 +1445,7 @@ function renderTaxGuidance(inputs, projection, analytics) {
     <section class="guidance-card" aria-labelledby="guidanceWhyTitle">
       <h4 id="guidanceWhyTitle">Why this may help (heuristic)</h4>
       <ul>${whyItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-      <p class="muted small-copy">Current strategy view: <strong>${escapeHtml(
-        inputs.withdrawalStrategy === "taxSmart" ? "Tax-smart (heuristic)" : inputs.withdrawalStrategy === "rrspFirst" ? "Simple (RRSP first)" : "TFSA first (comparison)"
-      )}</strong></p>
+      <p class="muted small-copy">Current strategy view: <strong>${escapeHtml(selectedStrategyName)}</strong></p>
     </section>
   `;
 }
