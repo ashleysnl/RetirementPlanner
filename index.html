@@ -14,12 +14,12 @@
   <meta property="og:site_name" content="Canadian Retirement Planner" />
   <meta property="og:title" content="Canadian Retirement Planner | Tax-Aware CPP/OAS & Pension Forecasting" />
   <meta property="og:description" content="Plan retirement income in Canada with tax-aware withdrawals, CPP/OAS timing, private pensions, spouse benefits, and NL as the default province." />
-  <meta property="og:url" content="https://your-domain.ca/" />
+  <meta property="og:url" content="https://ashleysnl.github.io/RetirementPlanner/" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Canadian Retirement Planner" />
   <meta name="twitter:description" content="Canadian retirement planning tool with tax-aware income forecasting, CPP/OAS timing, and Newfoundland (NL) default province." />
   <meta name="theme-color" content="#0f6abf" />
-  <link rel="canonical" href="https://your-domain.ca/" />
+  <link rel="canonical" href="https://ashleysnl.github.io/RetirementPlanner/" />
   <title>Canadian Retirement Planner | Newfoundland (NL) Default Province</title>
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
   <link rel="manifest" href="manifest.webmanifest" />
@@ -43,7 +43,7 @@
         }
       ],
       "inLanguage": "en-CA",
-      "url": "https://your-domain.ca/"
+      "url": "https://ashleysnl.github.io/RetirementPlanner/"
     }
   </script>
 </head>
@@ -59,7 +59,8 @@
           <button id="saveBtn" class="btn btn-primary" type="button">Save now</button>
           <button id="exportBtn" class="btn btn-secondary" type="button">Export JSON</button>
           <button id="importBtn" class="btn btn-secondary" type="button">Import JSON</button>
-          <button id="resetBtn" class="btn btn-secondary" type="button">Reset demo</button>
+          <button id="demoBtn" class="btn btn-secondary" type="button">Load demo scenario</button>
+          <button id="resetBtn" class="btn btn-secondary" type="button">Reset app</button>
           <a
             class="btn btn-secondary support-link-btn"
             href="https://buymeacoffee.com/ashleysnl"
@@ -194,6 +195,13 @@
           <label data-complexity="advanced"><span class="label-row">Pre-retirement return (%/yr) <span class="legend-chip bias-down" title="Assuming lower returns is more conservative; higher returns is more aggressive.">C↓ A↑</span></span><input id="growthRate" type="number" min="0" max="20" step="0.1" /></label>
           <label data-complexity="advanced"><span class="label-row">Retirement return (%/yr) <span class="legend-chip bias-down" title="Assuming lower retirement returns is more conservative.">C↓ A↑</span></span><input id="retirementReturn" type="number" min="0" max="20" step="0.1" /></label>
           <label><span class="label-row">Desired retirement spending ($/yr today, after tax) <span class="legend-chip bias-up" title="Planning for higher spending is generally more conservative.">C↑ A↓</span></span><input id="desiredIncome" type="number" min="0" step="1000" /></label>
+          <label data-complexity="advanced"><span class="label-row">Return volatility (%/yr, scenarios) <span class="legend-chip bias-neutral" title="Used for scenario ranges and stress testing heuristics.">C/A</span></span><input id="returnVolatility" type="number" min="0" max="30" step="0.1" /></label>
+          <label data-complexity="advanced"><span class="label-row">Scenario method <span class="legend-chip bias-neutral" title="Deterministic scenarios use expected return ± spread for quick comparisons.">C/A</span></span>
+            <select id="scenarioMethod">
+              <option value="deterministic">Deterministic (+/- spread)</option>
+              <option value="deterministicWide">Deterministic wide (+/- volatility)</option>
+            </select>
+          </label>
 
           <div class="form-section-title" data-step-title="benefits">Pensions & government benefits</div>
           <label><span class="label-row">Private pension name <span class="legend-chip bias-neutral" title="Reference label for your pension source.">C/A</span></span><input id="privatePensionName" type="text" placeholder="ACME Private Pension" /></label>
@@ -220,6 +228,22 @@
           </label>
           <label data-complexity="advanced"><span class="label-row">OAS clawback threshold (per recipient $/yr) <span class="legend-chip bias-neutral" title="Planning threshold used for the estimated OAS clawback calculation.">C/A</span></span><input id="oasClawbackThreshold" type="number" min="0" step="100" /></label>
           <label data-complexity="advanced"><span class="label-row">OAS clawback rate (%) <span class="legend-chip bias-neutral" title="Recovery rate applied above the threshold (commonly 15%).">C/A</span></span><input id="oasClawbackRate" type="number" min="0" max="100" step="0.1" /></label>
+          <div class="form-section-title" data-complexity="advanced">Tax-smart withdrawal inputs (optional)</div>
+          <label data-complexity="advanced"><span class="label-row">RRSP / RRIF balance ($) <span class="legend-chip bias-neutral" title="Optional account bucket used for tax-smart withdrawal guidance.">C/A</span></span><input id="rrspBalance" type="number" min="0" step="1000" /></label>
+          <label data-complexity="advanced"><span class="label-row">TFSA balance ($) <span class="legend-chip bias-neutral" title="Optional account bucket used for tax-smart withdrawal guidance.">C/A</span></span><input id="tfsaBalance" type="number" min="0" step="1000" /></label>
+          <label data-complexity="advanced"><span class="label-row">Non-registered balance ($) <span class="legend-chip bias-neutral" title="Optional taxable account used for withdrawal guidance comparisons.">C/A</span></span><input id="nonRegisteredBalance" type="number" min="0" step="1000" /></label>
+          <label data-complexity="advanced"><span class="label-row">New contributions to RRSP (%) <span class="legend-chip bias-neutral" title="Allocation split for future contributions (guidance only).">C/A</span></span><input id="rrspContributionPct" type="number" min="0" max="100" step="1" /></label>
+          <label data-complexity="advanced"><span class="label-row">New contributions to TFSA (%) <span class="legend-chip bias-neutral" title="Allocation split for future contributions (guidance only).">C/A</span></span><input id="tfsaContributionPct" type="number" min="0" max="100" step="1" /></label>
+          <label data-complexity="advanced"><span class="label-row">Withdrawal strategy (comparison) <span class="legend-chip bias-neutral" title="Guidance heuristic only; not tax advice.">C/A</span></span>
+            <select id="withdrawalStrategy">
+              <option value="taxSmart">Tax-smart (heuristic)</option>
+              <option value="rrspFirst">Simple (RRSP first)</option>
+              <option value="tfsaFirst">TFSA first (comparison)</option>
+            </select>
+          </label>
+          <label class="toggle-label" data-complexity="advanced"><span class="label-row">Stress test mode <span class="legend-chip bias-neutral" title="Shows a grid of outcomes across return and inflation assumptions.">C/A</span></span>
+            <input id="stressTestEnabled" type="checkbox" />
+          </label>
           <label class="toggle-label" data-complexity="advanced"><span class="label-row">Escalate tax brackets with inflation <span class="legend-chip bias-neutral" title="Modeling choice; use based on planning assumptions and forecast year.">C/A</span></span>
             <input id="escalateBrackets" type="checkbox" />
           </label>
@@ -230,6 +254,63 @@
         <div class="panel-header">
           <h2 id="resultsTitle">Forecast Results</h2>
           <p>Estimated balances, income coverage, and drawdown timing based on your inputs.</p>
+        </div>
+
+        <div class="subpanel outcome-summary-panel" aria-labelledby="outcomeSummaryTitle">
+          <div class="subpanel-head outcome-summary-head">
+            <div>
+              <h3 id="outcomeSummaryTitle">Outcome Summary</h3>
+              <p class="muted small-copy">Quick answers for non-experts using your current assumptions.</p>
+            </div>
+            <div class="support-inline-cta no-print">
+              <p>If this tool saved you time or gave you clarity, consider supporting future Canadian-focused upgrades.</p>
+              <p class="small-copy muted">No ads. No tracking. Local-first.</p>
+              <a class="btn btn-secondary support-link-btn" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Support development</a>
+            </div>
+          </div>
+          <div id="outcomeSummaryCard" class="outcome-summary-card" aria-live="polite"></div>
+        </div>
+
+        <div class="subpanel" aria-labelledby="scenarioTableTitle">
+          <div class="subpanel-head">
+            <h3 id="scenarioTableTitle">Scenario View (Best / Base / Worst)</h3>
+            <p id="scenarioTableNote" class="muted small-copy">Deterministic scenarios use expected return +/- a spread (documented in this table).</p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Scenario</th>
+                  <th>Return / Inflation</th>
+                  <th>Balance @ Retire</th>
+                  <th>Balance @ 65</th>
+                  <th>Balance @ 90</th>
+                  <th>Depletion</th>
+                  <th>Peak shortfall</th>
+                </tr>
+              </thead>
+              <tbody id="scenarioTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="stressTestPanel" class="subpanel" data-complexity="advanced" hidden aria-labelledby="stressTestTitle">
+          <div class="subpanel-head">
+            <h3 id="stressTestTitle">Stress Test Mode</h3>
+            <p class="muted small-copy">Fast matrix of outcome summaries across return and inflation combinations.</p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Returns / Inflation</th>
+                  <th>2.0%</th>
+                  <th>3.0%</th>
+                </tr>
+              </thead>
+              <tbody id="stressTestBody"></tbody>
+            </table>
+          </div>
         </div>
 
         <div class="results-grid" id="resultsGrid"></div>
@@ -293,6 +374,22 @@
             <dl id="selectedPensionDetails" class="detail-list"></dl>
           </div>
         </div>
+
+        <div class="subpanel" aria-labelledby="taxGuidanceTitle">
+          <div class="subpanel-head">
+            <h3 id="taxGuidanceTitle">Tax-Smart Withdrawal Order (Guidance)</h3>
+            <p class="muted small-copy">Planning guidance only, not tax advice. Uses a heuristic based on your estimated income, province, and OAS clawback settings.</p>
+          </div>
+          <div id="taxGuidanceBody" class="guidance-grid" aria-live="polite"></div>
+        </div>
+
+        <div class="subpanel" aria-labelledby="actionsTitle">
+          <div class="subpanel-head">
+            <h3 id="actionsTitle">Suggested Next Steps</h3>
+            <p class="muted small-copy">Data-driven ideas based on your current assumptions and forecast results.</p>
+          </div>
+          <ol id="actionsList" class="action-list" aria-live="polite"></ol>
+        </div>
       </section>
 
       <section class="panel panel-span-2" aria-labelledby="chartTitle">
@@ -344,6 +441,11 @@
           <li><a href="https://www.revenuquebec.ca/en/businesses/source-deductions-and-employer-contributions/employers-kit/principal-changes-for-2026-employers-kit/" target="_blank" rel="noopener noreferrer">Revenu Québec - Principal Changes for 2026 (Employer's Kit)</a></li>
         </ul>
         <p class="muted small-copy">Quebec provincial income tax is administered separately by Revenu Québec; this tool uses Revenu Québec 2026 rate thresholds for Quebec and CRA sources for federal + other provinces/territories.</p>
+        <div class="support-footer-cta no-print">
+          <p>If this tool saved you time or gave you clarity, consider supporting future Canadian-focused upgrades.</p>
+          <p class="small-copy muted">No ads. No tracking. Local-first.</p>
+          <a class="btn btn-primary support-link-btn" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Support development</a>
+        </div>
       </section>
     </main>
   </div>
