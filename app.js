@@ -1,2149 +1,2142 @@
-const STORAGE_KEY = "retirementPlanner.v1";
-const BACKUP_VERSION = 1;
-const UI_MODE_KEY = "retirementPlanner.uiMode.v1";
-
-const RISK_PRESETS = {
-  conservative: { growthRate: 4.0, retirementReturn: 3.0, label: "Conservative" },
-  balanced: { growthRate: 5.5, retirementReturn: 4.0, label: "Balanced" },
-  aggressive: { growthRate: 7.0, retirementReturn: 5.0, label: "Aggressive" },
+const APP = {
+  storageKey: "retirementPlanner.plan.v2",
+  version: 2,
+  currentYear: new Date().getFullYear(),
+  defaultProvince: "NL",
 };
 
-// CRA payroll deduction tables (January 1, 2026), Newfoundland and Labrador (NL).
-const TAX_2026 = {
-  federal: [
-    [58523, 0.14],
-    [117045, 0.205],
-    [181440, 0.26],
-    [258482, 0.29],
-    [Infinity, 0.33],
-  ],
+const PROVINCES = {
+  NL: "Newfoundland and Labrador",
+  PE: "Prince Edward Island",
+  NS: "Nova Scotia",
+  NB: "New Brunswick",
+  QC: "Quebec",
+  ON: "Ontario",
+  MB: "Manitoba",
+  SK: "Saskatchewan",
+  AB: "Alberta",
+  BC: "British Columbia",
 };
 
-// CRA T4127 Table 8.1 (effective January 1, 2026) provincial/territorial rates and thresholds.
-// Quebec provincial tax is administered by Revenu Quebec and is added separately below.
-const PROVINCE_TAX_2026 = {
-  AB: { name: "Alberta", brackets: [[151234, 0.08], [181481, 0.12], [241974, 0.13], [362961, 0.14], [Infinity, 0.15]] },
-  BC: { name: "British Columbia", brackets: [[49279, 0.0506], [98560, 0.077], [113159, 0.105], [137407, 0.1229], [186306, 0.147], [259830, 0.168], [Infinity, 0.205]] },
-  MB: { name: "Manitoba", brackets: [[47000, 0.108], [100000, 0.1275], [Infinity, 0.174]], },
-  NB: { name: "New Brunswick", brackets: [[51306, 0.094], [102614, 0.14], [190060, 0.16], [Infinity, 0.195]] },
-  NL: { name: "Newfoundland and Labrador", brackets: [[44192, 0.087], [88382, 0.145], [157792, 0.158], [220910, 0.178], [282214, 0.198], [564429, 0.208], [1128858, 0.213], [Infinity, 0.218]] },
-  NS: { name: "Nova Scotia", brackets: [[30507, 0.0879], [61015, 0.1495], [95883, 0.1667], [154650, 0.175], [Infinity, 0.21]] },
-  ON: { name: "Ontario", brackets: [[52886, 0.0505], [105775, 0.0915], [150000, 0.1116], [220000, 0.1216], [Infinity, 0.1316]] },
-  PE: { name: "Prince Edward Island", brackets: [[35388, 0.095], [70676, 0.1347], [Infinity, 0.167]] },
-  QC: { name: "Quebec", source: "RQ", brackets: [[54345, 0.14], [108680, 0.19], [132245, 0.24], [Infinity, 0.2575]] },
-  SK: { name: "Saskatchewan", brackets: [[56473, 0.105], [161922, 0.125], [Infinity, 0.145]] },
-  YT: { name: "Yukon", brackets: [[57375, 0.064], [114750, 0.09], [177882, 0.109], [500000, 0.128], [Infinity, 0.15]] },
-  NT: { name: "Northwest Territories", brackets: [[51964, 0.059], [103930, 0.086], [168967, 0.122], [Infinity, 0.1405]] },
-  NU: { name: "Nunavut", brackets: [[54707, 0.04], [109413, 0.07], [177881, 0.09], [288816, 0.115], [Infinity, 0.12]] },
+const RISK_RETURNS = {
+  conservative: 0.04,
+  balanced: 0.055,
+  aggressive: 0.07,
 };
 
-const INPUT_RISK_RULES = {
-  plannerTitle: { kind: "info", label: "Info" },
-  provinceCode: { kind: "info", label: "Info" },
-  birthYear: { kind: "info", label: "Info" },
-  currentYear: { kind: "info", label: "Info" },
-  retirementAge: { kind: "numeric", direction: "higher_conservative", baseline: 55, deltaType: "abs", delta: 3 },
-  lifeExpectancy: { kind: "numeric", direction: "higher_conservative", baseline: 90, deltaType: "abs", delta: 3 },
-  currentSavings: { kind: "numeric", direction: "higher_conservative", baseline: 268797, deltaType: "pct", delta: 0.2 },
-  annualContribution: { kind: "numeric", direction: "higher_conservative", baseline: 21000, deltaType: "pct", delta: 0.2 },
-  contributionIncrease: { kind: "numeric", direction: "higher_conservative", baseline: 3.0, deltaType: "abs", delta: 0.8 },
-  inflationRate: { kind: "numeric", direction: "higher_conservative", baseline: 2.5, deltaType: "abs", delta: 0.7 },
-  riskProfile: { kind: "profile" },
-  growthRate: { kind: "numeric", direction: "lower_conservative", baseline: 5.5, deltaType: "abs", delta: 1.0 },
-  retirementReturn: { kind: "numeric", direction: "lower_conservative", baseline: 4.0, deltaType: "abs", delta: 0.8 },
-  desiredIncome: { kind: "numeric", direction: "higher_conservative", baseline: 84000, deltaType: "pct", delta: 0.12 },
-  returnVolatility: { kind: "info", label: "Info" },
-  scenarioMethod: { kind: "info", label: "Info" },
-  privatePensionName: { kind: "info", label: "Info" },
-  privatePensionAnnual: { kind: "numeric", direction: "higher_conservative", baseline: 18500, deltaType: "pct", delta: 0.25 },
-  privatePensionStartAge: { kind: "info", label: "Info" },
-  privatePensionIncrease: { kind: "numeric", direction: "higher_conservative", baseline: 0, deltaType: "abs", delta: 0.5 },
-  spouseEnabled: { kind: "info", label: "Info" },
-  spousePrivatePensionName: { kind: "info", label: "Info" },
-  spousePrivatePensionAnnual: { kind: "numeric", direction: "higher_conservative", baseline: 12000, deltaType: "pct", delta: 0.3 },
-  spousePrivatePensionStartAge: { kind: "info", label: "Info" },
-  spousePrivatePensionIncrease: { kind: "numeric", direction: "higher_conservative", baseline: 0, deltaType: "abs", delta: 0.5 },
-  cppAt65: { kind: "numeric", direction: "lower_conservative", baseline: 9696, deltaType: "pct", delta: 0.12 },
-  cppStartAge: { kind: "numeric", direction: "higher_conservative", baseline: 65, deltaType: "abs", delta: 2 },
-  oasAt65: { kind: "numeric", direction: "lower_conservative", baseline: 8732, deltaType: "pct", delta: 0.12 },
-  oasStartAge: { kind: "numeric", direction: "higher_conservative", baseline: 65, deltaType: "abs", delta: 2 },
-  spouseCppAt65: { kind: "numeric", direction: "lower_conservative", baseline: 8000, deltaType: "pct", delta: 0.15 },
-  spouseCppStartAge: { kind: "numeric", direction: "higher_conservative", baseline: 65, deltaType: "abs", delta: 2 },
-  spouseOasAt65: { kind: "numeric", direction: "lower_conservative", baseline: 8732, deltaType: "pct", delta: 0.12 },
-  spouseOasStartAge: { kind: "numeric", direction: "higher_conservative", baseline: 65, deltaType: "abs", delta: 2 },
-  oasClawbackEnabled: { kind: "info", label: "Info" },
-  oasClawbackThreshold: { kind: "info", label: "Info" },
-  oasClawbackRate: { kind: "info", label: "Info" },
-  rrspBalance: { kind: "info", label: "Info" },
-  tfsaBalance: { kind: "info", label: "Info" },
-  nonRegisteredBalance: { kind: "info", label: "Info" },
-  rrspContributionPct: { kind: "info", label: "Info" },
-  tfsaContributionPct: { kind: "info", label: "Info" },
-  withdrawalStrategy: { kind: "info", label: "Info" },
-  stressTestEnabled: { kind: "info", label: "Info" },
-  escalateBrackets: { kind: "boolean", conservativeWhenTrue: true },
+const TOOLTIPS = {
+  province: {
+    term: "Province",
+    plain: "Your province changes estimated provincial tax and benefit context.",
+    why: "Taxes can materially change retirement income needs.",
+    range: "All Canadian provinces are available. Default: NL.",
+    example: "A plan in NL may estimate a different tax burden than the same income in ON.",
+  },
+  birthYear: {
+    term: "Year of birth",
+    plain: "Used to estimate your age each year in the projection.",
+    why: "Age controls CPP/OAS start timing and retirement duration.",
+    range: "Typical range: 1940-2008.",
+    example: "Born in 1985 means age 65 in 2050.",
+  },
+  retirementAge: {
+    term: "Retirement age",
+    plain: "Age when your plan switches from saving to drawing income.",
+    why: "Earlier retirement means fewer saving years and longer drawdown years.",
+    range: "Typical range: 55-70.",
+    example: "Retiring at 60 instead of 65 increases years your savings must support.",
+  },
+  lifeExpectancy: {
+    term: "Life expectancy",
+    plain: "How long the model projects your retirement spending.",
+    why: "Longer horizon requires more assets or lower annual spending.",
+    range: "Typical planning range: 85-100.",
+    example: "Planning to age 95 tests longevity risk.",
+  },
+  desiredSpending: {
+    term: "Desired retirement spending",
+    plain: "Your annual after-tax spending goal in today’s dollars.",
+    why: "This is the target your income sources and savings must cover.",
+    range: "Varies by household and location.",
+    example: "$60,000 today at 2% inflation is about $73,000 in 10 years.",
+  },
+  inflation: {
+    term: "Inflation",
+    plain: "Annual increase applied to future spending and optionally tax brackets.",
+    why: "Higher inflation can raise the long-term draw required from savings.",
+    range: "Typical long-term assumption: 1.5%-3.0%.",
+    example: "At 2%, costs roughly double in about 36 years.",
+  },
+  currentSavings: {
+    term: "Current total savings",
+    plain: "Your starting investable balance across all accounts.",
+    why: "Starting balance is a major driver of retirement readiness.",
+    range: "Any non-negative value.",
+    example: "$200,000 today compounds over your remaining working years.",
+  },
+  annualContribution: {
+    term: "Annual contribution",
+    plain: "How much you add to savings each year before retirement.",
+    why: "Regular contributions can significantly increase retirement assets.",
+    range: "Any non-negative value.",
+    example: "$8,000 per year for 20 years adds $160,000 before growth.",
+  },
+  contributionIncrease: {
+    term: "Contribution increase (%/year)",
+    plain: "Annual percentage increase applied to your savings contribution before retirement.",
+    why: "Gradually increasing contributions can materially improve retirement readiness.",
+    range: "Typical range: 0%-5% per year.",
+    example: "A $10,000 contribution growing 3% yearly becomes about $13,439 in year 10.",
+  },
+  capitalInjectAmount: {
+    term: "Lump-sum amount",
+    plain: "A one-time amount added to investable assets at a specific age.",
+    why: "Large one-time proceeds can materially improve retirement sustainability.",
+    range: "Any non-negative value.",
+    example: "Downsizing a home might add a $150,000 one-time injection at age 67.",
+  },
+  capitalInjectAge: {
+    term: "Lump-sum age",
+    plain: "The age when the one-time capital injection is received.",
+    why: "Timing changes compounding and how long the capital supports spending.",
+    range: "Typical planning range: 50-95.",
+    example: "A lump sum at 60 has more time to compound than the same amount at 75.",
+  },
+  riskProfile: {
+    term: "Risk profile",
+    plain: "Maps to default long-term return assumptions.",
+    why: "Expected returns directly affect projected balances.",
+    range: "Conservative, Balanced, Aggressive.",
+    example: "Balanced defaults near 5.5% nominal annual return.",
+  },
+  pensionAmount: {
+    term: "Workplace pension amount",
+    plain: "Annual pension income before tax once it starts.",
+    why: "Guaranteed income reduces withdrawal pressure on savings.",
+    range: "Depends on pension plan terms.",
+    example: "$18,000/year pension can cover a meaningful baseline of spending.",
+  },
+  pensionStartAge: {
+    term: "Pension start age",
+    plain: "Age pension payments begin.",
+    why: "Later starts create more early-retirement funding needs.",
+    range: "Typical range: 55-70.",
+    example: "If pension starts at 65 but retirement is 60, savings bridge 5 years.",
+  },
+  cppAmount65: {
+    term: "CPP estimate at 65",
+    plain: "Estimated annual CPP amount if started at age 65.",
+    why: "CPP is a core retirement income source for many Canadians.",
+    range: "Personal estimate from Service Canada statements.",
+    example: "$12,000/year at 65 can change with early or late start.",
+  },
+  cppStartAge: {
+    term: "CPP start age",
+    plain: "Age you plan to start CPP (60-70).",
+    why: "Starting earlier lowers annual amount; delaying raises it.",
+    range: "Allowed range: 60-70.",
+    example: "Starting at 70 can materially increase annual CPP versus 65.",
+  },
+  oasAmount65: {
+    term: "OAS estimate at 65",
+    plain: "Estimated annual OAS amount if started at 65.",
+    why: "OAS contributes to baseline retirement income after 65.",
+    range: "Based on residency and eligibility.",
+    example: "Delaying OAS can increase annual benefit.",
+  },
+  oasStartAge: {
+    term: "OAS start age",
+    plain: "Age you plan to start OAS (65-70).",
+    why: "Start timing changes annual OAS amount and clawback exposure.",
+    range: "Allowed range: 65-70.",
+    example: "Starting at 68 increases annual OAS versus 65.",
+  },
+  spousePensionAmount: {
+    term: "Spouse pension amount",
+    plain: "Annual workplace/private pension income for spouse before tax.",
+    why: "Spousal guaranteed income can reduce household savings withdrawals.",
+    range: "Any non-negative value.",
+    example: "A spouse pension of $10,000/year lowers portfolio draw needs.",
+  },
+  spousePensionStartAge: {
+    term: "Spouse pension start age",
+    plain: "Age when spouse pension starts.",
+    why: "Timing determines how much early-retirement gap remains.",
+    range: "Typical range: 55-70.",
+    example: "If spouse pension starts at 65, years before 65 need other funding.",
+  },
+  spouseCppAmount65: {
+    term: "Spouse CPP estimate at 65",
+    plain: "Estimated annual spouse CPP at age 65.",
+    why: "Adds household guaranteed income in retirement.",
+    range: "Personal estimate from Service Canada statements.",
+    example: "Spouse CPP can materially improve first-year retirement coverage.",
+  },
+  spouseCppStartAge: {
+    term: "Spouse CPP start age",
+    plain: "Age spouse plans to start CPP (60-70).",
+    why: "Earlier or later start changes annual spouse CPP amount.",
+    range: "Allowed range: 60-70.",
+    example: "Delaying spouse CPP can increase late-retirement guaranteed income.",
+  },
+  spouseOasAmount65: {
+    term: "Spouse OAS estimate at 65",
+    plain: "Estimated annual spouse OAS at age 65.",
+    why: "Adds to household baseline retirement income.",
+    range: "Based on eligibility and residency history.",
+    example: "Spouse OAS can reduce total required account withdrawals.",
+  },
+  spouseOasStartAge: {
+    term: "Spouse OAS start age",
+    plain: "Age spouse plans to start OAS (65-70).",
+    why: "Start timing affects annual benefit and clawback exposure.",
+    range: "Allowed range: 65-70.",
+    example: "Starting at 67 gives higher annual OAS than 65.",
+  },
+  scenarioSpread: {
+    term: "Scenario spread",
+    plain: "Difference used to create best/base/worst deterministic return scenarios.",
+    why: "Helps compare sensitivity to return assumptions.",
+    range: "Typical range: 1%-3%.",
+    example: "Base 5.5% with spread 2% gives 3.5% worst and 7.5% best.",
+  },
+  volatility: {
+    term: "Volatility",
+    plain: "Planning volatility input for education and stress framing.",
+    why: "Higher volatility means wider range of possible outcomes.",
+    range: "Typical long-term annualized range: 6%-15%.",
+    example: "A more volatile portfolio may deviate further from base projections.",
+  },
+  rrsp: {
+    term: "RRSP/RRIF account",
+    plain: "Tax-deferred account; withdrawals are generally taxable.",
+    why: "Withdrawal order affects taxes and government benefit interactions.",
+    range: "Any non-negative value.",
+    example: "Large RRSP withdrawals can raise taxable income and clawback risk.",
+  },
+  tfsa: {
+    term: "TFSA account",
+    plain: "Tax-free savings account; eligible withdrawals are tax-free.",
+    why: "Useful for flexible, tax-efficient retirement cash flow.",
+    range: "Any non-negative value.",
+    example: "Using TFSA withdrawals can reduce taxable income in high-tax years.",
+  },
+  nonRegistered: {
+    term: "Non-registered account",
+    plain: "Taxable investment account outside RRSP/TFSA.",
+    why: "Some withdrawal amounts may be taxable depending on gains/income type.",
+    range: "Any non-negative value.",
+    example: "Capital gains are typically taxed more favorably than full-income withdrawals.",
+  },
+  cash: {
+    term: "Cash account",
+    plain: "Liquid cash reserve for short-term spending needs.",
+    why: "Can reduce forced selling during market stress.",
+    range: "Any non-negative value.",
+    example: "A cash buffer can help cover 1-2 years of spending gaps.",
+  },
 };
 
-const FIELD_HELP_TEXT = {
-  plannerTitle: "Display title for this planner. Rename it for yourself, a client, or a household.",
-  provinceCode: "Select the province or territory used for the estimated combined federal + provincial tax calculation.",
-  birthYear: "Your birth year helps calculate your current age and how many years you have until retirement.",
-  currentYear: "Reference year used for tax table timing and age calculations.",
-  retirementAge: "The age you want employment income to stop and retirement withdrawals to begin.",
-  lifeExpectancy: "How long you want your plan to last. Many people test age 90-95 to stress-test the plan.",
-  currentSavings: "Total retirement savings you have today (RRSP, TFSA, pensions, and other retirement-focused assets).",
-  annualContribution: "How much you expect to add each year before retirement.",
-  contributionIncrease: "If you expect your annual savings to grow over time, enter the yearly increase here.",
-  inflationRate: "Used to increase retirement spending over time so your plan reflects rising costs.",
-  riskProfile: "Quick preset that adjusts return assumptions to conservative, balanced, or aggressive.",
-  growthRate: "Average annual investment return assumption before retirement.",
-  retirementReturn: "Average annual investment return assumption after retirement begins.",
-  desiredIncome: "How much you want to spend each year in retirement after tax, in today's dollars.",
-  returnVolatility: "Scenario range input used for best/base/worst deterministic comparisons and stress testing (not a Monte Carlo percentile).",
-  scenarioMethod: "Choose how scenario spreads are calculated for the scenario table (fast deterministic methods).",
-  privatePensionName: "Optional label for an employer or private pension source (for example, ACME Private Pension).",
-  privatePensionAnnual: "Estimated annual amount from your employer/private pension when it starts.",
-  privatePensionStartAge: "Age when your private pension payments begin.",
-  privatePensionIncrease: "Optional annual increase for your private pension (COLA/indexing).",
-  spouseEnabled: "Turn this on to include spouse private pension and spouse CPP/OAS estimates in the household plan.",
-  spousePrivatePensionName: "Optional label for the spouse employer/private pension source.",
-  spousePrivatePensionAnnual: "Estimated annual spouse employer/private pension amount when it starts.",
-  spousePrivatePensionStartAge: "Household plan age when the spouse private pension starts (use the same timeline as the chart).",
-  spousePrivatePensionIncrease: "Optional annual increase for the spouse private pension (COLA/indexing).",
-  cppAt65: "Your estimated annual CPP amount if started at age 65.",
-  cppStartAge: "When you plan to start CPP (60-70). Later start increases the annual amount.",
-  oasAt65: "Your estimated annual OAS amount if started at age 65.",
-  oasStartAge: "When you plan to start OAS (65-70). Later start increases the annual amount.",
-  spouseCppAt65: "Estimated annual spouse CPP amount if started at age 65.",
-  spouseCppStartAge: "Household plan age when spouse CPP starts (60-70).",
-  spouseOasAt65: "Estimated annual spouse OAS amount if started at age 65.",
-  spouseOasStartAge: "Household plan age when spouse OAS starts (65-70).",
-  oasClawbackEnabled: "Enable an estimated OAS clawback (recovery tax) planning assumption in retirement years.",
-  oasClawbackThreshold: "Annual income threshold per OAS recipient used for the clawback estimate. This planner applies a household approximation.",
-  oasClawbackRate: "Estimated clawback rate applied above the threshold. Default is 15%.",
-  rrspBalance: "Optional RRSP/RRIF balance used for tax-smart withdrawal guidance (does not yet replace total savings modeling).",
-  tfsaBalance: "Optional TFSA balance used for tax-smart withdrawal guidance and top-up suggestions.",
-  nonRegisteredBalance: "Optional non-registered account balance used for withdrawal sequencing guidance.",
-  rrspContributionPct: "Guidance-only contribution split into RRSP (combined with TFSA percentage and remainder to non-registered).",
-  tfsaContributionPct: "Guidance-only contribution split into TFSA.",
-  withdrawalStrategy: "Comparison lens for guidance recommendations (heuristic only; not a tax advice engine).",
-  stressTestEnabled: "Shows a matrix of outcomes for multiple return and inflation assumptions using the same planner logic.",
-  escalateBrackets: "Inflation-adjusts tax brackets for future-year planning scenarios.",
-};
-
-const GUIDED_STEPS = [
-  {
-    id: "you_today",
-    title: "You today",
-    description: "Start with where you are now. These inputs create the baseline for your plan.",
-    fieldIds: ["plannerTitle", "provinceCode", "birthYear", "currentSavings"],
-    summary: () => "Tip: You do not need to be exact on the first pass. A rough estimate is enough to get started.",
+const TAX_BRACKETS = {
+  federal: {
+    thresholds: [0, 57375, 114750, 177882, 253414],
+    rates: [0.15, 0.205, 0.26, 0.29, 0.33],
   },
-  {
-    id: "retirement_goal",
-    title: "Retirement goal",
-    description: "Set when you want to retire and how long the plan should support you.",
-    fieldIds: ["retirementAge", "lifeExpectancy", "desiredIncome"],
-    summary: () => "Start with a realistic spending goal, then refine after you see the first projection.",
-  },
-  {
-    id: "saving_plan",
-    title: "Saving plan",
-    description: "Enter what you can save each year. This often has the biggest impact on outcomes.",
-    fieldIds: ["annualContribution", "riskProfile"],
-    summary: () => "If you are unsure, use the Balanced risk profile first and compare later.",
-  },
-  {
-    id: "benefits",
-    title: "Pensions & benefits",
-    description: "Add your private pension (if any) and choose when you expect to start CPP and OAS.",
-    fieldIds: ["privatePensionName", "privatePensionAnnual", "privatePensionStartAge", "spouseEnabled", "spousePrivatePensionAnnual", "cppStartAge", "oasStartAge", "spouseCppStartAge", "spouseOasStartAge"],
-    summary: () => "Advanced mode lets you edit private pension increases, estimated CPP/OAS amounts, and compare more timing assumptions.",
-  },
-  {
-    id: "results",
-    title: "Results and next steps",
-    description: "Review your forecast, then switch to Simple or Advanced mode if you want to fine-tune assumptions.",
-    fieldIds: [],
-    summary: (state, projection) => {
-      const shortfall = projection.firstShortfallAge
-        ? `Your plan may run short around age ${projection.firstShortfallAge}.`
-        : "Your projected savings remain positive through your selected life expectancy.";
-      return `${shortfall} Focus first on retirement age, annual savings, and desired retirement spending before changing advanced tax inputs.`;
-    },
-  },
-];
-
-const DEFAULT_STATE = {
-  inputs: {
-    plannerTitle: "Retirement Plan Title",
-    provinceCode: "NL",
-    birthYear: 1987,
-    currentYear: new Date().getFullYear(),
-    retirementAge: 55,
-    lifeExpectancy: 90,
-    currentSavings: 268797,
-    annualContribution: 21000,
-    contributionIncrease: 3.0,
-    inflationRate: 2.5,
-    riskProfile: "balanced",
-    growthRate: 5.5,
-    retirementReturn: 4.0,
-    desiredIncome: 84000,
-    returnVolatility: 3.0,
-    scenarioMethod: "deterministic",
-    privatePensionName: "ACME Private Pension",
-    privatePensionAnnual: 18500,
-    privatePensionStartAge: 55,
-    privatePensionIncrease: 1.5,
-    spouseEnabled: false,
-    spousePrivatePensionName: "Spouse Pension",
-    spousePrivatePensionAnnual: 0,
-    spousePrivatePensionStartAge: 55,
-    spousePrivatePensionIncrease: 0,
-    cppAt65: 9696,
-    cppStartAge: 65,
-    oasAt65: 8732,
-    oasStartAge: 65,
-    spouseCppAt65: 0,
-    spouseCppStartAge: 65,
-    spouseOasAt65: 0,
-    spouseOasStartAge: 65,
-    oasClawbackEnabled: false,
-    oasClawbackThreshold: 90977,
-    oasClawbackRate: 15,
-    rrspBalance: 150000,
-    tfsaBalance: 90000,
-    nonRegisteredBalance: 28797,
-    rrspContributionPct: 50,
-    tfsaContributionPct: 40,
-    withdrawalStrategy: "taxSmart",
-    stressTestEnabled: false,
-    escalateBrackets: true,
-  },
-  notes:
-    "Notes:\n- This planner is for scenario exploration, not tax filing or legal advice.\n- Validate tax assumptions, pension statements, and drawdown strategy with a professional.\n- Use the pension timing table to compare early vs deferred CPP/OAS start ages.\n- Revisit inflation and return assumptions annually.",
-  meta: {
-    lastSavedAt: null,
-    version: BACKUP_VERSION,
+  provincial: {
+    NL: { thresholds: [0, 43198, 86395, 154244, 215943, 275870, 551739, 1103478], rates: [0.087, 0.145, 0.158, 0.178, 0.198, 0.208, 0.213, 0.218] },
+    PE: { thresholds: [0, 32656, 64313, 105000, 140000], rates: [0.098, 0.138, 0.167, 0.176, 0.19] },
+    NS: { thresholds: [0, 29590, 59180, 93000, 150000], rates: [0.0879, 0.1495, 0.1667, 0.175, 0.21] },
+    NB: { thresholds: [0, 49958, 99916, 185064], rates: [0.094, 0.14, 0.16, 0.195] },
+    QC: { thresholds: [0, 51780, 103545, 126000], rates: [0.14, 0.19, 0.24, 0.2575] },
+    ON: { thresholds: [0, 52886, 105775, 150000, 220000], rates: [0.0505, 0.0915, 0.1116, 0.1216, 0.1316] },
+    MB: { thresholds: [0, 47000, 100000], rates: [0.108, 0.1275, 0.174] },
+    SK: { thresholds: [0, 52057, 148734], rates: [0.105, 0.125, 0.145] },
+    AB: { thresholds: [0, 151234, 181481, 241974, 362961], rates: [0.1, 0.12, 0.13, 0.14, 0.15] },
+    BC: { thresholds: [0, 47937, 95875, 110076, 133664, 181232, 252752], rates: [0.0506, 0.077, 0.105, 0.1229, 0.147, 0.168, 0.205] },
   },
 };
 
 const el = {
-  form: document.getElementById("plannerForm"),
-  snapshotGrid: document.getElementById("snapshotGrid"),
-  resultsGrid: document.getElementById("resultsGrid"),
-  outcomeSummaryCard: document.getElementById("outcomeSummaryCard"),
-  scenarioTableBody: document.getElementById("scenarioTableBody"),
-  scenarioTableNote: document.getElementById("scenarioTableNote"),
-  scenarioInterpretationLine: document.getElementById("scenarioInterpretationLine"),
-  stressTestPanel: document.getElementById("stressTestPanel"),
-  stressTestBody: document.getElementById("stressTestBody"),
-  retirementBreakdownDetails: document.getElementById("retirementBreakdownDetails"),
-  taxGuidanceBody: document.getElementById("taxGuidanceBody"),
-  actionsList: document.getElementById("actionsList"),
-  taxTableBody: document.getElementById("taxTableBody"),
-  taxTitle: document.getElementById("taxTitle"),
-  taxSubtitle: document.getElementById("taxSubtitle"),
-  taxAssumptionsBtn: document.getElementById("taxAssumptionsBtn"),
-  taxAssumptionsModal: document.getElementById("taxAssumptionsModal"),
-  taxAssumptionsCloseBtn: document.getElementById("taxAssumptionsCloseBtn"),
-  pensionScenarioBody: document.getElementById("pensionScenarioBody"),
-  selectedPensionDetails: document.getElementById("selectedPensionDetails"),
-  notes: document.getElementById("plannerNotes"),
-  chart: document.getElementById("projectionChart"),
-  saveBtn: document.getElementById("saveBtn"),
-  exportBtn: document.getElementById("exportBtn"),
-  importBtn: document.getElementById("importBtn"),
+  landingPanel: document.getElementById("landingPanel"),
+  appPanel: document.getElementById("appPanel"),
+  startSimpleBtn: document.getElementById("startSimpleBtn"),
+  landingDemoBtn: document.getElementById("landingDemoBtn"),
+  landingImportBtn: document.getElementById("landingImportBtn"),
+  exportJsonBtn: document.getElementById("exportJsonBtn"),
+  importJsonBtn: document.getElementById("importJsonBtn"),
+  loadDemoBtn: document.getElementById("loadDemoBtn"),
   resetBtn: document.getElementById("resetBtn"),
-  demoBtn: document.getElementById("demoBtn"),
-  importFile: document.getElementById("importFile"),
-  toast: document.getElementById("toast"),
-  heroTitle: document.getElementById("heroTitle"),
-  storageStatus: document.getElementById("storageStatus"),
-  riskBadge: document.getElementById("riskBadge"),
-  riskKeyText: document.getElementById("riskKeyText"),
-  guidedModeBtn: document.getElementById("guidedModeBtn"),
-  simpleModeBtn: document.getElementById("simpleModeBtn"),
-  advancedModeBtn: document.getElementById("advancedModeBtn"),
-  modeHint: document.getElementById("modeHint"),
-  advancedNodes: Array.from(document.querySelectorAll('[data-complexity="advanced"]')),
-  plannerLabels: Array.from(document.querySelectorAll("#plannerForm label")),
-  plannerSectionTitles: Array.from(document.querySelectorAll("#plannerForm .form-section-title")),
-  guidedPanel: document.getElementById("guidedPanel"),
-  guidedStepCount: document.getElementById("guidedStepCount"),
-  guidedProgressFill: document.getElementById("guidedProgressFill"),
-  guidedStepTitle: document.getElementById("guidedStepTitle"),
-  guidedStepDescription: document.getElementById("guidedStepDescription"),
-  guidedStepSummary: document.getElementById("guidedStepSummary"),
-  guidedPrevBtn: document.getElementById("guidedPrevBtn"),
-  guidedNextBtn: document.getElementById("guidedNextBtn"),
-  spouseNodes: Array.from(document.querySelectorAll("[data-spouse-field]")),
+  openGlossaryBtn: document.getElementById("openGlossaryBtn"),
+  importJsonFile: document.getElementById("importJsonFile"),
+
+  tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
+  navPanels: Array.from(document.querySelectorAll(".nav-panel")),
+
+  kpiGrid: document.getElementById("kpiGrid"),
+  mainChart: document.getElementById("mainChart"),
+  chartLegend: document.getElementById("chartLegend"),
+  nextActions: document.getElementById("nextActions"),
+  basicsSummary: document.getElementById("basicsSummary"),
+
+  wizardProgressBar: document.getElementById("wizardProgressBar"),
+  wizardStepLabel: document.getElementById("wizardStepLabel"),
+  wizardBody: document.getElementById("wizardBody"),
+  wizardBackBtn: document.getElementById("wizardBackBtn"),
+  wizardNextBtn: document.getElementById("wizardNextBtn"),
+
+  advancedAccordion: document.getElementById("advancedAccordion"),
+  scenarioCompareToggle: document.getElementById("scenarioCompareToggle"),
+  scenarioSummary: document.getElementById("scenarioSummary"),
+  stressTable: document.getElementById("stressTable"),
+
+  notesInput: document.getElementById("notesInput"),
+  tooltipLayer: document.getElementById("tooltipLayer"),
+
+  glossaryModal: document.getElementById("glossaryModal"),
+  openGlossary: document.getElementById("openGlossaryBtn"),
+  closeGlossaryBtn: document.getElementById("closeGlossaryBtn"),
+  glossaryContent: document.getElementById("glossaryContent"),
+
+  appToast: document.getElementById("appToast"),
 };
 
-let state = loadState();
+let state = loadPlan();
 let ui = {
-  dirty: false,
+  activeNav: state.uiState.activeNav || "dashboard",
+  tooltipKey: "",
   toastTimer: null,
-  lastProjection: null,
-  mode: loadUiMode(),
-  guideStepIndex: 0,
+  lastModel: null,
+  advancedOpen: {
+    basics: true,
+    assumptions: true,
+    income: false,
+    accounts: false,
+    capitalInjects: false,
+    withdrawal: false,
+    tax: false,
+    modules: false,
+  },
 };
-const fieldIndicatorRefs = new Map();
 
 init();
 
 function init() {
-  setupInputRiskIndicators();
-  setupFieldHelpText();
   bindEvents();
-  hydrateForm();
-  applyUiMode();
   renderAll();
-  markDirty(false);
+  registerServiceWorker();
 }
 
 function bindEvents() {
-  el.form?.addEventListener("input", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    syncFormToState(target.id);
-
-    if (target.id === "riskProfile") {
-      applyRiskPreset(target.value);
-      hydrateForm();
-    }
-
+  el.startSimpleBtn?.addEventListener("click", () => {
+    state.uiState.firstRun = false;
+    state.uiState.hasStarted = true;
+    state.uiState.activeNav = "guided";
+    ui.activeNav = "guided";
+    savePlan();
     renderAll();
-    markDirty(true);
   });
 
-  el.notes?.addEventListener("input", () => {
-    state.notes = el.notes.value;
-    markDirty(true);
+  el.landingDemoBtn?.addEventListener("click", () => {
+    state = createDemoPlan();
+    ui.activeNav = "dashboard";
+    savePlan();
+    renderAll();
+    toast("Demo plan loaded.");
   });
 
-  el.saveBtn?.addEventListener("click", saveState);
-  el.exportBtn?.addEventListener("click", exportJson);
-  el.importBtn?.addEventListener("click", () => el.importFile?.click());
-  el.importFile?.addEventListener("change", handleImportFile);
-  el.demoBtn?.addEventListener("click", loadDemoScenario);
-  el.resetBtn?.addEventListener("click", resetDemo);
-  el.guidedModeBtn?.addEventListener("click", () => setUiMode("guided"));
-  el.simpleModeBtn?.addEventListener("click", () => setUiMode("simple"));
-  el.advancedModeBtn?.addEventListener("click", () => setUiMode("advanced"));
-  el.guidedPrevBtn?.addEventListener("click", () => moveGuidedStep(-1));
-  el.guidedNextBtn?.addEventListener("click", () => moveGuidedStep(1));
-  el.taxAssumptionsBtn?.addEventListener("click", openTaxAssumptionsModal);
-  el.taxAssumptionsCloseBtn?.addEventListener("click", closeTaxAssumptionsModal);
-  el.taxAssumptionsModal?.addEventListener("click", (event) => {
-    if (event.target === el.taxAssumptionsModal) closeTaxAssumptionsModal();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeTaxAssumptionsModal();
-  });
-  window.addEventListener("resize", debounce(() => renderChart(ui.lastProjection), 80));
-}
-
-function openTaxAssumptionsModal() {
-  if (!el.taxAssumptionsModal) return;
-  el.taxAssumptionsModal.hidden = false;
-  el.taxAssumptionsModal.setAttribute("aria-hidden", "false");
-  document.body.classList.add("modal-open");
-}
-
-function closeTaxAssumptionsModal() {
-  if (!el.taxAssumptionsModal || el.taxAssumptionsModal.hidden) return;
-  el.taxAssumptionsModal.hidden = true;
-  el.taxAssumptionsModal.setAttribute("aria-hidden", "true");
-  document.body.classList.remove("modal-open");
-}
-
-function loadUiMode() {
-  try {
-    const raw = localStorage.getItem(UI_MODE_KEY);
-    return raw === "advanced" || raw === "simple" || raw === "guided" ? raw : "guided";
-  } catch {
-    return "guided";
-  }
-}
-
-function setUiMode(mode) {
-  ui.mode = mode === "advanced" || mode === "simple" ? mode : "guided";
-  try {
-    localStorage.setItem(UI_MODE_KEY, ui.mode);
-  } catch {}
-  applyUiMode();
-  renderAll();
-}
-
-function applyUiMode() {
-  const isGuided = ui.mode === "guided";
-  const isAdvanced = ui.mode === "advanced";
-  const isSimple = ui.mode === "simple";
-
-  el.guidedModeBtn?.classList.toggle("active", isGuided);
-  el.guidedModeBtn?.setAttribute("aria-pressed", String(isGuided));
-  el.simpleModeBtn?.classList.toggle("active", isSimple);
-  el.advancedModeBtn?.classList.toggle("active", isAdvanced);
-  el.simpleModeBtn?.setAttribute("aria-pressed", String(isSimple));
-  el.advancedModeBtn?.setAttribute("aria-pressed", String(isAdvanced));
-  if (el.guidedPanel) el.guidedPanel.hidden = !isGuided;
-
-  if (el.modeHint) {
-    el.modeHint.textContent = isGuided
-      ? "Step-by-step mode with plain-language guidance."
-      : isAdvanced
-      ? "Showing detailed assumptions, tax tables, and pension timing inputs."
-      : "Showing core assumptions only.";
-  }
-
-  el.advancedNodes.forEach((node) => {
-    node.hidden = !isAdvanced;
+  el.loadDemoBtn?.addEventListener("click", () => {
+    state = createDemoPlan();
+    ui.activeNav = "dashboard";
+    savePlan();
+    renderAll();
+    toast("Demo plan loaded.");
   });
 
-  applyGuidedStepVisibility();
-}
+  el.exportJsonBtn?.addEventListener("click", exportJson);
+  el.importJsonBtn?.addEventListener("click", () => el.importJsonFile?.click());
+  el.landingImportBtn?.addEventListener("click", () => el.importJsonFile?.click());
+  el.importJsonFile?.addEventListener("change", importJsonFromFile);
 
-function getGuidedStep() {
-  ui.guideStepIndex = Math.min(Math.max(ui.guideStepIndex, 0), GUIDED_STEPS.length - 1);
-  return GUIDED_STEPS[ui.guideStepIndex];
-}
-
-function moveGuidedStep(direction) {
-  const nextIndex = Math.min(Math.max(ui.guideStepIndex + direction, 0), GUIDED_STEPS.length - 1);
-  if (nextIndex === ui.guideStepIndex && ui.guideStepIndex === GUIDED_STEPS.length - 1 && direction > 0) {
-    ui.guideStepIndex = 0;
-  } else {
-    ui.guideStepIndex = nextIndex;
-  }
-  applyGuidedStepVisibility();
-  renderGuidedPanel(ui.lastProjection);
-}
-
-function applyGuidedStepVisibility() {
-  const guided = ui.mode === "guided";
-  document.body.classList.toggle("guided-mode", guided);
-  const step = getGuidedStep();
-  const visibleFieldIds = new Set(step.fieldIds);
-
-  el.plannerLabels.forEach((label) => {
-    const control = label.querySelector("input, select, textarea");
-    const id = control?.id || "";
-    const shouldShow = guided ? visibleFieldIds.has(id) : true;
-    label.dataset.guidedHidden = String(!shouldShow);
+  el.resetBtn?.addEventListener("click", () => {
+    const ok = confirm("Reset your local plan to defaults?");
+    if (!ok) return;
+    state = createDefaultPlan();
+    ui.activeNav = "guided";
+    savePlan();
+    renderAll();
+    toast("Plan reset.");
   });
 
-  el.plannerSectionTitles.forEach((title) => {
-    let shouldShow = true;
-    if (guided) {
-      shouldShow = false;
-      let cursor = title.nextElementSibling;
-      while (cursor && !cursor.classList.contains("form-section-title")) {
-        if (
-          cursor.tagName === "LABEL" &&
-          cursor.dataset.guidedHidden !== "true" &&
-          !(cursor.hidden)
-        ) {
-          shouldShow = true;
-          break;
-        }
-        cursor = cursor.nextElementSibling;
-      }
+  el.tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.navTarget || "dashboard";
+      setActiveNav(target);
+    });
+  });
+
+  el.wizardBackBtn?.addEventListener("click", () => {
+    state.uiState.wizardStep = Math.max(1, state.uiState.wizardStep - 1);
+    savePlan();
+    renderWizard();
+  });
+
+  el.wizardNextBtn?.addEventListener("click", () => {
+    if (state.uiState.wizardStep >= 5) {
+      state.uiState.wizardStep = 5;
+      state.uiState.unlocked.advanced = true;
+      state.uiState.activeNav = "dashboard";
+      ui.activeNav = "dashboard";
+      savePlan();
+      renderAll();
+      toast("Advanced features unlocked.");
+      return;
     }
-    title.dataset.guidedHidden = String(!shouldShow);
+
+    state.uiState.wizardStep = Math.min(5, state.uiState.wizardStep + 1);
+    if (state.uiState.wizardStep >= 5) state.uiState.unlocked.advanced = true;
+    savePlan();
+    renderAll();
+  });
+
+  el.notesInput?.addEventListener("input", () => {
+    state.notes = el.notesInput.value;
+    savePlan();
+  });
+
+  el.scenarioCompareToggle?.addEventListener("change", () => {
+    state.uiState.showScenarioCompare = !!el.scenarioCompareToggle.checked;
+    savePlan();
+    renderStress();
+  });
+
+  document.addEventListener("input", handleBoundInput);
+  document.addEventListener("change", handleBoundInput);
+  document.addEventListener("click", handleDocumentClick);
+  document.addEventListener("toggle", handleDetailsToggle, true);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeTooltip();
+  });
+
+  el.openGlossary?.addEventListener("click", openGlossary);
+  el.closeGlossaryBtn?.addEventListener("click", () => el.glossaryModal?.close());
+  el.glossaryModal?.addEventListener("click", (event) => {
+    if (event.target === el.glossaryModal) el.glossaryModal.close();
   });
 }
 
-function renderGuidedPanel(projection) {
-  if (ui.mode !== "guided") return;
-  const step = getGuidedStep();
-  const stepNumber = ui.guideStepIndex + 1;
+function handleDocumentClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
 
-  if (el.guidedStepCount) el.guidedStepCount.textContent = `Step ${stepNumber} of ${GUIDED_STEPS.length}`;
-  if (el.guidedProgressFill) el.guidedProgressFill.style.width = `${(stepNumber / GUIDED_STEPS.length) * 100}%`;
-  if (el.guidedStepTitle) el.guidedStepTitle.textContent = step.title;
-  if (el.guidedStepDescription) el.guidedStepDescription.textContent = step.description;
-
-  if (el.guidedStepSummary) {
-    const text = typeof step.summary === "function" ? step.summary(state.inputs, projection || ui.lastProjection || {}) : "";
-    el.guidedStepSummary.textContent = text || "";
+  const tooltipBtn = target.closest("[data-tooltip-key]");
+  if (tooltipBtn) {
+    event.preventDefault();
+    const key = tooltipBtn.getAttribute("data-tooltip-key") || "";
+    if (!key) return;
+    if (ui.tooltipKey === key) {
+      closeTooltip();
+      return;
+    }
+    openTooltip(key, tooltipBtn);
+    return;
   }
 
-  if (el.guidedPrevBtn) el.guidedPrevBtn.disabled = ui.guideStepIndex === 0;
-  if (el.guidedNextBtn) {
-    el.guidedNextBtn.textContent = ui.guideStepIndex === GUIDED_STEPS.length - 1 ? "Start over" : "Next";
+  const actionBtn = target.closest("[data-action]");
+  if (actionBtn) {
+    const action = actionBtn.getAttribute("data-action");
+    if (action === "open-advanced") {
+      state.uiState.unlocked.advanced = true;
+      setActiveNav("advanced");
+      savePlan();
+      return;
+    }
+    if (action === "open-stress") {
+      setActiveNav("stress");
+      return;
+    }
+    if (action === "open-spouse") {
+      state.profile.hasSpouse = true;
+      state.uiState.unlocked.spouse = true;
+      state.uiState.unlocked.advanced = true;
+      setActiveNav("advanced");
+      savePlan();
+      renderAll();
+      return;
+    }
+    if (action === "risk") {
+      const value = actionBtn.getAttribute("data-value") || "balanced";
+      state.assumptions.riskProfile = value;
+      savePlan();
+      renderAll();
+      return;
+    }
+    if (action === "strategy") {
+      const value = actionBtn.getAttribute("data-value") || "tax-smart";
+      state.strategy.withdrawal = value;
+      savePlan();
+      renderAll();
+      return;
+    }
+    if (action === "add-capital-inject") {
+      state.savings.capitalInjects.push(createCapitalInjectItem());
+      savePlan();
+      renderAll();
+      return;
+    }
+    if (action === "remove-capital-inject") {
+      const id = actionBtn.getAttribute("data-value") || "";
+      state.savings.capitalInjects = state.savings.capitalInjects.filter((item) => item.id !== id);
+      savePlan();
+      renderAll();
+      return;
+    }
+    if (action === "tooltip-example") {
+      const key = actionBtn.getAttribute("data-value") || "";
+      const body = actionBtn.closest(".tooltip-popover")?.querySelector(".tooltip-example");
+      const tip = TOOLTIPS[key];
+      if (tip && body) body.textContent = tip.example || "No example available.";
+      return;
+    }
   }
+
+  if (!target.closest(".tooltip-popover")) closeTooltip();
 }
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return clone(DEFAULT_STATE);
-    const parsed = JSON.parse(raw);
-    return normalizeState(parsed);
-  } catch {
-    return clone(DEFAULT_STATE);
-  }
-}
+function handleBoundInput(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.matches("[data-bind]")) return;
 
-function normalizeState(input) {
-  const base = clone(DEFAULT_STATE);
-  if (!input || typeof input !== "object") return base;
+  const path = target.getAttribute("data-bind");
+  if (!path) return;
 
-  const nextInputs = input.inputs && typeof input.inputs === "object" ? input.inputs : {};
-  base.inputs = { ...base.inputs, ...nextInputs };
-  base.notes = typeof input.notes === "string" ? input.notes : base.notes;
-  base.meta = {
-    ...base.meta,
-    ...(input.meta && typeof input.meta === "object" ? input.meta : {}),
-    version: BACKUP_VERSION,
-  };
+  captureAdvancedAccordionState();
 
-  sanitizeInputs(base.inputs);
-  return base;
-}
-
-function clone(value) {
-  if (globalThis.structuredClone) return globalThis.structuredClone(value);
-  return JSON.parse(JSON.stringify(value));
-}
-
-function hydrateForm() {
-  Object.entries(state.inputs).forEach(([key, value]) => {
-    const node = document.getElementById(key);
-    if (!node) return;
-    if (node.type === "checkbox") node.checked = Boolean(value);
-    else node.value = String(value);
-  });
-  if (el.notes) el.notes.value = state.notes;
-}
-
-function syncFormToState(changedId) {
-  if (!changedId || !(changedId in state.inputs)) return;
-  const node = document.getElementById(changedId);
-  if (!node) return;
-
-  if (node.type === "checkbox") {
-    state.inputs[changedId] = node.checked;
-  } else if (node.tagName === "SELECT") {
-    state.inputs[changedId] = node.value;
-  } else if (node.type === "text") {
-    state.inputs[changedId] = node.value;
+  let value;
+  if (target instanceof HTMLInputElement && target.type === "checkbox") {
+    value = target.checked;
   } else {
-    const parsed = Number(node.value);
-    if (!Number.isNaN(parsed)) state.inputs[changedId] = parsed;
+    value = target.value;
   }
 
-  sanitizeInputs(state.inputs);
-}
+  const type = target.getAttribute("data-type") || "string";
+  if (type === "number") {
+    const parsed = Number(value);
+    value = Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (target.getAttribute("data-percent-input") === "1" && typeof value === "number") {
+    value /= 100;
+  }
 
-function sanitizeInputs(inputs) {
-  inputs.plannerTitle = typeof inputs.plannerTitle === "string"
-    ? (inputs.plannerTitle.slice(0, 80).trim() || "Retirement Plan Title")
-    : "Retirement Plan Title";
-  inputs.provinceCode = typeof inputs.provinceCode === "string" && PROVINCE_TAX_2026[inputs.provinceCode]
-    ? inputs.provinceCode
-    : DEFAULT_STATE.inputs.provinceCode;
-  inputs.birthYear = clampInt(inputs.birthYear, 1900, 2100, DEFAULT_STATE.inputs.birthYear);
-  inputs.currentYear = clampInt(inputs.currentYear, 2000, 2100, new Date().getFullYear());
-  inputs.retirementAge = clampInt(inputs.retirementAge, 40, 80, DEFAULT_STATE.inputs.retirementAge);
-  inputs.lifeExpectancy = clampInt(inputs.lifeExpectancy, Math.max(60, inputs.retirementAge + 1), 110, DEFAULT_STATE.inputs.lifeExpectancy);
+  setByPath(state, path, value);
 
-  [
-    "currentSavings",
-    "annualContribution",
-    "desiredIncome",
-    "returnVolatility",
-    "privatePensionAnnual",
-    "spousePrivatePensionAnnual",
-    "cppAt65",
-    "oasAt65",
-    "spouseCppAt65",
-    "spouseOasAt65",
-    "oasClawbackThreshold",
-    "rrspBalance",
-    "tfsaBalance",
-    "nonRegisteredBalance",
-  ].forEach((k) => {
-    inputs[k] = clampNumber(inputs[k], 0, 1_000_000_000, DEFAULT_STATE.inputs[k]);
-  });
+  if (path === "income.pension.enabled" && !value) state.income.pension.amount = 0;
+  if (path === "profile.retirementAge") {
+    state.income.pension.startAge = Math.max(state.income.pension.startAge, 40);
+  }
 
-  ["contributionIncrease", "inflationRate", "growthRate", "retirementReturn", "privatePensionIncrease", "spousePrivatePensionIncrease"].forEach((k) => {
-    inputs[k] = clampNumber(inputs[k], 0, 25, DEFAULT_STATE.inputs[k]);
-  });
-  inputs.oasClawbackRate = clampNumber(inputs.oasClawbackRate, 0, 100, DEFAULT_STATE.inputs.oasClawbackRate);
-  inputs.returnVolatility = clampNumber(inputs.returnVolatility, 0, 30, DEFAULT_STATE.inputs.returnVolatility);
-  inputs.rrspContributionPct = clampInt(inputs.rrspContributionPct, 0, 100, DEFAULT_STATE.inputs.rrspContributionPct);
-  inputs.tfsaContributionPct = clampInt(inputs.tfsaContributionPct, 0, 100, DEFAULT_STATE.inputs.tfsaContributionPct);
+  // Avoid re-rendering while the user is actively editing.
+  // Full recalculation runs on committed change events.
+  if (event.type === "input" && !(target instanceof HTMLInputElement && target.type === "checkbox")) {
+    savePlan();
+    return;
+  }
 
-  inputs.privatePensionName = typeof inputs.privatePensionName === "string" ? inputs.privatePensionName.slice(0, 80) : DEFAULT_STATE.inputs.privatePensionName;
-  inputs.spousePrivatePensionName = typeof inputs.spousePrivatePensionName === "string" ? inputs.spousePrivatePensionName.slice(0, 80) : DEFAULT_STATE.inputs.spousePrivatePensionName;
-  inputs.privatePensionStartAge = clampInt(inputs.privatePensionStartAge, 40, 80, DEFAULT_STATE.inputs.privatePensionStartAge);
-  inputs.spousePrivatePensionStartAge = clampInt(inputs.spousePrivatePensionStartAge, 40, 80, DEFAULT_STATE.inputs.spousePrivatePensionStartAge);
-  inputs.cppStartAge = clampInt(inputs.cppStartAge, 60, 70, DEFAULT_STATE.inputs.cppStartAge);
-  inputs.oasStartAge = clampInt(inputs.oasStartAge, 65, 70, DEFAULT_STATE.inputs.oasStartAge);
-  inputs.spouseCppStartAge = clampInt(inputs.spouseCppStartAge, 60, 70, DEFAULT_STATE.inputs.spouseCppStartAge);
-  inputs.spouseOasStartAge = clampInt(inputs.spouseOasStartAge, 65, 70, DEFAULT_STATE.inputs.spouseOasStartAge);
-
-  if (!RISK_PRESETS[inputs.riskProfile]) inputs.riskProfile = DEFAULT_STATE.inputs.riskProfile;
-  if (!["deterministic", "deterministicWide"].includes(inputs.scenarioMethod)) inputs.scenarioMethod = DEFAULT_STATE.inputs.scenarioMethod;
-  if (!["taxSmart", "rrspFirst", "tfsaFirst"].includes(inputs.withdrawalStrategy)) inputs.withdrawalStrategy = DEFAULT_STATE.inputs.withdrawalStrategy;
-  inputs.spouseEnabled = Boolean(inputs.spouseEnabled);
-  inputs.oasClawbackEnabled = Boolean(inputs.oasClawbackEnabled);
-  inputs.stressTestEnabled = Boolean(inputs.stressTestEnabled);
-  inputs.escalateBrackets = Boolean(inputs.escalateBrackets);
-}
-
-function applyRiskPreset(riskProfile) {
-  const preset = RISK_PRESETS[riskProfile];
-  if (!preset) return;
-  state.inputs.riskProfile = riskProfile;
-  state.inputs.growthRate = preset.growthRate;
-  state.inputs.retirementReturn = preset.retirementReturn;
+  renderAll();
+  savePlan();
 }
 
 function renderAll() {
-  sanitizeInputs(state.inputs);
-  applySpouseVisibility();
-  applyGuidedStepVisibility();
-  const projection = buildProjection(state.inputs);
-  const analytics = buildPlannerAnalytics(state.inputs, projection);
-  ui.lastProjection = projection;
+  ensureValidState();
+  ui.lastModel = buildPlanModel(state);
 
-  renderPlannerTitle();
-  renderGuidedPanel(projection);
-  renderInputRiskIndicators();
-  renderRiskBadge();
-  renderSnapshot(projection);
-  renderOutcomeSummary(analytics);
-  renderScenarioTable(analytics);
-  renderStressTest(analytics);
-  renderResults(projection, analytics);
-  renderRetirementBreakdown(projection, analytics);
-  renderTaxTable(state.inputs);
-  renderPensionScenarios(state.inputs);
-  renderSelectedPension(state.inputs, projection);
-  renderTaxGuidance(state.inputs, projection, analytics);
-  renderActions(state.inputs, projection, analytics);
-  renderChart(projection);
+  const showLanding = state.uiState.firstRun;
+  if (el.landingPanel) el.landingPanel.hidden = !showLanding;
+  if (el.appPanel) el.appPanel.hidden = showLanding;
+
+  renderNav();
+  renderDashboard();
+  renderWizard();
+  renderAdvanced();
+  renderStress();
+  renderNotes();
 }
 
-function applySpouseVisibility() {
-  const enabled = Boolean(state.inputs.spouseEnabled);
-  el.spouseNodes?.forEach((node) => {
-    node.hidden = !enabled;
-    const controls = node.querySelectorAll("input, select, textarea");
-    controls.forEach((control) => {
-      control.disabled = !enabled;
-    });
+function renderNav() {
+  const nav = ui.activeNav;
+  el.tabButtons.forEach((btn) => {
+    const isActive = (btn.dataset.navTarget || "") === nav;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-current", isActive ? "page" : "false");
+  });
+  el.navPanels.forEach((panel) => {
+    const isActive = panel.dataset.navPanel === nav;
+    panel.classList.toggle("active", isActive);
+    panel.hidden = !isActive;
   });
 }
 
-function renderPlannerTitle() {
-  const title = state.inputs.plannerTitle || "Retirement Plan Title";
-  if (el.heroTitle) el.heroTitle.textContent = title;
-  document.title = `${title} | Canadian Retirement Planner`;
+function setActiveNav(next) {
+  ui.activeNav = next;
+  state.uiState.firstRun = false;
+  state.uiState.activeNav = next;
+  state.uiState.hasStarted = true;
+  savePlan();
+  renderAll();
 }
 
-function setupFieldHelpText() {
-  Object.entries(FIELD_HELP_TEXT).forEach(([id, text]) => {
-    const control = document.getElementById(id);
-    const label = control?.closest("label");
-    if (!control || !label || label.querySelector(".field-help")) return;
-    const help = document.createElement("span");
-    help.className = "field-help";
-    help.textContent = text;
-    label.append(help);
-  });
-}
+function renderDashboard() {
+  const model = ui.lastModel;
+  if (!model) return;
 
-function setupInputRiskIndicators() {
-  Object.keys(INPUT_RISK_RULES).forEach((id) => {
-    const control = document.getElementById(id);
-    if (!control || fieldIndicatorRefs.has(id)) return;
-    const label = control.closest("label");
-    if (!label) return;
-
-    const wrap = document.createElement("span");
-    wrap.className = "field-control-wrap is-info";
-
-    const indicator = document.createElement("span");
-    indicator.className = "input-risk-indicator is-info";
-    indicator.setAttribute("tabindex", "0");
-    indicator.setAttribute("role", "img");
-    indicator.setAttribute("aria-label", "Assumption indicator");
-    indicator.textContent = "Info";
-    indicator.addEventListener("click", () => {
-      indicator.focus();
-    });
-
-    control.replaceWith(wrap);
-    wrap.append(control, indicator);
-    fieldIndicatorRefs.set(id, { wrap, indicator, control });
-  });
-}
-
-function renderInputRiskIndicators() {
-  fieldIndicatorRefs.forEach(({ wrap, indicator, control }, id) => {
-    const stateForField = classifyInputRisk(id, control);
-    wrap.classList.remove("is-conservative", "is-balanced", "is-aggressive", "is-info");
-    indicator.classList.remove("is-conservative", "is-balanced", "is-aggressive", "is-info");
-    wrap.classList.add(`is-${stateForField.tone}`);
-    indicator.classList.add(`is-${stateForField.tone}`);
-    indicator.textContent = "";
-    const tooltip = indicatorTooltipForTone(stateForField.tone);
-    indicator.title = tooltip;
-    indicator.dataset.tooltip = tooltip;
-    indicator.setAttribute("aria-label", tooltip);
-    wrap.title = tooltip;
-  });
-}
-
-function indicatorTooltipForTone(tone) {
-  if (tone === "conservative") return "Conservative Assumption";
-  if (tone === "balanced") return "Balanced Assumption";
-  if (tone === "aggressive") return "Aggressive Assumption";
-  return "Reference / Strategy-Dependent Input";
-}
-
-function classifyInputRisk(id, control) {
-  const rule = INPUT_RISK_RULES[id];
-  if (!rule) return { tone: "info", label: "Info", title: "No indicator rule configured." };
-
-  if (rule.kind === "info") {
-    return { tone: "info", label: "Info", title: "Reference or strategy-dependent field." };
-  }
-
-  if (rule.kind === "profile") {
-    const value = String(state.inputs[id] || "");
-    if (value === "conservative") {
-      return { tone: "conservative", label: "Conservative", title: "Selected conservative risk profile." };
-    }
-    if (value === "aggressive") {
-      return { tone: "aggressive", label: "Aggressive", title: "Selected aggressive risk profile (higher-return assumption caution)." };
-    }
-    return { tone: "balanced", label: "Balanced", title: "Selected balanced risk profile." };
-  }
-
-  if (rule.kind === "boolean") {
-    const on = Boolean(state.inputs[id]);
-    if (on === Boolean(rule.conservativeWhenTrue)) {
-      return { tone: "conservative", label: "Conservative", title: "This setting uses a more conservative planning assumption." };
-    }
-    return { tone: "aggressive", label: "Aggressive", title: "This setting is less conservative (caution)." };
-  }
-
-  if (rule.kind === "numeric") {
-    const raw = Number(state.inputs[id]);
-    if (!Number.isFinite(raw)) {
-      return { tone: "info", label: "Info", title: "Enter a number to classify this assumption." };
-    }
-
-    const baseline = rule.baseline;
-    const delta = rule.deltaType === "pct" ? Math.abs(baseline) * rule.delta : rule.delta;
-    const low = baseline - delta;
-    const high = baseline + delta;
-    const direction = rule.direction;
-
-    if (direction === "higher_conservative") {
-      if (raw >= high) return { tone: "conservative", label: "Conservative", title: "Entered value is on the conservative side of the baseline assumption." };
-      if (raw <= low) return { tone: "aggressive", label: "Aggressive", title: "Entered value is on the aggressive side of the baseline assumption (caution)." };
-      return { tone: "balanced", label: "Balanced", title: "Entered value is near the baseline assumption." };
-    }
-
-    if (direction === "lower_conservative") {
-      if (raw <= low) return { tone: "conservative", label: "Conservative", title: "Entered value is on the conservative side of the baseline assumption." };
-      if (raw >= high) return { tone: "aggressive", label: "Aggressive", title: "Entered value is on the aggressive side of the baseline assumption (caution)." };
-      return { tone: "balanced", label: "Balanced", title: "Entered value is near the baseline assumption." };
-    }
-  }
-
-  return { tone: "info", label: "Info", title: "Reference or strategy-dependent field." };
-}
-
-function renderRiskBadge() {
-  const preset = RISK_PRESETS[state.inputs.riskProfile] || RISK_PRESETS.balanced;
-  if (el.riskBadge) el.riskBadge.textContent = preset.label;
-  if (el.riskKeyText) {
-    const riskBinary = state.inputs.riskProfile === "aggressive" ? 1 : 0;
-    el.riskKeyText.textContent = `Conservative 0 • Aggressive 1 • Current ${riskBinary}`;
-  }
-}
-
-function buildProjection(inputs) {
-  const currentAge = Math.max(0, inputs.currentYear - inputs.birthYear);
-  const yearsToRetirement = Math.max(0, inputs.retirementAge - currentAge);
-  const maxAge = Math.max(inputs.lifeExpectancy, currentAge + 1);
-  const growth = inputs.growthRate / 100;
-  const retireGrowth = inputs.retirementReturn / 100;
-  const inflation = inputs.inflationRate / 100;
-  const contribGrowth = inputs.contributionIncrease / 100;
-
-  let balance = inputs.currentSavings;
-  let lowerBalance = inputs.currentSavings;
-  let upperBalance = inputs.currentSavings;
-  let contribution = inputs.annualContribution;
-  // `desiredIncome` is entered in today's dollars, so inflate it to the first
-  // retirement year before starting retirement withdrawals.
-  let targetSpend = inputs.desiredIncome * Math.pow(1 + inflation, yearsToRetirement);
-  let privatePensionAnnual = inputs.privatePensionAnnual;
-  let spousePrivatePensionAnnual = inputs.spousePrivatePensionAnnual;
-  const privatePensionGrowth = inputs.privatePensionIncrease / 100;
-  const spousePrivatePensionGrowth = inputs.spousePrivatePensionIncrease / 100;
-  const uncertainty = getUncertaintyReturnAdjustments(inputs.riskProfile);
-  const spouseEnabled = Boolean(inputs.spouseEnabled);
-
-  const rows = [];
-  let projectedAtRetirement = balance;
-  let firstShortfallAge = null;
-
-  for (let age = currentAge; age <= maxAge; age += 1) {
-    const taxYear = inputs.birthYear + age;
-    const inRetirement = age >= inputs.retirementAge;
-    const cpp = age >= inputs.cppStartAge ? cppAnnualAtAge(inputs.cppAt65, inputs.cppStartAge) : 0;
-    const oas = age >= inputs.oasStartAge ? oasAnnualAtAge(inputs.oasAt65, inputs.oasStartAge) : 0;
-    const privatePensionIncome = age >= inputs.privatePensionStartAge ? privatePensionAnnual : 0;
-    const spouseCpp = spouseEnabled && age >= inputs.spouseCppStartAge ? cppAnnualAtAge(inputs.spouseCppAt65, inputs.spouseCppStartAge) : 0;
-    const spouseOas = spouseEnabled && age >= inputs.spouseOasStartAge ? oasAnnualAtAge(inputs.spouseOasAt65, inputs.spouseOasStartAge) : 0;
-    const spouseGovBenefitIncome = spouseCpp + spouseOas;
-    const oasIncome = oas + spouseOas;
-    const oasRecipientCount = (oas > 0 ? 1 : 0) + (spouseOas > 0 ? 1 : 0);
-    const spousePrivatePensionIncome = spouseEnabled && age >= inputs.spousePrivatePensionStartAge ? spousePrivatePensionAnnual : 0;
-    const govBenefitIncome = cpp + oas + spouseGovBenefitIncome;
-    const totalPrivatePensionIncome = privatePensionIncome + spousePrivatePensionIncome;
-    const pensionIncome = govBenefitIncome + totalPrivatePensionIncome;
-    const spending = inRetirement ? targetSpend : 0; // after-tax target spending
-    let withdrawal = 0;
-    let totalTax = 0;
-    let taxOnWithdrawal = 0;
-    let oasClawback = 0;
-    let oasClawbackOnWithdrawal = 0;
-    let netIncome = pensionIncome;
-
-    if (inRetirement) {
-      const withdrawalPlan = solveWithdrawalForAfterTaxTarget({
-        netTarget: spending,
-        pensionIncome,
-        oasIncome,
-        oasRecipientCount,
-        inputs,
-        taxYear,
-      });
-      withdrawal = withdrawalPlan.withdrawal;
-      totalTax = withdrawalPlan.totalTax;
-      taxOnWithdrawal = withdrawalPlan.taxOnWithdrawal;
-      oasClawback = withdrawalPlan.oasClawback;
-      oasClawbackOnWithdrawal = withdrawalPlan.oasClawbackOnWithdrawal;
-      netIncome = withdrawalPlan.netIncome;
-    }
-
-    rows.push({
-      age,
-      taxYear,
-      balance,
-      lowerBalance,
-      upperBalance,
-      spending,
-      govBenefitIncome,
-      privatePensionIncome,
-      spouseGovBenefitIncome,
-      spousePrivatePensionIncome,
-      oasIncome,
-      pensionIncome,
-      withdrawal,
-      totalTax,
-      taxOnWithdrawal,
-      oasClawback,
-      oasClawbackOnWithdrawal,
-      netIncome,
-      inRetirement,
-    });
-
-    if (age === inputs.retirementAge) projectedAtRetirement = balance;
-    if (inRetirement && firstShortfallAge === null && balance <= 0) firstShortfallAge = age;
-
-    const annualReturn = inRetirement ? retireGrowth : growth;
-    const annualReturnLow = Math.max(0, annualReturn - (inRetirement ? uncertainty.retire : uncertainty.preretire));
-    const annualReturnHigh = annualReturn + (inRetirement ? uncertainty.retire : uncertainty.preretire);
-    balance = Math.max(0, balance * (1 + annualReturn));
-    lowerBalance = Math.max(0, lowerBalance * (1 + annualReturnLow));
-    upperBalance = Math.max(0, upperBalance * (1 + annualReturnHigh));
-    if (!inRetirement) {
-      balance += contribution;
-      lowerBalance += contribution;
-      upperBalance += contribution;
-      contribution *= 1 + contribGrowth;
-    } else {
-      balance = Math.max(0, balance - withdrawal);
-      lowerBalance = Math.max(0, lowerBalance - withdrawal);
-      upperBalance = Math.max(0, upperBalance - withdrawal);
-      targetSpend *= 1 + inflation;
-    }
-
-    if (age >= inputs.privatePensionStartAge) {
-      privatePensionAnnual *= 1 + privatePensionGrowth;
-    }
-    if (spouseEnabled && age >= inputs.spousePrivatePensionStartAge) {
-      spousePrivatePensionAnnual *= 1 + spousePrivatePensionGrowth;
-    }
-  }
-
-  const retirementRow =
-    rows.find((r) => r.age === inputs.retirementAge) ||
-    rows.find((r) => r.inRetirement) ||
-    rows[rows.length - 1];
-  const lastRow = rows[rows.length - 1];
-  const selectedGovBenefitAnnual = retirementRow?.govBenefitIncome || 0;
-  const selectedPrivatePensionAnnual = retirementRow?.privatePensionIncome || 0;
-  const selectedSpouseGovBenefitAnnual = retirementRow?.spouseGovBenefitIncome || 0;
-  const selectedSpousePrivatePensionAnnual = retirementRow?.spousePrivatePensionIncome || 0;
-  const selectedPensionAnnual = retirementRow?.pensionIncome || 0;
-  const fundedRatio = retirementRow && retirementRow.spending > 0
-    ? Math.min(999, ((selectedPensionAnnual + estimateSafeIncome(retirementRow.balance)) / retirementRow.spending) * 100)
-    : 0;
-
-  return {
-    rows,
-    currentAge,
-    yearsToRetirement,
-    projectedAtRetirement,
-    finalBalance: lastRow?.balance || 0,
-    firstShortfallAge,
-    selectedGovBenefitAnnual,
-    selectedPrivatePensionAnnual,
-    selectedSpouseGovBenefitAnnual,
-    selectedSpousePrivatePensionAnnual,
-    selectedPensionAnnual,
-    retirementGrossIncome: (retirementRow?.pensionIncome || 0) + (retirementRow?.withdrawal || 0),
-    retirementNetIncome: retirementRow?.netIncome || 0,
-    retirementTaxTotal: retirementRow?.totalTax || 0,
-    retirementTaxOnWithdrawal: retirementRow?.taxOnWithdrawal || 0,
-    retirementOasClawback: retirementRow?.oasClawback || 0,
-    retirementOasClawbackOnWithdrawal: retirementRow?.oasClawbackOnWithdrawal || 0,
-    retirementTaxOnPensions: Math.max(0, (retirementRow?.totalTax || 0) - (retirementRow?.taxOnWithdrawal || 0)),
-    retirementPensionIncome: retirementRow?.pensionIncome || 0,
-    retirementPensionNetIncome: Math.max(0, (retirementRow?.pensionIncome || 0) - Math.max(0, (retirementRow?.totalTax || 0) - (retirementRow?.taxOnWithdrawal || 0))),
-    retirementSpending: retirementRow?.spending || inputs.desiredIncome,
-    retirementWithdrawalNeed: retirementRow?.withdrawal || 0,
-    retirementWithdrawalNetCash: Math.max(0, (retirementRow?.withdrawal || 0) - (retirementRow?.taxOnWithdrawal || 0)),
-    retirementAfterTaxGapAfterPensions: Math.max(
-      0,
-      (retirementRow?.spending || inputs.desiredIncome) - Math.max(0, (retirementRow?.pensionIncome || 0) - Math.max(0, (retirementRow?.totalTax || 0) - (retirementRow?.taxOnWithdrawal || 0)))
-    ),
-    safeIncomeAtRetirement: estimateSafeIncome(retirementRow?.balance || 0),
-    fundedRatio,
-  };
-}
-
-function estimateSafeIncome(balance) {
-  return balance * 0.04;
-}
-
-function cppAnnualAtAge(baseAt65, startAge) {
-  const ageDelta = startAge - 65;
-  if (ageDelta < 0) {
-    return baseAt65 * (1 - Math.abs(ageDelta) * 0.072);
-  }
-  return baseAt65 * (1 + ageDelta * 0.084);
-}
-
-function oasAnnualAtAge(baseAt65, startAge) {
-  const ageDelta = Math.max(0, startAge - 65);
-  return baseAt65 * (1 + ageDelta * 0.072);
-}
-
-function buildPlannerAnalytics(inputs, projection) {
-  const baseDiag = buildScenarioDiagnostics(inputs);
-  const scenarios = getScenarioSpecList(inputs).map((spec) => ({
-    ...spec,
-    diagnostics: buildScenarioDiagnostics(inputs, spec.overrides),
-  }));
-
-  const currentAge = Math.max(0, inputs.currentYear - inputs.birthYear);
-  const earliestRetirementAge = findEarliestRetirementAge(inputs, currentAge);
-  const status = classifyOutcomeStatus(baseDiag, inputs, earliestRetirementAge);
-
-  const retireCoverage = estimateGuaranteedCoverageAtAge(inputs, inputs.retirementAge, baseDiag);
-  const age65Coverage = estimateGuaranteedCoverageAtAge(inputs, 65, baseDiag);
-
-  const stressReturns = [
-    Math.max(0, inputs.growthRate - 1),
-    inputs.growthRate,
-    inputs.growthRate + 1,
-  ].map((v) => Number(v.toFixed(1)));
-  const stressInflations = [2, 3];
-  const stressMatrix = stressReturns.map((growthRate) => ({
-    growthRate,
-    cells: stressInflations.map((inflationRate) => {
-      const diagnostics = buildScenarioDiagnostics(inputs, {
-        growthRate,
-        retirementReturn: Math.max(0, inputs.retirementReturn + (growthRate - inputs.growthRate)),
-        inflationRate,
-      });
-      const earliest = findEarliestRetirementAge(inputs, currentAge, {
-        growthRate,
-        retirementReturn: Math.max(0, inputs.retirementReturn + (growthRate - inputs.growthRate)),
-        inflationRate,
-      });
-      const cellStatus = classifyOutcomeStatus(diagnostics, { ...inputs, inflationRate, growthRate }, earliest);
-      return { inflationRate, diagnostics, earliestRetirementAge: earliest, status: cellStatus };
-    }),
-  }));
-
-  const scenarioMethodNote = inputs.scenarioMethod === "deterministicWide"
-    ? `Deterministic wide scenarios use your expected return plus/minus ${inputs.returnVolatility.toFixed(1)}%.`
-    : `Deterministic scenarios use expected return plus/minus ${Math.max(2, Math.min(4, inputs.returnVolatility || 2)).toFixed(1)}% (fast comparison, not Monte Carlo percentiles).`;
-
-  const explanation = status.key === "onTrack"
-    ? "Your current assumptions suggest your retirement target is sustainable through your selected planning age in the base scenario."
-    : status.key === "close"
-    ? "Your plan is close, but it becomes sensitive to return and inflation assumptions. Review the scenario table and stress test results before relying on this plan."
-    : "Your current assumptions likely need changes to retire on your target timeline. Use the suggested actions below to test the biggest levers first.";
-
-  const conservativeScenario = scenarios.find((s) => s.key === "conservative");
-  let scenarioInterpretationLine = "Scenario interpretation unavailable.";
-  if (conservativeScenario) {
-    const d = conservativeScenario.diagnostics;
-    if (d.peakShortfall > 0) {
-      scenarioInterpretationLine = `To survive the Conservative case, reduce after-tax retirement spending by about ${money(d.peakShortfall)}/yr, or delay retirement and rerun the plan.`;
-    } else if (d.depletionAge) {
-      const conservativeEarliest = findEarliestRetirementAge(inputs, currentAge, conservativeScenario.overrides);
-      if (Number.isFinite(conservativeEarliest) && conservativeEarliest > inputs.retirementAge) {
-        scenarioInterpretationLine = `To survive the Conservative case, target retirement age ≈ ${conservativeEarliest} (about +${conservativeEarliest - inputs.retirementAge} years from your current target).`;
-      } else {
-        scenarioInterpretationLine = `The Conservative case depletes around age ${d.depletionAge}. Test a later retirement age or lower spending to add margin.`;
-      }
-    } else {
-      scenarioInterpretationLine = "Even the Conservative case remains funded; your main risk is spending drift or inflation.";
-    }
-  }
-
-  return {
-    baseDiag,
-    scenarios,
-    earliestRetirementAge,
-    status,
-    retireCoverage,
-    age65Coverage,
-    stressMatrix,
-    scenarioMethodNote,
-    scenarioInterpretationLine,
-    explanation,
-  };
-}
-
-function getScenarioSpecList(inputs) {
-  const defaultSpread = Math.max(2, Math.min(4, inputs.returnVolatility || 2));
-  const spread = inputs.scenarioMethod === "deterministicWide"
-    ? Math.max(0.5, inputs.returnVolatility || 3)
-    : defaultSpread;
-  const retirementSpread = Math.max(0.5, Math.min(spread, Math.max(1, spread * 0.75)));
-  return [
-    {
-      key: "conservative",
-      label: "Conservative",
-      overrides: {
-        growthRate: Math.max(0, inputs.growthRate - spread),
-        retirementReturn: Math.max(0, inputs.retirementReturn - retirementSpread),
-      },
-    },
-    {
-      key: "base",
-      label: "Base",
-      overrides: {
-        growthRate: inputs.growthRate,
-        retirementReturn: inputs.retirementReturn,
-      },
-    },
-    {
-      key: "optimistic",
-      label: "Optimistic",
-      overrides: {
-        growthRate: inputs.growthRate + spread,
-        retirementReturn: inputs.retirementReturn + retirementSpread,
-      },
-    },
-  ];
-}
-
-function buildScenarioDiagnostics(inputs, overrides = {}) {
-  const simInputs = { ...inputs, ...overrides };
-  sanitizeInputs(simInputs);
-
-  const currentAge = Math.max(0, simInputs.currentYear - simInputs.birthYear);
-  const maxAge = Math.max(simInputs.lifeExpectancy, currentAge + 1);
-  const yearsToRetirement = Math.max(0, simInputs.retirementAge - currentAge);
-  const growth = simInputs.growthRate / 100;
-  const retireGrowth = simInputs.retirementReturn / 100;
-  const inflation = simInputs.inflationRate / 100;
-  const contribGrowth = simInputs.contributionIncrease / 100;
-  const spouseEnabled = Boolean(simInputs.spouseEnabled);
-
-  let balance = simInputs.currentSavings;
-  let contribution = simInputs.annualContribution;
-  let targetSpend = simInputs.desiredIncome * Math.pow(1 + inflation, yearsToRetirement);
-  let privatePensionAnnual = simInputs.privatePensionAnnual;
-  let spousePrivatePensionAnnual = simInputs.spousePrivatePensionAnnual;
-  const privatePensionGrowth = simInputs.privatePensionIncrease / 100;
-  const spousePrivatePensionGrowth = simInputs.spousePrivatePensionIncrease / 100;
-
-  const rows = [];
-  let depletionAge = null;
-  let peakShortfall = 0;
-  let shortfallAtTargetRetirement = 0;
-
-  for (let age = currentAge; age <= maxAge; age += 1) {
-    const taxYear = simInputs.birthYear + age;
-    const inRetirement = age >= simInputs.retirementAge;
-    const annualReturn = inRetirement ? retireGrowth : growth;
-    const startingBalance = balance;
-
-    const cpp = age >= simInputs.cppStartAge ? cppAnnualAtAge(simInputs.cppAt65, simInputs.cppStartAge) : 0;
-    const oas = age >= simInputs.oasStartAge ? oasAnnualAtAge(simInputs.oasAt65, simInputs.oasStartAge) : 0;
-    const spouseCpp = spouseEnabled && age >= simInputs.spouseCppStartAge ? cppAnnualAtAge(simInputs.spouseCppAt65, simInputs.spouseCppStartAge) : 0;
-    const spouseOas = spouseEnabled && age >= simInputs.spouseOasStartAge ? oasAnnualAtAge(simInputs.spouseOasAt65, simInputs.spouseOasStartAge) : 0;
-    const privatePensionIncome = age >= simInputs.privatePensionStartAge ? privatePensionAnnual : 0;
-    const spousePrivatePensionIncome = spouseEnabled && age >= simInputs.spousePrivatePensionStartAge ? spousePrivatePensionAnnual : 0;
-    const pensionIncome = cpp + oas + spouseCpp + spouseOas + privatePensionIncome + spousePrivatePensionIncome;
-    const oasIncome = oas + spouseOas;
-    const oasRecipientCount = (oas > 0 ? 1 : 0) + (spouseOas > 0 ? 1 : 0);
-    const spending = inRetirement ? targetSpend : 0;
-
-    let requiredWithdrawal = 0;
-    let actualWithdrawal = 0;
-    let netIncome = pensionIncome;
-    let shortfall = 0;
-    let totalTax = 0;
-
-    const preWithdrawalBalance = Math.max(0, startingBalance * (1 + annualReturn));
-
-    if (!inRetirement) {
-      balance = preWithdrawalBalance + contribution;
-      contribution *= 1 + contribGrowth;
-    } else {
-      const solved = solveWithdrawalForAfterTaxTarget({
-        netTarget: spending,
-        pensionIncome,
-        oasIncome,
-        oasRecipientCount,
-        inputs: simInputs,
-        taxYear,
-      });
-      requiredWithdrawal = solved.withdrawal;
-      totalTax = solved.totalTax;
-
-      actualWithdrawal = Math.min(requiredWithdrawal, preWithdrawalBalance);
-      const actualNet = afterTaxIncomeForWithdrawal(
-        actualWithdrawal,
-        pensionIncome,
-        oasIncome,
-        oasRecipientCount,
-        simInputs,
-        taxYear
-      );
-      netIncome = actualNet.netIncome;
-      shortfall = Math.max(0, spending - netIncome);
-      peakShortfall = Math.max(peakShortfall, shortfall);
-      if (age === simInputs.retirementAge) shortfallAtTargetRetirement = shortfall;
-      balance = Math.max(0, preWithdrawalBalance - actualWithdrawal);
-      if (depletionAge === null && balance <= 0 && (requiredWithdrawal > 0 || actualWithdrawal > 0)) {
-        depletionAge = age;
-      }
-      targetSpend *= 1 + inflation;
-    }
-
-    rows.push({
-      age,
-      taxYear,
-      inRetirement,
-      startingBalance,
-      endingBalance: balance,
-      spending,
-      pensionIncome,
-      oasIncome,
-      oasRecipientCount,
-      requiredWithdrawal,
-      actualWithdrawal,
-      netIncome,
-      totalTax,
-      shortfall,
-    });
-
-    if (age >= simInputs.privatePensionStartAge) privatePensionAnnual *= 1 + privatePensionGrowth;
-    if (spouseEnabled && age >= simInputs.spousePrivatePensionStartAge) spousePrivatePensionAnnual *= 1 + spousePrivatePensionGrowth;
-  }
-
-  const retirementRow = rows.find((r) => r.age === simInputs.retirementAge) || rows.find((r) => r.inRetirement) || rows[rows.length - 1];
-  const age65Row = rows.find((r) => r.age === 65) || rows[rows.length - 1];
-  const age90Row = rows.find((r) => r.age === 90) || rows[rows.length - 1];
-
-  return {
-    rows,
-    currentAge,
-    retirementAge: simInputs.retirementAge,
-    lifeExpectancy: simInputs.lifeExpectancy,
-    depletionAge,
-    peakShortfall,
-    shortfallAtTargetRetirement,
-    onTrack: peakShortfall < 1 && (!depletionAge || depletionAge > simInputs.lifeExpectancy),
-    retirementRow,
-    age65Row,
-    age90Row,
-    balanceAtRetirement: retirementRow?.startingBalance || 0,
-    balanceAt65: age65Row?.startingBalance || 0,
-    balanceAt90: age90Row?.startingBalance || 0,
-  };
-}
-
-function findEarliestRetirementAge(inputs, currentAge, baseOverrides = {}) {
-  for (let age = Math.max(currentAge, 45); age <= 70; age += 1) {
-    const diagnostics = buildScenarioDiagnostics({ ...inputs, retirementAge: age }, baseOverrides);
-    if (diagnostics.onTrack) return age;
-  }
-  return null;
-}
-
-function classifyOutcomeStatus(diagnostics, inputs, earliestRetirementAge) {
-  if (diagnostics.onTrack) {
-    return { key: "onTrack", icon: "🟢", label: "On track" };
-  }
-
-  const spendingTarget = diagnostics.retirementRow?.spending || inputs.desiredIncome || 1;
-  const shortfallRatio = diagnostics.shortfallAtTargetRetirement / Math.max(1, spendingTarget);
-  if (
-    (diagnostics.depletionAge && diagnostics.depletionAge >= inputs.lifeExpectancy - 5) ||
-    shortfallRatio <= 0.1 ||
-    (Number.isFinite(earliestRetirementAge) && earliestRetirementAge <= inputs.retirementAge + 2)
-  ) {
-    return { key: "close", icon: "🟡", label: "Close" };
-  }
-
-  return { key: "notOnTrack", icon: "🔴", label: "Not on track" };
-}
-
-function estimateGuaranteedCoverageAtAge(inputs, age, baseDiag) {
-  const row = baseDiag.rows.find((r) => r.age === age) || baseDiag.rows[baseDiag.rows.length - 1];
-  if (!row) return { age, coverage: 0, guaranteedNet: 0, spending: 0 };
-  const afterTaxGuaranteed = afterTaxIncomeForWithdrawal(
-    0,
-    row.pensionIncome || 0,
-    row.oasIncome || 0,
-    row.oasRecipientCount || 0,
-    inputs,
-    row.taxYear || inputs.currentYear
-  ).netIncome;
-  return {
-    age,
-    coverage: row.spending > 0 ? afterTaxGuaranteed / row.spending : 0,
-    guaranteedNet: afterTaxGuaranteed,
-    guaranteedGross: row.pensionIncome || 0,
-    spending: row.spending || 0,
-  };
-}
-
-function renderOutcomeSummary(analytics) {
-  if (!el.outcomeSummaryCard) return;
-  const { status, earliestRetirementAge, baseDiag, retireCoverage, age65Coverage, explanation } = analytics;
-  const targetAge = state.inputs.retirementAge;
-  const depletionText = baseDiag.depletionAge ? `Portfolio depletes around age ${baseDiag.depletionAge}` : "No portfolio depletion before your selected life expectancy";
-  const shortfallValue = baseDiag.shortfallAtTargetRetirement > 0 ? money(baseDiag.shortfallAtTargetRetirement) : "$0";
-  const verdictLine = `${status.icon} ${status.label} for age ${targetAge}`;
-
-  el.outcomeSummaryCard.innerHTML = `
-    <div class="outcome-verdict-block">
-      <div class="outcome-status-pill large status-${escapeHtml(status.key)}" role="status" aria-live="polite">
-        <span class="status-icon" aria-hidden="true">${escapeHtml(status.icon)}</span>
-        <span>${escapeHtml(status.label)}</span>
-      </div>
-      <div class="outcome-verdict-line">${escapeHtml(verdictLine)}</div>
-      <div class="outcome-verdict-note">${escapeHtml(depletionText)}</div>
-    </div>
-    <div class="outcome-metrics-grid">
-      <div class="outcome-metric">
-        <span class="label">Shortfall at target retirement age</span>
-        <div class="value-row">
-          <strong class="value-main">${escapeHtml(shortfallValue)} / yr</strong>
-        </div>
-        <span class="value-sub">After tax (annual)</span>
-      </div>
-      <div class="outcome-metric">
-        <span class="label">Earliest retirement age (base)</span>
-        <div class="value-row">
-          <strong class="value-main">${earliestRetirementAge === null ? "Not found" : `Earliest: ${escapeHtml(String(earliestRetirementAge))}`}</strong>
-        </div>
-        <span class="value-sub">Scan under base assumptions (to age 70)</span>
-      </div>
-      <div class="outcome-metric">
-        <span class="label">Guaranteed income coverage</span>
-        <div class="value-row">
-          <strong class="value-main">At retirement: ${escapeHtml(pct(Math.max(0, retireCoverage.coverage)))}</strong>
-        </div>
-        <span class="value-sub">At 65: ${escapeHtml(pct(Math.max(0, age65Coverage.coverage)))}</span>
-      </div>
-      <div class="outcome-metric">
-        <span class="label">Guaranteed income (net est.)</span>
-        <div class="value-row">
-          <strong class="value-main">${escapeHtml(money(retireCoverage.guaranteedNet))}</strong>
-        </div>
-        <span class="value-sub">At 65: ${escapeHtml(money(age65Coverage.guaranteedNet))}</span>
-      </div>
-    </div>
-    <div class="support-inline-cta no-print">
-      <p>If this tool saved you time or gave you clarity, consider supporting future Canadian-focused upgrades.</p>
-      <a class="btn btn-secondary support-link-btn" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Support development</a>
-      <p class="small-copy muted">No ads. No tracking. Local-first.</p>
-    </div>
-    <p class="outcome-explainer">${escapeHtml(explanation)}</p>
-  `;
-}
-
-function renderScenarioTable(analytics) {
-  if (!el.scenarioTableBody) return;
-  if (el.scenarioTableNote) el.scenarioTableNote.textContent = analytics.scenarioMethodNote;
-  if (el.scenarioInterpretationLine) el.scenarioInterpretationLine.textContent = analytics.scenarioInterpretationLine || "";
-
-  el.scenarioTableBody.innerHTML = analytics.scenarios
-    .map((row) => {
-      const d = row.diagnostics;
-      const returnLabel = `${row.overrides.growthRate.toFixed(1)}% / ${row.overrides.retirementReturn.toFixed(1)}% retire`;
-      const inflationLabel = `${state.inputs.inflationRate.toFixed(1)}% infl.`;
-      return `
-        <tr>
-          <td>${escapeHtml(row.label)}</td>
-          <td>${escapeHtml(returnLabel)} • ${escapeHtml(inflationLabel)}</td>
-          <td>${money(d.balanceAtRetirement)}</td>
-          <td>${money(d.balanceAt65)}</td>
-          <td>${money(d.balanceAt90)}</td>
-          <td>${d.depletionAge ? `Age ${d.depletionAge}` : "Never"}</td>
-          <td>${d.peakShortfall > 0 ? money(d.peakShortfall) : "None"}</td>
-        </tr>`;
-    })
-    .join("");
-}
-
-function renderStressTest(analytics) {
-  if (el.stressTestPanel) el.stressTestPanel.hidden = !(ui.mode === "advanced" && state.inputs.stressTestEnabled);
-  if (!el.stressTestBody || !state.inputs.stressTestEnabled) return;
-
-  el.stressTestBody.innerHTML = analytics.stressMatrix
-    .map((row) => {
-      const cells = row.cells
-        .map((cell) => {
-          const stressState = classifyStressCellStatus(cell.diagnostics);
-          return `
-          <td>
-            <div class="stress-cell">
-              <span class="stress-badge stress-${escapeHtml(stressState.key)}">${escapeHtml(stressState.label)}</span>
-              <span>Earliest: ${cell.earliestRetirementAge ?? "n/a"}</span>
-              <span>Depletion: ${stressState.key === "depletes" && cell.diagnostics.depletionAge ? `Age ${cell.diagnostics.depletionAge}` : "—"}</span>
-              <span>Shortfall: ${cell.diagnostics.shortfallAtTargetRetirement > 0 ? money(cell.diagnostics.shortfallAtTargetRetirement) : "None"}</span>
-            </div>
-          </td>`;
-        })
-        .join("");
-      return `<tr><th>${row.growthRate.toFixed(1)}%</th>${cells}</tr>`;
-    })
-    .join("");
-}
-
-function classifyStressCellStatus(diagnostics) {
-  const baseSpending = diagnostics.retirementRow?.spending || state.inputs.desiredIncome || 0;
-  const tolerance = Math.max(0, baseSpending * 0.02);
-  const peakShortfall = diagnostics.peakShortfall || 0;
-  if ((diagnostics.depletionAge && diagnostics.depletionAge <= diagnostics.lifeExpectancy) || peakShortfall > tolerance) {
-    return { key: "depletes", label: "Depletes" };
-  }
-  if (!diagnostics.depletionAge && peakShortfall > 0) {
-    return { key: "tight", label: "Tight" };
-  }
-  return { key: "funded", label: "Funded" };
-}
-
-function renderTaxGuidance(inputs, projection, analytics) {
-  if (!el.taxGuidanceBody) return;
-
-  const bucketSum = inputs.rrspBalance + inputs.tfsaBalance + inputs.nonRegisteredBalance;
-  const bucketGap = Math.abs(bucketSum - inputs.currentSavings);
-  const bridgeTargetBracket = TAX_2026.federal[1][0];
-  const oasClawbackThreshold = inputs.oasClawbackEnabled ? inputs.oasClawbackThreshold : null;
-
-  const bridgeItems = [];
-  if (inputs.withdrawalStrategy === "rrspFirst") {
-    bridgeItems.push("Simple comparison mode: draw RRSP/RRIF first, then non-registered, and preserve TFSA for later top-ups and shocks.");
-  } else if (inputs.withdrawalStrategy === "tfsaFirst") {
-    bridgeItems.push("TFSA-first comparison mode: use TFSA for early top-ups to reduce taxable income, then non-registered, with RRSP/RRIF deferred.");
-  } else {
-    bridgeItems.push(`Tax-smart heuristic: before age 65, consider filling lower tax brackets with RRSP withdrawals (for example up to roughly ${money(bridgeTargetBracket)} taxable income federally, before province-specific effects).`);
-    bridgeItems.push("Use non-registered accounts next for flexibility, and preserve TFSA room/value for later tax-free top-ups or market shocks where possible.");
-  }
-  if (inputs.tfsaBalance > 0) bridgeItems.push("TFSA withdrawals do not increase taxable income in this planner, so they can be useful for one-time spending or gap years.");
-
-  const age65Items = [];
-  age65Items.push("After age 65, aim for a steadier taxable income level year-to-year instead of large RRSP/RRIF spikes when possible.");
-  if (oasClawbackThreshold) {
-    age65Items.push(`If OAS clawback is enabled, try to keep taxable income near or below the estimated threshold (${money(oasClawbackThreshold)} per OAS recipient, planning estimate) and use TFSA for top-ups.`);
-  } else {
-    age65Items.push("Consider enabling OAS clawback estimation in Advanced mode if your retirement income could approach the OAS recovery threshold.");
-  }
-  age65Items.push("Use TFSA withdrawals for discretionary spending, health costs, or large purchases without increasing taxable income.");
-
-  const whyItems = [
-    "Smoother taxable income can reduce lifetime taxes and avoid higher marginal brackets in later years.",
-    "Preserving TFSA flexibility can improve resilience if returns or inflation are worse than expected.",
-    "RRSP/RRIF drawdown planning matters more when guaranteed income (CPP/OAS/private pensions) already covers a large share of spending.",
-  ];
-  if (bucketGap > 5_000) {
-    whyItems.push(`Your account buckets differ from total current savings by about ${money(bucketGap)}. Update the optional bucket balances for more accurate withdrawal guidance.`);
-  }
-
-  const selectedStrategyName =
-    inputs.withdrawalStrategy === "taxSmart"
-      ? "Tax-smart (heuristic)"
-      : inputs.withdrawalStrategy === "rrspFirst"
-      ? "Simple (RRSP first)"
-      : "TFSA first (comparison)";
-
-  let strategyIntro = "This is a planning heuristic intended to smooth taxable income and preserve flexibility.";
-  let strategyPracticeItems = [
-    "Review the bridge period (retirement to age 65) and age-65+ guidance cards below.",
-    "Compare this strategy with another option using the same assumptions before deciding.",
-    "Use the Year 1 retirement breakdown and scenario table to see how sensitive your plan is.",
-  ];
-
-  if (inputs.withdrawalStrategy === "rrspFirst") {
-    strategyIntro = "RRSP-first is simple and can be reasonable when you need straightforward cash flow, expect lower retirement tax rates, or have limited TFSA room.";
-    strategyPracticeItems = [
-      "Expect taxable income to rise faster if RRSP/RRIF withdrawals are your first funding source.",
-      "This may be easier to manage early, but can reduce flexibility later if markets or spending change.",
-      "Compare against Tax-smart mode if OAS clawback or higher later-life taxable income is a concern.",
-    ];
-  } else if (inputs.withdrawalStrategy === "tfsaFirst") {
-    strategyIntro = "TFSA-first can reduce taxable income early, but it may leave larger taxable RRSP/RRIF balances for later years.";
-    strategyPracticeItems = [
-      "Early retirement cash flow may look cleaner because TFSA withdrawals do not increase taxable income.",
-      "Later taxable withdrawals may increase if RRSP/RRIF balances keep compounding while untouched.",
-      "Use this as a comparison scenario, especially if your base plan depends on preserving low tax brackets later.",
-    ];
-  }
-
-  el.taxGuidanceBody.innerHTML = `
-    <section class="guidance-card" aria-labelledby="guidanceStrategyTitle">
-      <h4 id="guidanceStrategyTitle">Selected strategy: ${escapeHtml(selectedStrategyName)}</h4>
-      <p class="muted small-copy">${escapeHtml(strategyIntro)}</p>
-      <h4>What this means in practice</h4>
-      <ul>${strategyPracticeItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    </section>
-    <section class="guidance-card" aria-labelledby="guidanceBridgeTitle">
-      <h4 id="guidanceBridgeTitle">Bridge period (retirement to 65)</h4>
-      <ul>${bridgeItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    </section>
-    <section class="guidance-card" aria-labelledby="guidance65Title">
-      <h4 id="guidance65Title">Age 65+</h4>
-      <ul>${age65Items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    </section>
-    <section class="guidance-card" aria-labelledby="guidanceWhyTitle">
-      <h4 id="guidanceWhyTitle">Why this may help (heuristic)</h4>
-      <ul>${whyItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-      <p class="muted small-copy">Current strategy view: <strong>${escapeHtml(selectedStrategyName)}</strong></p>
-    </section>
-  `;
-}
-
-function renderActions(inputs, projection, analytics) {
-  if (!el.actionsList) return;
-
-  const actions = [];
-  const earliest = analytics.earliestRetirementAge;
-  const targetRetireAge = inputs.retirementAge;
-  const yearsToRetire = Math.max(0, projection.yearsToRetirement);
-
-  if (earliest !== null && earliest > targetRetireAge) {
-    const ageGap = earliest - targetRetireAge;
-    const extraSavingsEstimate = Math.max(1_000, Math.round((analytics.baseDiag.shortfallAtTargetRetirement * 0.45) / 500) * 500);
-    actions.push(`To retire at ${targetRetireAge} instead of ${earliest}, test increasing annual savings by about ${money(extraSavingsEstimate)} and rerun the plan.`);
-    actions.push(`If retiring at ${targetRetireAge} is non-negotiable, test reducing after-tax retirement spending by ${money(Math.round(analytics.baseDiag.shortfallAtTargetRetirement / 100) * 100)} to see the impact on sustainability.`);
-    if (ageGap > 0) actions.push(`Delaying retirement by ${ageGap} year${ageGap === 1 ? "" : "s"} (to age ${earliest}) is the earliest on-track age under your current base assumptions.`);
-  } else if (analytics.baseDiag.onTrack) {
-    actions.push(`Your base plan is on track. Save a comparison scenario with retirement returns reduced by 1-2% to see how much cushion you have.`);
-  }
-
-  if (inputs.cppStartAge < 70) {
-    const cppIncreaseAnnual = Math.max(0, cppAnnualAtAge(inputs.cppAt65, 70) - cppAnnualAtAge(inputs.cppAt65, inputs.cppStartAge));
-    if (cppIncreaseAnnual > 0) {
-      actions.push(`If you delay CPP from age ${inputs.cppStartAge} to age 70, your estimated CPP increases by about ${money(cppIncreaseAnnual / 12)}/month (planning estimate).`);
-    }
-  }
-
-  if (inputs.oasClawbackEnabled && projection.retirementOasClawback > 0) {
-    actions.push(`Your year-1 retirement estimate includes about ${money(projection.retirementOasClawback)} of OAS clawback. Test lower taxable withdrawals (or more TFSA top-ups) to reduce clawback risk.`);
-  }
-
-  const worstScenario = analytics.scenarios.find((s) => s.key === "conservative")?.diagnostics;
-  if (analytics.baseDiag.onTrack && worstScenario && !worstScenario.onTrack) {
-    actions.push("Your plan works in the base scenario but not in the conservative scenario. Review the stress test and consider a lower return assumption for planning.");
-  }
-
-  const bucketSum = inputs.rrspBalance + inputs.tfsaBalance + inputs.nonRegisteredBalance;
-  if (bucketSum > 0) {
-    const taxableWeight = bucketSum > 0 ? (inputs.rrspBalance + inputs.nonRegisteredBalance) / bucketSum : 0;
-    if (taxableWeight > 0.75 && inputs.tfsaBalance < inputs.rrspBalance) {
-      actions.push("Most of your optional account buckets are taxable (RRSP/non-registered). Consider prioritizing TFSA contributions for future flexibility if your room allows.");
-    }
-  }
-
-  if (actions.length < 3) {
-    actions.push(`Stress test your plan at ${Math.max(0, inputs.growthRate - 1).toFixed(1)}% to ${inputs.growthRate.toFixed(1)}% returns and 2-3% inflation before relying on a single forecast.`);
-    actions.push("Review private pension and CPP/OAS estimates annually using official statements and update this planner when your assumptions change.");
-  }
-
-  el.actionsList.innerHTML = actions.slice(0, 6).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-}
-
-function renderSnapshot(projection) {
-  const items = [
-    { label: "Current age", value: String(projection.currentAge), sub: `Birth year ${state.inputs.birthYear}` },
-    { label: "Years to retire", value: String(projection.yearsToRetirement), sub: `Retire at age ${state.inputs.retirementAge}` },
-    { label: "Nest egg at retirement", value: money(projection.projectedAtRetirement), sub: "Projected balance when retirement starts" },
-    { label: "Pensions & benefits / yr", value: money(projection.selectedPensionAnnual), sub: "Private pension + selected CPP/OAS timing" },
-    { label: "Funding ratio", value: pct(projection.fundedRatio / 100), sub: projection.firstShortfallAge ? `Shortfall estimate at age ${projection.firstShortfallAge}` : "No shortfall before life expectancy" },
-  ];
-
-  if (!el.snapshotGrid) return;
-  el.snapshotGrid.innerHTML = items
-    .map(
-      (item) => `
-        <article class="snapshot-item">
-          <span class="label">${escapeHtml(item.label)}</span>
-          <strong class="value">${escapeHtml(item.value)}</strong>
-          <span class="sub">${escapeHtml(item.sub)}</span>
-        </article>`
-    )
-    .join("");
-}
-
-function renderResults(projection, analytics) {
   const cards = [
     {
-      label: "Retirement spending target (year 1, after tax)",
-      value: money(projection.retirementSpending),
-      detail:
-        projection.yearsToRetirement > 0
-          ? `Inflation-adjusted from today's ${money(state.inputs.desiredIncome)}`
-          : "Inflation-adjusted in later retirement years",
+      label: "Balance at retirement",
+      value: formatCurrency(model.kpis.balanceAtRetirement),
+      sub: `Age ${state.profile.retirementAge}`,
     },
     {
-      label: "Portfolio withdrawal need (year 1)",
-      value: money(projection.retirementWithdrawalNeed),
-      detail: `Grossed up from after-tax gap of ${money(projection.retirementAfterTaxGapAfterPensions)} after pensions/benefits`,
+      label: "Income gap / surplus",
+      value: formatSignedCurrency(model.kpis.firstYearGap),
+      sub: model.kpis.firstYearGap >= 0 ? "Surplus in first retirement year" : "Gap in first retirement year",
     },
     {
-      label: "4% income estimate at retirement",
-      value: money(projection.safeIncomeAtRetirement),
-      detail: "Simple rule-of-thumb based on projected nest egg",
-    },
-    {
-      label: "Estimated taxes (year 1 retirement)",
-      value: money(projection.retirementTaxTotal),
-      detail:
-        state.inputs.oasClawbackEnabled && projection.retirementOasClawback > 0
-          ? `${money(projection.retirementOasClawback)} includes estimated OAS clawback`
-          : `${money(projection.retirementTaxOnWithdrawal)} attributable to savings withdrawal`,
-    },
-    {
-      label: "Balance at life expectancy",
-      value: money(projection.finalBalance),
-      detail: projection.firstShortfallAge ? `Depletes around age ${projection.firstShortfallAge}` : "Projected balance remains positive",
+      label: "Depletion age",
+      value: model.kpis.depletionAge ? `Age ${model.kpis.depletionAge}` : "No depletion",
+      sub: model.kpis.depletionAge ? "Savings projected to run out" : "Balance remains through plan horizon",
     },
   ];
 
-  if (!el.resultsGrid) return;
-  el.resultsGrid.innerHTML = cards
-    .map(
-      (card) => `
-        <article class="result-card">
-          <span class="result-label">${escapeHtml(card.label)}</span>
-          <strong class="result-value">${escapeHtml(card.value)}</strong>
-          <span class="result-detail">${escapeHtml(card.detail)}</span>
-        </article>`
-    )
-    .join("");
+  el.kpiGrid.innerHTML = cards.map((card) => `
+    <article class="metric-card">
+      <span class="label">${escapeHtml(card.label)}</span>
+      <span class="value">${escapeHtml(card.value)}</span>
+      <span class="sub">${escapeHtml(card.sub)}</span>
+    </article>
+  `).join("");
+
+  renderLegend();
+  drawMainChart(model.base.rows, model.best.rows, model.worst.rows);
+
+  const actions = buildNextActions(model);
+  el.nextActions.innerHTML = actions.map((text) => `<li>${escapeHtml(text)}</li>`).join("");
+
+  el.basicsSummary.innerHTML = [
+    `Province: <strong>${PROVINCES[state.profile.province]}</strong>`,
+    `Retire at <strong>${state.profile.retirementAge}</strong>, plan through age <strong>${state.profile.lifeExpectancy}</strong>.`,
+    `Risk profile: <strong>${capitalize(state.assumptions.riskProfile)}</strong> (${formatPct(model.base.returnRate)} return).`,
+    `Estimated first retirement year guaranteed income: <strong>${formatCurrency(model.kpis.firstYearGuaranteed)}</strong>.`,
+  ].join("<br>");
 }
 
-function renderRetirementBreakdown(projection, analytics) {
-  if (!el.retirementBreakdownDetails) return;
-
-  const pensionLabel = (state.inputs.privatePensionName || "Private pension").trim() || "Private pension";
-  const spousePensionLabel = (state.inputs.spousePrivatePensionName || "Spouse pension").trim() || "Spouse pension";
-  const spouseEnabled = Boolean(state.inputs.spouseEnabled);
-  const rows = [
-    ["After-tax spending target", money(projection.retirementSpending)],
-    ["Pensions & benefits (gross)", money(projection.retirementPensionIncome)],
-    [`${pensionLabel} (included above)`, money(projection.selectedPrivatePensionAnnual)],
-    ...(spouseEnabled ? [[`${spousePensionLabel} (included above)`, money(projection.selectedSpousePrivatePensionAnnual)]] : []),
-    ["Your CPP + OAS (included above)", money(Math.max(0, projection.selectedGovBenefitAnnual - projection.selectedSpouseGovBenefitAnnual))],
-    ...(spouseEnabled ? [["Spouse CPP + OAS (included above)", money(projection.selectedSpouseGovBenefitAnnual)]] : []),
-    ["CPP + OAS household total (included above)", money(projection.selectedGovBenefitAnnual)],
-    ["Tax on pensions & benefits (est.)", money(projection.retirementTaxOnPensions)],
-    ...(state.inputs.oasClawbackEnabled
-      ? [["OAS clawback (est., included in tax)", money(projection.retirementOasClawback)]]
-      : []),
-    ...(state.inputs.oasClawbackEnabled
-      ? [["OAS clawback from savings withdrawal impact (est.)", money(projection.retirementOasClawbackOnWithdrawal)]]
-      : []),
-    ["Pensions & benefits (net after tax)", money(projection.retirementPensionNetIncome)],
-    ["Remaining after-tax need from savings", money(projection.retirementAfterTaxGapAfterPensions)],
-    ["Savings withdrawal (gross, excludes pension income)", money(projection.retirementWithdrawalNeed)],
-    ["Tax on savings withdrawal only (est.)", money(projection.retirementTaxOnWithdrawal)],
-    ["Savings withdrawal net cash", money(projection.retirementWithdrawalNetCash)],
-    ...(analytics?.baseDiag?.shortfallAtTargetRetirement > 0
-      ? [["Unfunded spending (year 1, after tax)", money(analytics.baseDiag.shortfallAtTargetRetirement)]]
-      : []),
-    ["Total retirement tax (est.)", money(projection.retirementTaxTotal)],
-    ["Net income after tax", money(projection.retirementNetIncome)],
-    ["Gross income before tax", money(projection.retirementGrossIncome)],
+function renderLegend() {
+  const items = [
+    ["Balance", "#0f6abf"],
+    ["Balance upper/lower (stress)", "#7aa7d8"],
+    ["Spending", "#d9485f"],
+    ["Pension", "#f59e0b"],
+    ["CPP", "#16a34a"],
+    ["OAS", "#0ea5a8"],
   ];
 
-  el.retirementBreakdownDetails.innerHTML = rows
-    .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`)
-    .join("");
+  el.chartLegend.innerHTML = items.map((item) => `
+    <span class="legend-item">
+      <span class="legend-chip" style="background:${item[1]};"></span>${item[0]}
+    </span>
+  `).join("");
 }
 
-function renderTaxTable(inputs) {
-  const incomes = [50_000, 100_000, 150_000, 200_000, 250_000];
-  if (!el.taxTableBody) return;
-  const province = PROVINCE_TAX_2026[inputs.provinceCode] || PROVINCE_TAX_2026.NL;
+function renderWizard() {
+  const step = clamp(state.uiState.wizardStep || 1, 1, 5);
+  state.uiState.wizardStep = step;
+  const progress = (step / 5) * 100;
+  el.wizardProgressBar.style.width = `${progress}%`;
+  el.wizardStepLabel.textContent = `Step ${step} of 5`;
+  el.wizardBackBtn.disabled = step === 1;
+  el.wizardNextBtn.textContent = step === 5 ? "Finish" : "Next";
 
-  if (el.taxTitle) {
-    el.taxTitle.textContent = `2026 Effective Tax Rate (${province.name} Estimate)`;
-  }
-  if (el.taxSubtitle) {
-    el.taxSubtitle.textContent = province.source === "RQ"
-      ? `Uses CRA 2026 federal + Revenu Québec 2026 Quebec thresholds/rates (planning estimate, not filing; excludes credits and surtaxes).`
-      : `Uses CRA 2026 federal + ${province.name} thresholds/rates (planning estimate, not filing; excludes credits and surtaxes).`;
+  const model = ui.lastModel;
+  const stepHtml = {
+    1: wizardStepTimeline(model),
+    2: wizardStepGoal(model),
+    3: wizardStepSavings(model),
+    4: wizardStepIncome(model),
+    5: wizardStepRefine(model),
+  }[step];
+
+  el.wizardBody.innerHTML = stepHtml;
+}
+
+function wizardStepTimeline(model) {
+  const yearsToRetirement = Math.max(0, state.profile.retirementAge - ageNow());
+  const planYears = Math.max(1, state.profile.lifeExpectancy - state.profile.retirementAge);
+
+  return `
+    <h3>Your Timeline</h3>
+    <div class="wizard-grid">
+      ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province")}
+      ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear")}
+      ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge")}
+      ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy")}
+    </div>
+
+    <section class="lesson-box">
+      <h3>Micro-lesson</h3>
+      <ul>
+        <li>Your timeline sets saving years and retirement drawdown years.</li>
+        <li>Longer life expectancy protects against longevity risk.</li>
+        <li>Retiring earlier increases pressure on portfolio withdrawals.</li>
+      </ul>
+    </section>
+
+    <section class="preview-box" aria-live="polite">
+      <h3>Mini preview</h3>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Years to retirement</strong><span>${yearsToRetirement}</span></div>
+        <div class="preview-kpi-item"><strong>Plan length</strong><span>${planYears} years</span></div>
+      </div>
+    </section>
+  `;
+}
+
+function wizardStepGoal(model) {
+  const yearsToRetirement = Math.max(0, state.profile.retirementAge - ageNow());
+  const spendAtRet = state.profile.desiredSpending * Math.pow(1 + state.assumptions.inflation, yearsToRetirement);
+  const neutral = model.kpis.firstYearGap >= 0;
+
+  return `
+    <h3>Your Goal</h3>
+    <div class="wizard-grid">
+      ${numberField("Desired retirement spending (after-tax, today dollars)", "profile.desiredSpending", state.profile.desiredSpending, { min: 12000, max: 350000, step: 500 }, "desiredSpending")}
+      ${numberField("Inflation assumption", "assumptions.inflation", toPct(state.assumptions.inflation), { min: 0.5, max: 5, step: 0.1 }, "inflation", true)}
+    </div>
+
+    <section class="lesson-box">
+      <h3>Micro-lesson</h3>
+      <ul>
+        <li>Today’s dollars keep planning intuitive and comparable.</li>
+        <li>Inflation-adjusted spending is the amount needed in future years.</li>
+        <li>A funded indicator helps quickly gauge if assumptions are realistic.</li>
+      </ul>
+    </section>
+
+    <section class="preview-box" aria-live="polite">
+      <h3>Mini preview</h3>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Spending at retirement</strong><span>${formatCurrency(spendAtRet)}</span></div>
+        <div class="preview-kpi-item"><strong>Neutral funded indicator</strong><span class="${neutral ? "status-good" : "status-bad"}">${neutral ? "On track" : "Needs improvement"}</span></div>
+      </div>
+    </section>
+  `;
+}
+
+function wizardStepSavings(model) {
+  const sustainable = model.kpis.sustainableIncome;
+
+  return `
+    <h3>Your Savings</h3>
+    <div class="wizard-grid">
+      ${numberField("Current total savings", "savings.currentTotal", state.savings.currentTotal, { min: 0, max: 5000000, step: 1000 }, "currentSavings")}
+      ${numberField("Annual contribution", "savings.annualContribution", state.savings.annualContribution, { min: 0, max: 250000, step: 500 }, "annualContribution")}
+      ${numberField("Contribution increase (% per year)", "savings.contributionIncrease", toPct(state.savings.contributionIncrease), { min: 0, max: 15, step: 0.1 }, "contributionIncrease", true)}
+      <div class="form-span-full">
+        <div class="label-row">Risk profile ${tooltipButton("riskProfile")}</div>
+        <div class="inline-radio-row">
+          ${riskButton("conservative")}
+          ${riskButton("balanced")}
+          ${riskButton("aggressive")}
+        </div>
+      </div>
+    </div>
+
+    <section class="lesson-box">
+      <h3>Micro-lesson</h3>
+      <ul>
+        <li>Higher expected return assumptions can improve outcomes but include more uncertainty.</li>
+        <li>Contribution consistency often matters as much as return assumptions.</li>
+        <li>Use scenarios to test confidence in your plan.</li>
+      </ul>
+    </section>
+
+    <section class="preview-box" aria-live="polite">
+      <h3>Mini preview</h3>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Balance at retirement</strong><span>${formatCurrency(model.kpis.balanceAtRetirement)}</span></div>
+        <div class="preview-kpi-item"><strong>Estimated sustainable income</strong><span>${formatCurrency(sustainable)}</span></div>
+      </div>
+    </section>
+  `;
+}
+
+function wizardStepIncome(model) {
+  const first = model.kpis.firstRetirementBreakdown;
+  const total = Math.max(1, first.pension + first.cpp + first.oas + first.withdrawal);
+  const pensionPct = (first.pension / total) * 100;
+  const cppPct = (first.cpp / total) * 100;
+  const oasPct = (first.oas / total) * 100;
+  const drawPct = (first.withdrawal / total) * 100;
+  return `
+    <h3>Income Sources</h3>
+    <div class="wizard-grid">
+      <label class="form-span-full inline-check">
+        <input type="checkbox" data-bind="income.pension.enabled" ${state.income.pension.enabled ? "checked" : ""} />
+        Workplace pension?
+      </label>
+      ${numberField("Pension amount", "income.pension.amount", state.income.pension.amount, { min: 0, max: 200000, step: 500 }, "pensionAmount", false, !state.income.pension.enabled)}
+      ${numberField("Pension start age", "income.pension.startAge", state.income.pension.startAge, { min: 50, max: 75, step: 1 }, "pensionStartAge", false, !state.income.pension.enabled)}
+      ${numberField("Estimated CPP at 65", "income.cpp.amountAt65", state.income.cpp.amountAt65, { min: 0, max: 35000, step: 250 }, "cppAmount65")}
+      ${numberField("CPP start age", "income.cpp.startAge", state.income.cpp.startAge, { min: 60, max: 70, step: 1 }, "cppStartAge")}
+      ${numberField("Estimated OAS at 65", "income.oas.amountAt65", state.income.oas.amountAt65, { min: 0, max: 12000, step: 100 }, "oasAmount65")}
+      ${numberField("OAS start age", "income.oas.startAge", state.income.oas.startAge, { min: 65, max: 70, step: 1 }, "oasStartAge")}
+    </div>
+
+    <section class="lesson-box">
+      <h3>Micro-lesson</h3>
+      <ul>
+        <li>CPP and OAS timing affects annual income and gap coverage.</li>
+        <li>Guaranteed income sources reduce pressure on portfolio withdrawals.</li>
+        <li>Delaying CPP/OAS may improve late-retirement sustainability.</li>
+      </ul>
+    </section>
+
+    <section class="preview-box" aria-live="polite">
+      <h3>Mini preview: first retirement year coverage</h3>
+      <div class="stacked-bar" aria-label="Stacked income coverage">
+        <span style="width:${pensionPct.toFixed(1)}%; background:#f59e0b;" title="Pension"></span>
+        <span style="width:${cppPct.toFixed(1)}%; background:#16a34a;" title="CPP"></span>
+        <span style="width:${oasPct.toFixed(1)}%; background:#0ea5a8;" title="OAS"></span>
+        <span style="width:${drawPct.toFixed(1)}%; background:#0f6abf;" title="Savings draw"></span>
+      </div>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Pension</strong><span>${formatCurrency(first.pension)}</span></div>
+        <div class="preview-kpi-item"><strong>CPP</strong><span>${formatCurrency(first.cpp)}</span></div>
+        <div class="preview-kpi-item"><strong>OAS</strong><span>${formatCurrency(first.oas)}</span></div>
+        <div class="preview-kpi-item"><strong>Savings draw</strong><span>${formatCurrency(first.withdrawal)}</span></div>
+      </div>
+    </section>
+  `;
+}
+
+function wizardStepRefine() {
+  return `
+    <h3>Your first forecast is ready</h3>
+    <p class="muted">You can stay with the simple dashboard or unlock deeper tax-aware planning.</p>
+    <div class="landing-actions">
+      <button class="btn btn-primary" type="button" data-action="open-advanced">Refine taxes & withdrawals</button>
+      <button class="btn btn-secondary" type="button" data-action="open-spouse">Add spouse planning</button>
+      <button class="btn btn-secondary" type="button" data-action="open-stress">Stress test my plan</button>
+    </div>
+    <section class="lesson-box">
+      <h3>What unlocks next</h3>
+      <ul>
+        <li>Scenario comparison and tax estimate by province.</li>
+        <li>Account-level withdrawal order and OAS clawback view.</li>
+        <li>Educational modules for RRIF conversion and timing tradeoffs.</li>
+      </ul>
+    </section>
+  `;
+}
+
+function renderAdvanced() {
+  const model = ui.lastModel;
+  const locked = !state.uiState.unlocked.advanced;
+  if (locked) {
+    el.advancedAccordion.innerHTML = `<div class="subsection"><strong>Locked</strong><p class="muted">Complete Guided Setup step 5 to unlock advanced inputs.</p></div>`;
+    return;
   }
 
-  el.taxTableBody.innerHTML = incomes
-    .map((income) => {
-      const tax = estimateCombinedTax(income, inputs);
-      return `
+  const strategyRows = model.strategyComparisons.map((row) => `
+    <tr>
+      <td>${escapeHtml(row.label)}</td>
+      <td>${formatCurrency(row.totalTax)}</td>
+      <td>${formatCurrency(row.totalClawback)}</td>
+      <td>${row.depletionAge ? `Age ${row.depletionAge}` : "No depletion"}</td>
+    </tr>
+  `).join("");
+
+  const selectedStrategy = state.strategy.withdrawal;
+  const selected = model.strategyComparisons.find((x) => x.key === selectedStrategy) || model.strategyComparisons[0];
+
+  el.advancedAccordion.innerHTML = `
+    ${accordionSection("basics", "Basics", "Changes timeline, spending target, and core savings assumptions used across all models.", `
+      <div class="form-grid">
+        ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province")}
+        ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear")}
+        ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge")}
+        ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy")}
+        ${numberField("Desired spending (today's dollars)", "profile.desiredSpending", state.profile.desiredSpending, { min: 12000, max: 350000, step: 500 }, "desiredSpending")}
+        ${numberField("Inflation", "assumptions.inflation", toPct(state.assumptions.inflation), { min: 0.5, max: 5, step: 0.1 }, "inflation", true)}
+        ${numberField("Current total savings", "savings.currentTotal", state.savings.currentTotal, { min: 0, max: 5000000, step: 1000 }, "currentSavings")}
+        ${numberField("Annual contribution", "savings.annualContribution", state.savings.annualContribution, { min: 0, max: 250000, step: 500 }, "annualContribution")}
+      </div>
+    `, true)}
+
+    ${accordionSection("assumptions", "Assumptions", "Changes growth, spending escalation, scenario dispersion, and tax estimate framing.", `
+      <div class="form-grid">
+        ${numberField("Conservative return", "assumptions.returns.conservative", toPct(state.assumptions.returns.conservative), { min: 1, max: 10, step: 0.1 }, "riskProfile", true)}
+        ${numberField("Balanced return", "assumptions.returns.balanced", toPct(state.assumptions.returns.balanced), { min: 1, max: 12, step: 0.1 }, "riskProfile", true)}
+        ${numberField("Aggressive return", "assumptions.returns.aggressive", toPct(state.assumptions.returns.aggressive), { min: 1, max: 14, step: 0.1 }, "riskProfile", true)}
+        ${numberField("Inflation", "assumptions.inflation", toPct(state.assumptions.inflation), { min: 0.5, max: 5, step: 0.1 }, "inflation", true)}
+        ${numberField("Scenario spread", "assumptions.scenarioSpread", toPct(state.assumptions.scenarioSpread), { min: 0.5, max: 5, step: 0.1 }, "scenarioSpread", true)}
+        ${numberField("Volatility", "assumptions.volatility", toPct(state.assumptions.volatility), { min: 3, max: 20, step: 0.5 }, "volatility", true)}
+        ${numberField("Contribution increase (%/yr)", "savings.contributionIncrease", toPct(state.savings.contributionIncrease), { min: 0, max: 15, step: 0.1 }, "contributionIncrease", true)}
+        <label class="form-span-full inline-check"><input type="checkbox" data-bind="assumptions.taxBracketInflation" ${state.assumptions.taxBracketInflation ? "checked" : ""} />Inflate tax brackets over time</label>
+      </div>
+    `)}
+
+    ${accordionSection("income", "Income sources", "Changes non-portfolio income and timing dependencies.", `
+      <div class="form-grid">
+        <label class="inline-check form-span-full"><input type="checkbox" data-bind="income.pension.enabled" ${state.income.pension.enabled ? "checked" : ""} />Enable workplace pension</label>
+        ${numberField("Pension amount", "income.pension.amount", state.income.pension.amount, { min: 0, max: 200000, step: 500 }, "pensionAmount")}
+        ${numberField("Pension start age", "income.pension.startAge", state.income.pension.startAge, { min: 50, max: 75, step: 1 }, "pensionStartAge")}
+        ${numberField("CPP at 65", "income.cpp.amountAt65", state.income.cpp.amountAt65, { min: 0, max: 35000, step: 100 }, "cppAmount65")}
+        ${numberField("CPP start age", "income.cpp.startAge", state.income.cpp.startAge, { min: 60, max: 70, step: 1 }, "cppStartAge")}
+        ${numberField("OAS at 65", "income.oas.amountAt65", state.income.oas.amountAt65, { min: 0, max: 12000, step: 100 }, "oasAmount65")}
+        ${numberField("OAS start age", "income.oas.startAge", state.income.oas.startAge, { min: 65, max: 70, step: 1 }, "oasStartAge")}
+        <label class="inline-check form-span-full"><input type="checkbox" data-bind="profile.hasSpouse" ${state.profile.hasSpouse ? "checked" : ""} />Enable spousal income</label>
+        ${state.profile.hasSpouse ? `
+          <label class="inline-check form-span-full"><input type="checkbox" data-bind="income.spouse.enabled" ${state.income.spouse.enabled ? "checked" : ""} />Include spouse private pension / CPP / OAS</label>
+          ${numberField("Spouse private pension", "income.spouse.pensionAmount", state.income.spouse.pensionAmount, { min: 0, max: 200000, step: 500 }, "spousePensionAmount", false, !state.income.spouse.enabled)}
+          ${numberField("Spouse pension start age", "income.spouse.pensionStartAge", state.income.spouse.pensionStartAge, { min: 50, max: 75, step: 1 }, "spousePensionStartAge", false, !state.income.spouse.enabled)}
+          ${numberField("Spouse CPP at 65", "income.spouse.cppAmountAt65", state.income.spouse.cppAmountAt65, { min: 0, max: 35000, step: 100 }, "spouseCppAmount65", false, !state.income.spouse.enabled)}
+          ${numberField("Spouse CPP start age", "income.spouse.cppStartAge", state.income.spouse.cppStartAge, { min: 60, max: 70, step: 1 }, "spouseCppStartAge", false, !state.income.spouse.enabled)}
+          ${numberField("Spouse OAS at 65", "income.spouse.oasAmountAt65", state.income.spouse.oasAmountAt65, { min: 0, max: 12000, step: 100 }, "spouseOasAmount65", false, !state.income.spouse.enabled)}
+          ${numberField("Spouse OAS start age", "income.spouse.oasStartAge", state.income.spouse.oasStartAge, { min: 65, max: 70, step: 1 }, "spouseOasStartAge", false, !state.income.spouse.enabled)}
+        ` : ""}
+      </div>
+    `)}
+
+    ${accordionSection("accounts", "Accounts", "Changes withdrawal taxation and longevity under strategy comparisons.", `
+      <div class="form-grid">
+        ${numberField("RRSP / RRIF", "accounts.rrsp", state.accounts.rrsp, { min: 0, max: 5000000, step: 1000 }, "rrsp")}
+        ${numberField("TFSA", "accounts.tfsa", state.accounts.tfsa, { min: 0, max: 5000000, step: 1000 }, "tfsa")}
+        ${numberField("Non-registered", "accounts.nonRegistered", state.accounts.nonRegistered, { min: 0, max: 5000000, step: 1000 }, "nonRegistered")}
+        ${numberField("Cash", "accounts.cash", state.accounts.cash, { min: 0, max: 5000000, step: 500 }, "cash")}
+      </div>
+    `)}
+
+    ${accordionSection("capitalInjects", "Capital injects", "Adds one-time lump-sum proceeds (for example home downsizing) at chosen ages.", `
+      <div class="subsection">
+        <p class="muted small-copy">Each enabled row is a one-time injection added to plan assets at the selected age.</p>
+        <button type="button" class="btn btn-secondary" data-action="add-capital-inject">Add lump-sum event</button>
+      </div>
+      <div class="form-grid">
+        ${renderCapitalInjectRows()}
+      </div>
+    `)}
+
+    ${accordionSection("withdrawal", "Withdrawal strategy", "Changes account draw order, taxes, and potential OAS clawback.", `
+      <div class="form-span-full">
+        <div class="inline-radio-row">
+          ${strategyButton("tax-smart", "Tax-smart")}
+          ${strategyButton("rrsp-first", "RRSP-first")}
+          ${strategyButton("tfsa-first", "TFSA-first")}
+        </div>
+      </div>
+      <label class="inline-check"><input type="checkbox" data-bind="strategy.oasClawbackModeling" ${state.strategy.oasClawbackModeling ? "checked" : ""} />Model OAS clawback</label>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Strategy</th><th>Estimated taxes</th><th>OAS clawback</th><th>Depletion</th></tr></thead>
+          <tbody>${strategyRows}</tbody>
+        </table>
+      </div>
+      <div class="subsection">
+        <h3>Why this order?</h3>
+        <ul class="plain-list">${selected.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+      </div>
+    `)}
+
+    ${accordionSection("tax", "Tax estimate", "Provides planning-level yearly tax estimates using federal + provincial brackets.", `
+      <p class="muted">Planning estimate only. Uses province-aware bracket math and can escalate brackets with inflation.</p>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Current effective tax rate</strong><span>${formatPct(model.tax.currentEffectiveRate)}</span></div>
+        <div class="preview-kpi-item"><strong>First retirement-year effective tax rate</strong><span>${formatPct(model.tax.firstRetirementEffectiveRate)}</span></div>
+      </div>
+    `)}
+
+    ${accordionSection("modules", "Educational unlock modules", "Adds concept-level guidance. Some modules are educational-only if not fully modeled.", `
+      <ul class="plain-list">
+        <li>CPP timing tradeoffs: modeled in projection and strategy engine.</li>
+        <li>OAS timing: modeled in projection and strategy engine.</li>
+        <li>OAS clawback: modeled when toggle is enabled.</li>
+        <li>RRSP to RRIF conversion and minimum withdrawals: educational only in this version.</li>
+        <li>Pension income splitting: educational only in this version.</li>
+        <li>TFSA vs RRSP vs non-registered tax differences: modeled with planning heuristics.</li>
+        <li>Private pension bridge to 65: educational only in this version.</li>
+      </ul>
+    `)}
+  `;
+}
+
+function renderStress() {
+  const model = ui.lastModel;
+  if (!model) return;
+
+  el.scenarioCompareToggle.checked = !!state.uiState.showScenarioCompare;
+
+  if (state.uiState.showScenarioCompare) {
+    el.scenarioSummary.innerHTML = `
+      <h3>Deterministic scenarios</h3>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Scenario</th><th>Return</th><th>Balance at retirement</th><th>Depletion age</th></tr></thead>
+          <tbody>
+            ${model.scenarioRows.map((row) => `
+              <tr>
+                <td>${row.label}</td>
+                <td>${formatPct(row.returnRate)}</td>
+                <td>${formatCurrency(row.balanceAtRetirement)}</td>
+                <td>${row.depletionAge ? `Age ${row.depletionAge}` : "No depletion"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else {
+    el.scenarioSummary.innerHTML = "<p class='muted'>Enable scenario comparison to view best/base/worst outcomes.</p>";
+  }
+
+  const rows = model.stressMatrix;
+  el.stressTable.innerHTML = `
+    <thead>
+      <tr>
+        <th>Return shift</th>
+        <th>Inflation shift</th>
+        <th>Balance at retirement</th>
+        <th>Depletion age</th>
+        <th>First-year gap/surplus</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map((row) => `
         <tr>
-          <td>${money(income)}</td>
-          <td>${money(tax.federal)}</td>
-          <td>${money(tax.provincial)}</td>
-          <td>${money(tax.total)}</td>
-          <td>${pct(tax.total / income)}</td>
-        </tr>`;
-    })
-    .join("");
+          <td>${formatSignedPct(row.returnShift)}</td>
+          <td>${formatSignedPct(row.inflationShift)}</td>
+          <td>${formatCurrency(row.balanceAtRetirement)}</td>
+          <td>${row.depletionAge ? `Age ${row.depletionAge}` : "No depletion"}</td>
+          <td>${formatSignedCurrency(row.firstYearGap)}</td>
+        </tr>
+      `).join("")}
+    </tbody>
+  `;
 }
 
-function estimateCombinedTax(income, inputs, taxYear = inputs.currentYear) {
-  const factor = bracketScaleFactor(inputs, taxYear);
-  const federalBrackets = scaleBrackets(TAX_2026.federal, factor);
-  const provincialSource = PROVINCE_TAX_2026[inputs.provinceCode] || PROVINCE_TAX_2026.NL;
-  const provincialBrackets = scaleBrackets(provincialSource.brackets, factor);
-
-  const federal = marginalTax(income, federalBrackets);
-  const provincial = marginalTax(income, provincialBrackets);
-  return { federal, provincial, total: federal + provincial };
+function renderNotes() {
+  el.notesInput.value = state.notes || "";
 }
 
-function bracketScaleFactor(inputs, taxYear = inputs.currentYear) {
-  if (!inputs.escalateBrackets) return 1;
-  if (taxYear <= 2026) return 1;
-  return Math.pow(1 + inputs.inflationRate / 100, taxYear - 2026);
-}
+function buildPlanModel(plan) {
+  const baseReturn = getReturnRate(plan);
+  const base = runSimpleProjection(plan, { returnRate: baseReturn, inflationRate: plan.assumptions.inflation });
 
-function scaleBrackets(brackets, factor) {
-  if (factor === 1) return brackets;
-  return brackets.map(([limit, rate]) => [Number.isFinite(limit) ? limit * factor : Infinity, rate]);
-}
+  const spread = plan.assumptions.scenarioSpread;
+  const scenarioDefs = [
+    { key: "best", label: "Best", returnRate: baseReturn + spread },
+    { key: "base", label: "Base", returnRate: baseReturn },
+    { key: "worst", label: "Worst", returnRate: Math.max(0.01, baseReturn - spread) },
+  ];
 
-function marginalTax(income, brackets) {
-  let taxed = 0;
-  let prev = 0;
-  let remaining = income;
-
-  for (const [limit, rate] of brackets) {
-    if (remaining <= 0) break;
-    const span = Math.min(limit - prev, remaining);
-    taxed += Math.max(0, span) * rate;
-    remaining -= span;
-    prev = limit;
-  }
-  return taxed;
-}
-
-function solveWithdrawalForAfterTaxTarget({ netTarget, pensionIncome, oasIncome, oasRecipientCount, inputs, taxYear }) {
-  const base = afterTaxIncomeForWithdrawal(0, pensionIncome, oasIncome, oasRecipientCount, inputs, taxYear);
-  const baseTax = base.totalTax;
-  const baseNet = base.netIncome;
-  if (baseNet >= netTarget) {
+  const scenarioRuns = scenarioDefs.map((def) => {
+    const res = runSimpleProjection(plan, { returnRate: def.returnRate, inflationRate: plan.assumptions.inflation });
     return {
-      withdrawal: 0,
-      totalTax: baseTax,
-      taxOnWithdrawal: 0,
-      oasClawback: base.oasClawback,
-      oasClawbackOnWithdrawal: 0,
-      netIncome: baseNet,
+      key: def.key,
+      label: def.label,
+      returnRate: def.returnRate,
+      balanceAtRetirement: res.kpis.balanceAtRetirement,
+      depletionAge: res.kpis.depletionAge,
+      rows: res.rows,
     };
+  });
+  const scenarioRows = scenarioRuns.map((row) => ({
+    label: row.label,
+    returnRate: row.returnRate,
+    balanceAtRetirement: row.balanceAtRetirement,
+    depletionAge: row.depletionAge,
+  }));
+  const best = scenarioRuns.find((x) => x.key === "best") || { rows: base.rows };
+  const worst = scenarioRuns.find((x) => x.key === "worst") || { rows: base.rows };
+
+  const stressMatrix = [];
+  const returnShifts = [-0.02, 0, 0.02];
+  const inflationShifts = [-0.01, 0, 0.01];
+  for (const rShift of returnShifts) {
+    for (const iShift of inflationShifts) {
+      const r = Math.max(0.01, baseReturn + rShift);
+      const inf = clamp(plan.assumptions.inflation + iShift, 0.005, 0.08);
+      const res = runSimpleProjection(plan, { returnRate: r, inflationRate: inf });
+      stressMatrix.push({
+        returnShift: rShift,
+        inflationShift: iShift,
+        balanceAtRetirement: res.kpis.balanceAtRetirement,
+        depletionAge: res.kpis.depletionAge,
+        firstYearGap: res.kpis.firstYearGap,
+      });
+    }
   }
 
-  let low = 0;
-  let high = Math.max(10_000, netTarget * 2);
-  let highNet = afterTaxIncomeForWithdrawal(high, pensionIncome, oasIncome, oasRecipientCount, inputs, taxYear).netIncome;
-
-  // Expand the search bound until the net target is reachable.
-  let guard = 0;
-  while (highNet < netTarget && guard < 24) {
-    high *= 2;
-    highNet = afterTaxIncomeForWithdrawal(high, pensionIncome, oasIncome, oasRecipientCount, inputs, taxYear).netIncome;
-    guard += 1;
-  }
-
-  for (let i = 0; i < 28; i += 1) {
-    const mid = (low + high) / 2;
-    const probe = afterTaxIncomeForWithdrawal(mid, pensionIncome, oasIncome, oasRecipientCount, inputs, taxYear);
-    if (probe.netIncome >= netTarget) high = mid;
-    else low = mid;
-  }
-
-  const result = afterTaxIncomeForWithdrawal(high, pensionIncome, oasIncome, oasRecipientCount, inputs, taxYear);
-  return {
-    withdrawal: high,
-    totalTax: result.totalTax,
-    taxOnWithdrawal: Math.max(0, result.totalTax - baseTax),
-    oasClawback: result.oasClawback,
-    oasClawbackOnWithdrawal: Math.max(0, result.oasClawback - base.oasClawback),
-    netIncome: result.netIncome,
-  };
-}
-
-function afterTaxIncomeForWithdrawal(withdrawal, pensionIncome, oasIncome, oasRecipientCount, inputs, taxYear) {
-  const gross = pensionIncome + withdrawal;
-  const incomeTax = estimateCombinedTax(gross, inputs, taxYear).total;
-  const oasClawback = estimateOasClawback(gross, oasIncome, oasRecipientCount, inputs, taxYear);
-  const tax = incomeTax + oasClawback;
-  return {
-    grossIncome: gross,
-    incomeTax,
-    oasClawback,
-    totalTax: tax,
-    netIncome: gross - tax,
-  };
-}
-
-function estimateOasClawback(grossIncome, oasIncome, oasRecipientCount, inputs, taxYear) {
-  if (!inputs.oasClawbackEnabled) return 0;
-  if (!Number.isFinite(oasIncome) || oasIncome <= 0) return 0;
-  const recipients = Math.max(0, Math.floor(oasRecipientCount || 0));
-  if (recipients <= 0) return 0;
-
-  const thresholdPerRecipient = inputs.oasClawbackThreshold * bracketScaleFactor(inputs, taxYear);
-  const threshold = thresholdPerRecipient * recipients;
-  const excess = Math.max(0, grossIncome - threshold);
-  const recovery = excess * (inputs.oasClawbackRate / 100);
-  return Math.max(0, Math.min(oasIncome, recovery));
-}
-
-function renderPensionScenarios(inputs) {
-  if (!el.pensionScenarioBody) return;
-  const rows = [60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70]
-    .filter((age) => age >= 60 && age <= 70)
-    .map((age) => {
-      const cpp = age >= 60 ? cppAnnualAtAge(inputs.cppAt65, age) : 0;
-      const oas = age >= 65 ? oasAnnualAtAge(inputs.oasAt65, age) : 0;
-      return { age, cpp, oas, total: cpp + oas };
-    });
-
-  el.pensionScenarioBody.innerHTML = rows
-    .map(
-      (row) => `
-        <tr>
-          <td>${row.age}</td>
-          <td>${money(row.cpp)}</td>
-          <td>${row.age < 65 ? "-" : money(row.oas)}</td>
-          <td>${money(row.total)}</td>
-        </tr>`
-    )
-    .join("");
-}
-
-function renderSelectedPension(inputs, projection) {
-  if (!el.selectedPensionDetails) return;
-  const cppSelected = cppAnnualAtAge(inputs.cppAt65, inputs.cppStartAge);
-  const oasSelected = oasAnnualAtAge(inputs.oasAt65, inputs.oasStartAge);
-  const spouseCppSelected = cppAnnualAtAge(inputs.spouseCppAt65, inputs.spouseCppStartAge);
-  const spouseOasSelected = oasAnnualAtAge(inputs.spouseOasAt65, inputs.spouseOasStartAge);
-  const privatePensionLabel = (inputs.privatePensionName || "Private pension").trim() || "Private pension";
-  const spousePrivatePensionLabel = (inputs.spousePrivatePensionName || "Spouse pension").trim() || "Spouse pension";
-  const details = [
-    [privatePensionLabel, money(projection.selectedPrivatePensionAnnual)],
-    ["Private pension start age", String(inputs.privatePensionStartAge)],
-    ["Private pension increase", `${inputs.privatePensionIncrease.toFixed(1)}% / yr`],
-    ["Spouse mode", inputs.spouseEnabled ? "On" : "Off"],
-    ...(inputs.spouseEnabled
-      ? [
-          [spousePrivatePensionLabel, money(projection.selectedSpousePrivatePensionAnnual)],
-          ["Spouse private pension start age", String(inputs.spousePrivatePensionStartAge)],
-          ["Spouse private pension increase", `${inputs.spousePrivatePensionIncrease.toFixed(1)}% / yr`],
-        ]
-      : []),
-    ["CPP start age", String(inputs.cppStartAge)],
-    ["CPP annual estimate", money(cppSelected)],
-    ["OAS start age", String(inputs.oasStartAge)],
-    ["OAS annual estimate", money(oasSelected)],
-    ...(inputs.spouseEnabled
-      ? [
-          ["Spouse CPP start age", String(inputs.spouseCppStartAge)],
-          ["Spouse CPP annual estimate", money(spouseCppSelected)],
-          ["Spouse OAS start age", String(inputs.spouseOasStartAge)],
-          ["Spouse OAS annual estimate", money(spouseOasSelected)],
-        ]
-      : []),
-    ["Gov benefits annual total", money(projection.selectedGovBenefitAnnual)],
-    ["OAS clawback estimate", inputs.oasClawbackEnabled ? "On (household approximation)" : "Off"],
-    ...(inputs.oasClawbackEnabled
-      ? [
-          ["Clawback threshold (per recipient)", money(inputs.oasClawbackThreshold)],
-          ["Clawback rate", `${inputs.oasClawbackRate.toFixed(1)}%`],
-        ]
-      : []),
-    ["Combined annual pensions/benefits", money(projection.selectedPensionAnnual)],
-    ["First-year portfolio draw", money(projection.retirementWithdrawalNeed)],
-    ["Tax brackets escalate", inputs.escalateBrackets ? "Yes" : "No"],
-    ["Risk profile", RISK_PRESETS[inputs.riskProfile]?.label || inputs.riskProfile],
+  const strategyComparisons = [
+    runStrategyProjection(plan, base, "tax-smart"),
+    runStrategyProjection(plan, base, "rrsp-first"),
+    runStrategyProjection(plan, base, "tfsa-first"),
   ];
 
-  el.selectedPensionDetails.innerHTML = details
-    .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`)
-    .join("");
+  const firstRet = base.rows.find((row) => row.age === plan.profile.retirementAge) || base.rows[0];
+  const spouseCurrentIncome = plan.profile.hasSpouse && plan.income.spouse.enabled
+    ? Math.max(0, plan.income.spouse.pensionAmount)
+    : 0;
+  const taxCurrentIncome = Math.max(0, plan.income.pension.enabled ? plan.income.pension.amount : 0) + spouseCurrentIncome;
+  const taxRetIncome = Math.max(0, firstRet.taxableIncome);
+
+  return {
+    base,
+    best,
+    worst,
+    scenarioRows,
+    stressMatrix,
+    strategyComparisons,
+    tax: {
+      currentEffectiveRate: estimateEffectiveTaxRate(plan, taxCurrentIncome, 0),
+      firstRetirementEffectiveRate: estimateEffectiveTaxRate(plan, taxRetIncome, Math.max(0, plan.profile.retirementAge - ageNow())),
+    },
+    kpis: base.kpis,
+  };
 }
 
-function renderChart(projection) {
-  const canvas = el.chart;
-  if (!canvas || !projection) return;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+function runSimpleProjection(plan, options) {
+  const startYear = APP.currentYear;
+  const endYear = startYear + Math.max(1, plan.profile.lifeExpectancy - ageNow());
+  const retireAge = plan.profile.retirementAge;
+  const birthYear = plan.profile.birthYear;
+  const returnRate = options.returnRate;
+  const inflationRate = options.inflationRate;
+  const contributionIncrease = plan.savings.contributionIncrease;
 
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const width = Math.max(320, Math.floor(rect.width || canvas.width));
-  const height = 420;
-  canvas.width = Math.floor(width * dpr);
-  canvas.height = Math.floor(height * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  let balance = plan.savings.currentTotal;
+  let depletionAge = null;
+  let balanceAtRetirement = plan.savings.currentTotal;
 
-  const rows = projection.rows;
-  const pad = { top: 18, right: 16, bottom: 44, left: 52 };
-  const innerW = width - pad.left - pad.right;
-  const innerH = height - pad.top - pad.bottom;
+  const rows = [];
 
-  ctx.clearRect(0, 0, width, height);
+  for (let year = startYear; year <= endYear; year += 1) {
+    const age = year - birthYear;
+    const retired = age >= retireAge;
+    const yearsFromStart = Math.max(0, year - startYear);
+    const capitalInject = getCapitalInjectAtAge(plan, age);
+    const contribution = retired
+      ? 0
+      : plan.savings.annualContribution * Math.pow(1 + contributionIncrease, yearsFromStart);
 
-  const maxY = Math.max(
-    1,
-    ...rows.map((r) => r.balance),
-    ...rows.map((r) => r.lowerBalance || 0),
-    ...rows.map((r) => r.upperBalance || 0),
-    ...rows.map((r) => r.spending),
-    ...rows.map((r) => r.pensionIncome)
+    const pension = plan.income.pension.enabled && age >= plan.income.pension.startAge ? plan.income.pension.amount : 0;
+    const cpp = age >= plan.income.cpp.startAge ? adjustedCPP(plan.income.cpp.amountAt65, plan.income.cpp.startAge) : 0;
+    const oas = age >= plan.income.oas.startAge ? adjustedOAS(plan.income.oas.amountAt65, plan.income.oas.startAge) : 0;
+
+    const spouseEnabled = plan.profile.hasSpouse && plan.income.spouse.enabled;
+    const spousePension = spouseEnabled && age >= plan.income.spouse.pensionStartAge ? plan.income.spouse.pensionAmount : 0;
+    const spouseCpp = spouseEnabled && age >= plan.income.spouse.cppStartAge ? adjustedCPP(plan.income.spouse.cppAmountAt65, plan.income.spouse.cppStartAge) : 0;
+    const spouseOas = spouseEnabled && age >= plan.income.spouse.oasStartAge ? adjustedOAS(plan.income.spouse.oasAmountAt65, plan.income.spouse.oasStartAge) : 0;
+
+    const guaranteedIncome = pension + cpp + oas + spousePension + spouseCpp + spouseOas;
+
+    const yearsFromRetirementStart = Math.max(0, age - retireAge);
+    const targetAfterTax = retired
+      ? inflateAmountToRetirement(plan.profile.desiredSpending, inflationRate, Math.max(0, retireAge - ageNow())) * Math.pow(1 + inflationRate, yearsFromRetirementStart)
+      : 0;
+
+    let withdrawal = 0;
+    let tax = 0;
+    let taxableIncome = guaranteedIncome;
+    let gap = 0;
+
+    if (retired) {
+      const netFromGuaranteed = guaranteedIncome * (1 - estimateEffectiveTaxRate(plan, guaranteedIncome, Math.max(0, year - startYear)));
+      const netGap = Math.max(0, targetAfterTax - netFromGuaranteed);
+      const effectiveOnCombined = estimateEffectiveTaxRate(plan, guaranteedIncome + netGap, Math.max(0, year - startYear));
+      withdrawal = netGap / Math.max(0.45, 1 - effectiveOnCombined);
+      taxableIncome = guaranteedIncome + withdrawal;
+      tax = taxableIncome * estimateEffectiveTaxRate(plan, taxableIncome, Math.max(0, year - startYear));
+      const netIncome = guaranteedIncome + withdrawal - tax;
+      gap = netIncome - targetAfterTax;
+    }
+
+    const preGrowth = retired
+      ? Math.max(0, balance + capitalInject - withdrawal)
+      : balance + contribution + capitalInject;
+    balance = preGrowth * (1 + returnRate);
+
+    if (!depletionAge && retired && preGrowth <= 0) depletionAge = age;
+    if (age === retireAge) balanceAtRetirement = preGrowth;
+
+    rows.push({
+      year,
+      age,
+      balance,
+      balanceStart: retired ? Math.max(0, preGrowth + withdrawal) : balance - contribution,
+      contribution,
+      capitalInject,
+      withdrawal,
+      spending: targetAfterTax,
+      tax,
+      taxableIncome,
+      pension,
+      cpp,
+      oas,
+      spousePension,
+      spouseCpp,
+      spouseOas,
+      guaranteedIncome,
+      gap,
+    });
+  }
+
+  const firstRet = rows.find((row) => row.age === retireAge) || rows[0];
+  const sustainableIncome = estimateSustainableIncome(rows, retireAge);
+
+  const kpis = {
+    balanceAtRetirement,
+    firstYearGap: firstRet ? firstRet.gap : 0,
+    depletionAge,
+    firstYearGuaranteed: firstRet ? firstRet.guaranteedIncome : 0,
+    firstRetirementBreakdown: {
+      pension: firstRet ? firstRet.pension : 0,
+      cpp: firstRet ? firstRet.cpp : 0,
+      oas: firstRet ? firstRet.oas : 0,
+      withdrawal: firstRet ? firstRet.withdrawal : 0,
+    },
+    sustainableIncome,
+  };
+
+  return { rows, kpis, returnRate };
+}
+
+function runStrategyProjection(plan, baseProjection, strategyKey) {
+  const retireAge = plan.profile.retirementAge;
+  const deathAge = plan.profile.lifeExpectancy;
+  const yearsToRetirement = Math.max(0, retireAge - ageNow());
+  const returnRate = getReturnRate(plan);
+  const inflationRate = plan.assumptions.inflation;
+
+  const balances = growAccountsToRetirement(
+    plan,
+    plan.accounts,
+    plan.savings.annualContribution,
+    plan.savings.contributionIncrease,
+    returnRate,
+    yearsToRetirement
   );
 
-  const x = (idx) => pad.left + (idx / Math.max(1, rows.length - 1)) * innerW;
-  const y = (value) => pad.top + innerH - (value / maxY) * innerH;
+  let totalTax = 0;
+  let totalClawback = 0;
+  let depletionAge = null;
 
-  drawChartBackground(ctx, width, height, pad, innerW, innerH, maxY);
+  for (let age = retireAge; age <= deathAge; age += 1) {
+    const yearOffset = Math.max(0, age - ageNow());
+    const spend = inflateAmountToRetirement(plan.profile.desiredSpending, inflationRate, yearsToRetirement) * Math.pow(1 + inflationRate, Math.max(0, age - retireAge));
 
-  drawUncertaintyBand(ctx, rows, x, y);
+    const pension = plan.income.pension.enabled && age >= plan.income.pension.startAge ? plan.income.pension.amount : 0;
+    const cpp = age >= plan.income.cpp.startAge ? adjustedCPP(plan.income.cpp.amountAt65, plan.income.cpp.startAge) : 0;
+    const oas = age >= plan.income.oas.startAge ? adjustedOAS(plan.income.oas.amountAt65, plan.income.oas.startAge) : 0;
+    const spouseEnabled = plan.profile.hasSpouse && plan.income.spouse.enabled;
+    const spousePension = spouseEnabled && age >= plan.income.spouse.pensionStartAge ? plan.income.spouse.pensionAmount : 0;
+    const spouseCpp = spouseEnabled && age >= plan.income.spouse.cppStartAge ? adjustedCPP(plan.income.spouse.cppAmountAt65, plan.income.spouse.cppStartAge) : 0;
+    const spouseOas = spouseEnabled && age >= plan.income.spouse.oasStartAge ? adjustedOAS(plan.income.spouse.oasAmountAt65, plan.income.spouse.oasStartAge) : 0;
+    const guaranteedGross = pension + cpp + oas + spousePension + spouseCpp + spouseOas;
+    const capitalInject = getCapitalInjectAtAge(plan, age);
+    if (capitalInject > 0) balances.cash += capitalInject;
 
-  const balancePoints = rows.map((row, i) => ({ x: x(i), y: y(row.balance) }));
-  ctx.beginPath();
-  traceSmoothPath(ctx, balancePoints);
-  ctx.lineTo(x(rows.length - 1), y(0));
-  ctx.lineTo(x(0), y(0));
-  ctx.closePath();
-  const areaGradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + innerH);
-  areaGradient.addColorStop(0, "rgba(15,106,191,0.9)");
-  areaGradient.addColorStop(1, "rgba(15,106,191,0.18)");
-  ctx.fillStyle = areaGradient;
-  ctx.fill();
+    let guessNeed = Math.max(0, spend - guaranteedGross * (1 - estimateEffectiveTaxRate(plan, guaranteedGross, yearOffset)));
+    let chosen = { rrsp: 0, tfsa: 0, nonRegistered: 0, cash: 0, total: 0 };
+    let taxes = 0;
+    let clawback = 0;
 
-  ctx.strokeStyle = "rgba(15,106,191,0.95)";
-  ctx.lineWidth = 2.25;
-  ctx.beginPath();
-  traceSmoothPath(ctx, balancePoints);
-  ctx.stroke();
+    for (let i = 0; i < 5; i += 1) {
+      const order = getWithdrawalOrder(strategyKey, {
+        balances,
+        taxableBeforeWithdrawals: guaranteedGross,
+        oas,
+      });
+      chosen = distributeFromAccounts(order, balances, guessNeed);
+      const taxableDraw = chosen.rrsp + chosen.nonRegistered * 0.3;
+      const taxableTotal = guaranteedGross + taxableDraw;
+      taxes = taxableTotal * estimateEffectiveTaxRate(plan, taxableTotal, yearOffset);
+      clawback = plan.strategy.oasClawbackModeling ? estimateOasClawback(plan, taxableTotal, oas, yearOffset) : 0;
+      const net = guaranteedGross + chosen.total - taxes - clawback;
+      const short = spend - net;
+      if (Math.abs(short) < 10) break;
+      guessNeed = Math.max(0, guessNeed + short);
+      if (sumAccounts(balances) <= 0) break;
+    }
 
-  drawSeriesLine(ctx, rows, x, y, "spending", "#2f3542", 2.5);
-  drawSeriesLine(ctx, rows, x, y, "pensionIncome", "#0ea5a8", 2.25, [6, 5]);
+    totalTax += taxes;
+    totalClawback += clawback;
 
-  const retireIdx = rows.findIndex((r) => r.age === state.inputs.retirementAge);
-  if (retireIdx >= 0) {
-    const rx = x(retireIdx);
-    ctx.strokeStyle = "rgba(23,32,51,0.35)";
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(rx, pad.top);
-    ctx.lineTo(rx, pad.top + innerH);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "#172033";
-    ctx.font = "12px Avenir Next, Segoe UI, sans-serif";
-    ctx.fillText("Retirement", Math.min(rx + 6, width - 72), pad.top + 14);
+    if (!depletionAge && sumAccounts(balances) <= 0) depletionAge = age;
+
+    for (const key of Object.keys(balances)) {
+      balances[key] *= 1 + returnRate;
+    }
   }
 
-  ctx.fillStyle = "#506176";
-  ctx.font = "12px Avenir Next, Segoe UI, sans-serif";
-  rows.forEach((row, i) => {
-    if (i % Math.ceil(rows.length / 14) !== 0 && i !== rows.length - 1) return;
-    const px = x(i);
-    ctx.fillText(String(row.age), px - 8, height - 14);
+  const reasons = strategyReasons(strategyKey);
+
+  return {
+    key: strategyKey,
+    label: strategyLabel(strategyKey),
+    totalTax,
+    totalClawback,
+    depletionAge,
+    reasons,
+  };
+}
+
+function growAccountsToRetirement(plan, accounts, annualContribution, contributionIncrease, returnRate, years) {
+  const next = {
+    rrsp: Math.max(0, accounts.rrsp),
+    tfsa: Math.max(0, accounts.tfsa),
+    nonRegistered: Math.max(0, accounts.nonRegistered),
+    cash: Math.max(0, accounts.cash),
+  };
+
+  const total = sumAccounts(next);
+  if (total <= 0) {
+    next.rrsp = plan.savings.currentTotal * 0.5;
+    next.tfsa = plan.savings.currentTotal * 0.3;
+    next.nonRegistered = plan.savings.currentTotal * 0.15;
+    next.cash = plan.savings.currentTotal * 0.05;
+  }
+
+  const startAge = ageNow();
+  for (let i = 0; i < years; i += 1) {
+    const age = startAge + i;
+    const capitalInject = getCapitalInjectAtAge(plan, age);
+    if (capitalInject > 0) next.cash += capitalInject;
+    const contributionThisYear = annualContribution * Math.pow(1 + contributionIncrease, i);
+    next.rrsp = (next.rrsp + contributionThisYear * 0.5) * (1 + returnRate);
+    next.tfsa = (next.tfsa + contributionThisYear * 0.35) * (1 + returnRate);
+    next.nonRegistered = (next.nonRegistered + contributionThisYear * 0.1) * (1 + returnRate);
+    next.cash += contributionThisYear * 0.05;
+  }
+
+  return next;
+}
+
+function distributeFromAccounts(order, balances, amount) {
+  let remaining = Math.max(0, amount);
+  const draw = { rrsp: 0, tfsa: 0, nonRegistered: 0, cash: 0, total: 0 };
+
+  for (const key of order) {
+    if (remaining <= 0) break;
+    const available = Math.max(0, balances[key]);
+    const used = Math.min(available, remaining);
+    balances[key] = available - used;
+    draw[key] += used;
+    draw.total += used;
+    remaining -= used;
+  }
+
+  return draw;
+}
+
+function getWithdrawalOrder(strategyKey, context) {
+  if (strategyKey === "rrsp-first") return ["rrsp", "nonRegistered", "tfsa", "cash"];
+  if (strategyKey === "tfsa-first") return ["tfsa", "cash", "nonRegistered", "rrsp"];
+
+  const threshold = 93000;
+  if (context.taxableBeforeWithdrawals > threshold * 0.9) return ["tfsa", "cash", "nonRegistered", "rrsp"];
+  if (context.taxableBeforeWithdrawals < 50000 && context.balances.rrsp > context.balances.tfsa) {
+    return ["rrsp", "nonRegistered", "tfsa", "cash"];
+  }
+  return ["nonRegistered", "tfsa", "rrsp", "cash"];
+}
+
+function strategyReasons(strategyKey) {
+  if (strategyKey === "rrsp-first") {
+    return [
+      "Draws taxable registered funds earlier to reduce future forced RRIF pressure.",
+      "Can work when current taxable income is relatively low.",
+      "May reduce late-retirement concentration in fully taxable accounts.",
+    ];
+  }
+  if (strategyKey === "tfsa-first") {
+    return [
+      "Uses tax-free balances first to reduce immediate tax drag.",
+      "Keeps taxable income lower in early years.",
+      "Can increase later taxes if registered balances remain large.",
+    ];
+  }
+  return [
+    "Prioritizes lower immediate tax impact while monitoring clawback risk.",
+    "Adjusts order based on taxable income level and account mix.",
+    "Targets smoother taxes across retirement years rather than one strict order.",
+  ];
+}
+
+function strategyLabel(key) {
+  if (key === "rrsp-first") return "RRSP-first";
+  if (key === "tfsa-first") return "TFSA-first";
+  return "Tax-smart";
+}
+
+function buildNextActions(model) {
+  const actions = [];
+  if (model.kpis.firstYearGap < 0) {
+    actions.push("Increase annual contribution or adjust retirement spending target.");
+    actions.push("Consider delaying retirement age by 1-2 years.");
+  } else {
+    actions.push("You currently show a first-year surplus. Validate assumptions with stress tests.");
+  }
+
+  if (model.kpis.depletionAge) {
+    actions.push(`Savings deplete at age ${model.kpis.depletionAge}. Test lower spending or higher guaranteed income.`);
+  } else {
+    actions.push("Balance remains through plan horizon under base assumptions.");
+  }
+
+  if (!state.uiState.unlocked.advanced) actions.push("Finish guided setup to unlock tax and withdrawal strategy comparisons.");
+
+  return actions;
+}
+
+function estimateSustainableIncome(rows, retireAge) {
+  const retirementRows = rows.filter((row) => row.age >= retireAge);
+  if (!retirementRows.length) return 0;
+  const withdrawals = retirementRows.map((row) => row.withdrawal);
+  const avg = withdrawals.reduce((sum, value) => sum + value, 0) / withdrawals.length;
+  return avg;
+}
+
+function adjustedCPP(amountAt65, startAge) {
+  const ageDiff = startAge - 65;
+  if (ageDiff >= 0) return amountAt65 * (1 + ageDiff * 0.084);
+  return amountAt65 * Math.max(0.58, 1 + ageDiff * 0.072);
+}
+
+function adjustedOAS(amountAt65, startAge) {
+  const safeAge = Math.max(65, startAge);
+  const ageDiff = safeAge - 65;
+  return amountAt65 * (1 + ageDiff * 0.072);
+}
+
+function estimateOasClawback(plan, taxableIncome, oasAmount, yearOffset) {
+  if (!oasAmount) return 0;
+  const thresholdBase = 93000;
+  const threshold = plan.assumptions.taxBracketInflation
+    ? thresholdBase * Math.pow(1 + plan.assumptions.inflation, yearOffset)
+    : thresholdBase;
+  const excess = Math.max(0, taxableIncome - threshold);
+  return Math.min(oasAmount, excess * 0.15);
+}
+
+function estimateEffectiveTaxRate(plan, income, yearOffset) {
+  const taxable = Math.max(0, income);
+  if (taxable <= 0) return 0;
+
+  const federal = computeBracketTax(taxable, TAX_BRACKETS.federal, plan, yearOffset);
+  const provincialBase = TAX_BRACKETS.provincial[plan.profile.province] || TAX_BRACKETS.provincial.NL;
+  const provincial = computeBracketTax(taxable, provincialBase, plan, yearOffset);
+
+  const grossTax = federal + provincial;
+  const effective = grossTax / taxable;
+  return clamp(effective, 0, 0.53);
+}
+
+function computeBracketTax(income, bracket, plan, yearOffset) {
+  const inflationFactor = plan.assumptions.taxBracketInflation
+    ? Math.pow(1 + plan.assumptions.inflation, yearOffset)
+    : 1;
+
+  const thresholds = bracket.thresholds.map((t) => t * inflationFactor);
+  const rates = bracket.rates;
+
+  let tax = 0;
+  for (let i = 0; i < rates.length; i += 1) {
+    const floor = thresholds[i];
+    const ceiling = thresholds[i + 1] ?? Number.POSITIVE_INFINITY;
+    const taxableInBand = Math.max(0, Math.min(income, ceiling) - floor);
+    if (taxableInBand <= 0) continue;
+    tax += taxableInBand * rates[i];
+  }
+
+  return tax;
+}
+
+function drawMainChart(rows, bestRows, worstRows) {
+  const canvas = el.mainChart;
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 40) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(800, Math.floor(rect.width * dpr));
+  canvas.height = Math.floor(320 * dpr);
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = 320;
+  const pad = { left: 54, right: 16, top: 18, bottom: 36 };
+  const innerW = w - pad.left - pad.right;
+  const innerH = h - pad.top - pad.bottom;
+
+  ctx.clearRect(0, 0, w, h);
+
+  const values = [];
+  rows.forEach((row) => {
+    values.push(row.balance, row.spending, row.pension, row.cpp, row.oas);
   });
-}
+  (bestRows || []).forEach((row) => values.push(row.balance));
+  (worstRows || []).forEach((row) => values.push(row.balance));
+  const maxY = Math.max(1, ...values) * 1.06;
 
-function drawChartBackground(ctx, width, height, pad, innerW, innerH, maxY) {
-  const gridLines = 4;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = "#eaf0f8";
+  ctx.strokeStyle = "#dfe7f3";
   ctx.lineWidth = 1;
-  for (let i = 0; i <= gridLines; i += 1) {
-    const yPos = pad.top + (i / gridLines) * innerH;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = pad.top + (innerH * i) / 4;
     ctx.beginPath();
-    ctx.moveTo(pad.left, yPos);
-    ctx.lineTo(pad.left + innerW, yPos);
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
     ctx.stroke();
-
-    const labelValue = ((gridLines - i) / gridLines) * maxY;
-    ctx.fillStyle = "#64748b";
-    ctx.font = "12px Avenir Next, Segoe UI, sans-serif";
-    ctx.fillText(shortMoney(labelValue), 6, yPos + 4);
   }
 
-  ctx.strokeStyle = "#dce6f3";
-  ctx.beginPath();
-  ctx.moveTo(pad.left, pad.top);
-  ctx.lineTo(pad.left, pad.top + innerH);
-  ctx.lineTo(pad.left + innerW, pad.top + innerH);
-  ctx.stroke();
+  const x = (index) => pad.left + (innerW * index) / Math.max(1, rows.length - 1);
+  const y = (value) => pad.top + innerH - (value / maxY) * innerH;
+  const baselineY = pad.top + innerH;
+
+  const balanceGradient = ctx.createLinearGradient(pad.left, pad.top, w - pad.right, h - pad.bottom);
+  balanceGradient.addColorStop(0, "#0f6abf");
+  balanceGradient.addColorStop(1, "#0ea5a8");
+  const balanceArea = ctx.createLinearGradient(0, pad.top, 0, baselineY);
+  balanceArea.addColorStop(0, "rgba(15, 106, 191, 0.26)");
+  balanceArea.addColorStop(1, "rgba(14, 165, 168, 0.04)");
+
+  if (Array.isArray(bestRows) && bestRows.length === rows.length) {
+    plotLine(ctx, bestRows.map((r, i) => [x(i), y(r.balance)]), "#7aa7d8", 1.8, [4, 4]);
+  }
+  if (Array.isArray(worstRows) && worstRows.length === rows.length) {
+    plotLine(ctx, worstRows.map((r, i) => [x(i), y(r.balance)]), "#7aa7d8", 1.8, [4, 4]);
+  }
+
+  const balancePoints = rows.map((r, i) => [x(i), y(r.balance)]);
+  if (balancePoints.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(balancePoints[0][0], baselineY);
+    balancePoints.forEach((p) => ctx.lineTo(p[0], p[1]));
+    ctx.lineTo(balancePoints[balancePoints.length - 1][0], baselineY);
+    ctx.closePath();
+    ctx.fillStyle = balanceArea;
+    ctx.fill();
+  }
+
+  plotLine(ctx, balancePoints, balanceGradient, 2.8);
+  plotLine(ctx, rows.map((r, i) => [x(i), y(r.spending)]), "#d9485f", 2);
+  plotLine(ctx, rows.map((r, i) => [x(i), y(r.pension)]), "#f59e0b", 1.8);
+  plotLine(ctx, rows.map((r, i) => [x(i), y(r.cpp)]), "#16a34a", 1.8);
+  plotLine(ctx, rows.map((r, i) => [x(i), y(r.oas)]), "#0ea5a8", 1.8);
+
+  ctx.fillStyle = "#5f6b7d";
+  ctx.font = "12px Avenir Next";
+  ctx.fillText(formatCurrency(0), 8, h - 10);
+  ctx.fillText(formatCompactCurrency(maxY), 8, pad.top + 4);
+
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const approxTickCount = Math.max(3, Math.floor(innerW / 120));
+  const step = Math.max(1, Math.ceil((rows.length - 1) / approxTickCount));
+  for (let i = 0; i < rows.length; i += step) {
+    const label = `Age ${rows[i].age}`;
+    const lx = x(i);
+    const lw = ctx.measureText(label).width;
+    const drawX = Math.max(pad.left, Math.min(w - pad.right - lw, lx - lw / 2));
+    ctx.fillText(label, drawX, h - 10);
+  }
+  const endLabel = `Age ${last.age}`;
+  const endWidth = ctx.measureText(endLabel).width;
+  ctx.fillText(endLabel, w - pad.right - endWidth, h - 10);
 }
 
-function drawSeriesLine(ctx, rows, x, y, key, color, width, dash = []) {
-  ctx.save();
+function plotLine(ctx, points, color, width, dash = []) {
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.setLineDash(dash);
   ctx.beginPath();
-  const points = rows.map((row, i) => ({ x: x(i), y: y(row[key]) }));
-  traceSmoothPath(ctx, points);
+  points.forEach((p, idx) => {
+    if (idx === 0) ctx.moveTo(p[0], p[1]);
+    else ctx.lineTo(p[0], p[1]);
+  });
   ctx.stroke();
-  ctx.restore();
+  ctx.setLineDash([]);
 }
 
-function drawUncertaintyBand(ctx, rows, x, y) {
-  const upper = rows.map((row, i) => ({ x: x(i), y: y(row.upperBalance ?? row.balance) }));
-  const lower = rows.map((row, i) => ({ x: x(i), y: y(row.lowerBalance ?? row.balance) }));
-  if (upper.length < 2 || lower.length < 2) return;
+function openTooltip(key, anchor) {
+  const tip = TOOLTIPS[key];
+  if (!tip) return;
 
-  ctx.save();
-  ctx.beginPath();
-  traceSmoothPath(ctx, upper);
-  const lowerRev = [...lower].reverse();
-  traceSmoothPath(ctx, lowerRev, { moveToStart: false });
-  ctx.closePath();
-  ctx.fillStyle = "rgba(15, 106, 191, 0.10)";
-  ctx.fill();
+  closeTooltip();
+  ui.tooltipKey = key;
 
-  ctx.strokeStyle = "rgba(15, 106, 191, 0.18)";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath();
-  traceSmoothPath(ctx, upper);
-  ctx.stroke();
-  ctx.beginPath();
-  traceSmoothPath(ctx, lower);
-  ctx.stroke();
-  ctx.restore();
+  const rect = anchor.getBoundingClientRect();
+  const pop = document.createElement("div");
+  pop.className = "tooltip-popover";
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-label", `${tip.term} information`);
+  pop.innerHTML = `
+    <h4>${escapeHtml(tip.term)}</h4>
+    <p><strong>Plain language:</strong> ${escapeHtml(tip.plain)}</p>
+    <p><strong>Why it matters:</strong> ${escapeHtml(tip.why)}</p>
+    <p><strong>Typical range:</strong> ${escapeHtml(tip.range)}</p>
+    <button class="btn btn-primary" type="button" data-action="tooltip-example" data-value="${escapeHtml(key)}">Show example</button>
+    <p class="tooltip-example muted"></p>
+  `;
+
+  const top = rect.bottom + window.scrollY + 8;
+  const left = Math.max(10, Math.min(window.innerWidth - 330, rect.left + window.scrollX - 140));
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+  el.tooltipLayer.appendChild(pop);
 }
 
-function traceSmoothPath(ctx, points, options = {}) {
-  const { moveToStart = true } = options;
-  if (!points.length) return;
-  if (points.length === 1) {
-    if (moveToStart) ctx.moveTo(points[0].x, points[0].y);
-    else ctx.lineTo(points[0].x, points[0].y);
-    return;
-  }
-
-  if (moveToStart) ctx.moveTo(points[0].x, points[0].y);
-  else ctx.lineTo(points[0].x, points[0].y);
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const p0 = points[i];
-    const p1 = points[i + 1];
-    const midX = (p0.x + p1.x) / 2;
-    const midY = (p0.y + p1.y) / 2;
-    if (i === 0) {
-      ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
-    } else {
-      ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
-    }
-    if (i === points.length - 2) {
-      ctx.quadraticCurveTo(p1.x, p1.y, p1.x, p1.y);
-    }
-  }
+function closeTooltip() {
+  ui.tooltipKey = "";
+  el.tooltipLayer.innerHTML = "";
 }
 
-function getUncertaintyReturnAdjustments(riskProfile) {
-  if (riskProfile === "conservative") return { preretire: 0.0125, retire: 0.01 };
-  if (riskProfile === "aggressive") return { preretire: 0.035, retire: 0.025 };
-  return { preretire: 0.0225, retire: 0.0175 };
-}
+function openGlossary() {
+  const entries = Object.values(TOOLTIPS).sort((a, b) => a.term.localeCompare(b.term));
+  el.glossaryContent.innerHTML = entries.map((entry) => `
+    <article class="glossary-item">
+      <h3>${escapeHtml(entry.term)}</h3>
+      <p><strong>Plain language:</strong> ${escapeHtml(entry.plain)}</p>
+      <p><strong>Why it matters:</strong> ${escapeHtml(entry.why)}</p>
+      <p><strong>Typical range:</strong> ${escapeHtml(entry.range)}</p>
+      <p><strong>Example:</strong> ${escapeHtml(entry.example || "-")}</p>
+    </article>
+  `).join("");
 
-function saveState() {
-  try {
-    state.meta.lastSavedAt = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    markDirty(false);
-    showToast("Saved to this browser");
-  } catch {
-    showToast("Save failed (storage unavailable)");
-  }
+  el.glossaryModal?.showModal();
 }
 
 function exportJson() {
-  try {
-    const payload = { ...state, meta: { ...state.meta, version: BACKUP_VERSION } };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `retirement-planner-${dateStamp()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    showToast("Exported planner JSON");
-  } catch {
-    showToast("Export failed");
-  }
+  const exportObject = {
+    ...state,
+    exportedAt: new Date().toISOString(),
+  };
+
+  const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `retirement-plan-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast("Plan exported.");
 }
 
-function handleImportFile(event) {
-  const file = event.target.files?.[0];
+async function importJsonFromFile() {
+  const file = el.importJsonFile?.files?.[0];
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(String(reader.result || "{}"));
-      state = normalizeState(parsed);
-      hydrateForm();
-      renderAll();
-      markDirty(true);
-      showToast("Imported planner JSON");
-    } catch {
-      showToast("Import failed: invalid JSON");
-    } finally {
-      if (el.importFile) el.importFile.value = "";
-    }
-  };
-  reader.readAsText(file);
-}
-
-function loadDemoScenario() {
-  state = clone(DEFAULT_STATE);
-  hydrateForm();
-  applyUiMode();
-  renderAll();
-  markDirty(true);
-  showToast("Loaded demo scenario");
-}
-
-function resetDemo() {
-  state = clone(DEFAULT_STATE);
-  if (el.notes) {
-    state.notes = "";
-  }
-  hydrateForm();
-  applyUiMode();
-  renderAll();
-  markDirty(true);
-  showToast("Reset app");
-}
-
-function markDirty(isDirty) {
-  ui.dirty = isDirty;
-  if (!el.storageStatus) return;
-  if (isDirty) {
-    el.storageStatus.textContent = "Unsaved changes";
-    return;
-  }
-
-  if (state.meta.lastSavedAt) {
-    el.storageStatus.textContent = `Saved ${formatDateTime(state.meta.lastSavedAt)}`;
-  } else {
-    el.storageStatus.textContent = "Ready";
-  }
-}
-
-function showToast(message) {
-  if (!el.toast) return;
-  el.toast.textContent = message;
-  el.toast.hidden = false;
-  clearTimeout(ui.toastTimer);
-  ui.toastTimer = setTimeout(() => {
-    if (el.toast) el.toast.hidden = true;
-  }, 1800);
-}
-
-function money(value) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(value) ? value : 0);
-}
-
-function shortMoney(value) {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `$${(value / 1_000).toFixed(0)}k`;
-  return `$${Math.round(value)}`;
-}
-
-function pct(value) {
-  return `${(Math.max(0, value) * 100).toFixed(0)}%`;
-}
-
-function formatDateTime(iso) {
   try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return "recently";
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const normalized = normalizePlan(parsed);
+    state = normalized;
+    state.uiState.firstRun = false;
+    ui.activeNav = state.uiState.activeNav || "dashboard";
+    savePlan();
+    renderAll();
+    toast("Plan imported.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Import failed.";
+    toast(`Import error: ${message}`);
+  } finally {
+    el.importJsonFile.value = "";
   }
 }
 
-function dateStamp() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}${m}${day}`;
+function loadPlan() {
+  try {
+    const raw = localStorage.getItem(APP.storageKey);
+    if (!raw) return createDefaultPlan();
+    return normalizePlan(JSON.parse(raw));
+  } catch {
+    return createDefaultPlan();
+  }
 }
 
-function clampNumber(value, min, max, fallback) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, n));
+function savePlan() {
+  try {
+    localStorage.setItem(APP.storageKey, JSON.stringify(state));
+  } catch {
+    toast("Could not save to local storage.");
+  }
 }
 
-function clampInt(value, min, max, fallback) {
+function normalizePlan(input) {
+  if (!input || typeof input !== "object") throw new Error("Plan file is not a valid object.");
+
+  const migrated = migratePlan(input);
+  const base = createDefaultPlan();
+
+  const out = {
+    version: APP.version,
+    profile: {
+      ...base.profile,
+      ...(migrated.profile || {}),
+    },
+    assumptions: {
+      ...base.assumptions,
+      ...(migrated.assumptions || {}),
+      returns: {
+        ...base.assumptions.returns,
+        ...(migrated.assumptions?.returns || {}),
+      },
+    },
+    savings: {
+      ...base.savings,
+      ...(migrated.savings || {}),
+      capitalInjects: normalizeCapitalInjects(
+        migrated.savings?.capitalInjects ?? base.savings.capitalInjects,
+        Number(migrated.profile?.retirementAge || base.profile.retirementAge)
+      ),
+    },
+    income: {
+      pension: { ...base.income.pension, ...(migrated.income?.pension || {}) },
+      cpp: { ...base.income.cpp, ...(migrated.income?.cpp || {}) },
+      oas: { ...base.income.oas, ...(migrated.income?.oas || {}) },
+      spouse: { ...base.income.spouse, ...(migrated.income?.spouse || {}) },
+    },
+    accounts: {
+      ...base.accounts,
+      ...(migrated.accounts || {}),
+    },
+    strategy: {
+      ...base.strategy,
+      ...(migrated.strategy || {}),
+    },
+    uiState: {
+      ...base.uiState,
+      ...(migrated.uiState || {}),
+      unlocked: {
+        ...base.uiState.unlocked,
+        ...(migrated.uiState?.unlocked || {}),
+      },
+    },
+    notes: typeof migrated.notes === "string" ? migrated.notes : "",
+  };
+
+  validatePlan(out);
+  return out;
+}
+
+function validatePlan(plan) {
+  if (!plan.profile || !plan.assumptions || !plan.savings || !plan.income) {
+    throw new Error("Plan is missing required sections.");
+  }
+  if (!PROVINCES[plan.profile.province]) throw new Error("Unsupported province code.");
+
+  const numericChecks = [
+    ["profile.birthYear", plan.profile.birthYear],
+    ["profile.retirementAge", plan.profile.retirementAge],
+    ["profile.lifeExpectancy", plan.profile.lifeExpectancy],
+    ["profile.desiredSpending", plan.profile.desiredSpending],
+    ["savings.currentTotal", plan.savings.currentTotal],
+    ["savings.annualContribution", plan.savings.annualContribution],
+    ["savings.contributionIncrease", plan.savings.contributionIncrease],
+  ];
+
+  for (const [path, value] of numericChecks) {
+    if (!Number.isFinite(Number(value))) throw new Error(`Invalid numeric value at ${path}.`);
+  }
+
+  if (!Array.isArray(plan.savings.capitalInjects)) throw new Error("Invalid capital inject list.");
+}
+
+function migratePlan(plan) {
+  const version = Number(plan.version || 1);
+  if (version >= APP.version) return plan;
+
+  const next = { ...plan };
+  if (!next.strategy) next.strategy = { withdrawal: "tax-smart", oasClawbackModeling: true };
+  if (!next.accounts) next.accounts = { rrsp: 0, tfsa: 0, nonRegistered: 0, cash: 0 };
+  if (!next.uiState) next.uiState = createDefaultPlan().uiState;
+  if (!next.savings) next.savings = createDefaultPlan().savings;
+  if (!Array.isArray(next.savings.capitalInjects)) next.savings.capitalInjects = [];
+  next.version = APP.version;
+  return next;
+}
+
+function ensureValidState() {
+  state.profile.birthYear = clamp(Number(state.profile.birthYear), 1940, APP.currentYear - 18);
+  state.profile.retirementAge = clamp(Number(state.profile.retirementAge), 50, 75);
+  state.profile.lifeExpectancy = clamp(Number(state.profile.lifeExpectancy), state.profile.retirementAge + 1, 105);
+
+  state.profile.desiredSpending = Math.max(12000, Number(state.profile.desiredSpending));
+
+  state.assumptions.inflation = normalizePct(state.assumptions.inflation);
+  state.assumptions.scenarioSpread = normalizePct(state.assumptions.scenarioSpread);
+  state.assumptions.volatility = normalizePct(state.assumptions.volatility);
+  state.assumptions.returns.conservative = normalizePct(state.assumptions.returns.conservative);
+  state.assumptions.returns.balanced = normalizePct(state.assumptions.returns.balanced);
+  state.assumptions.returns.aggressive = normalizePct(state.assumptions.returns.aggressive);
+
+  state.savings.currentTotal = Math.max(0, Number(state.savings.currentTotal));
+  state.savings.annualContribution = Math.max(0, Number(state.savings.annualContribution));
+  state.savings.contributionIncrease = clamp(normalizePct(state.savings.contributionIncrease), 0, 0.2);
+  state.savings.capitalInjects = normalizeCapitalInjects(state.savings.capitalInjects, state.profile.retirementAge);
+
+  state.income.cpp.startAge = clamp(Number(state.income.cpp.startAge), 60, 70);
+  state.income.oas.startAge = clamp(Number(state.income.oas.startAge), 65, 70);
+  state.income.pension.startAge = clamp(Number(state.income.pension.startAge), 50, 75);
+  state.income.pension.amount = Math.max(0, Number(state.income.pension.amount));
+  state.income.cpp.amountAt65 = Math.max(0, Number(state.income.cpp.amountAt65));
+  state.income.oas.amountAt65 = Math.max(0, Number(state.income.oas.amountAt65));
+  state.income.spouse.pensionStartAge = clamp(Number(state.income.spouse.pensionStartAge), 50, 75);
+  state.income.spouse.cppStartAge = clamp(Number(state.income.spouse.cppStartAge), 60, 70);
+  state.income.spouse.oasStartAge = clamp(Number(state.income.spouse.oasStartAge), 65, 70);
+  state.income.spouse.pensionAmount = Math.max(0, Number(state.income.spouse.pensionAmount));
+  state.income.spouse.cppAmountAt65 = Math.max(0, Number(state.income.spouse.cppAmountAt65));
+  state.income.spouse.oasAmountAt65 = Math.max(0, Number(state.income.spouse.oasAmountAt65));
+
+  if (!PROVINCES[state.profile.province]) state.profile.province = APP.defaultProvince;
+}
+
+function createDefaultPlan() {
+  return {
+    version: APP.version,
+    profile: {
+      province: APP.defaultProvince,
+      birthYear: APP.currentYear - 35,
+      retirementAge: 65,
+      lifeExpectancy: 92,
+      desiredSpending: 60000,
+      hasSpouse: false,
+    },
+    assumptions: {
+      inflation: 0.02,
+      returns: {
+        conservative: RISK_RETURNS.conservative,
+        balanced: RISK_RETURNS.balanced,
+        aggressive: RISK_RETURNS.aggressive,
+      },
+      riskProfile: "balanced",
+      scenarioSpread: 0.02,
+      volatility: 0.09,
+      taxBracketInflation: true,
+    },
+    savings: {
+      currentTotal: 120000,
+      annualContribution: 9000,
+      contributionIncrease: 0,
+      capitalInjects: [],
+    },
+    income: {
+      pension: {
+        enabled: false,
+        amount: 0,
+        startAge: 65,
+      },
+      cpp: {
+        amountAt65: 12000,
+        startAge: 65,
+      },
+      oas: {
+        amountAt65: 9000,
+        startAge: 65,
+      },
+      spouse: {
+        enabled: false,
+        pensionAmount: 0,
+        pensionStartAge: 65,
+        cppAmountAt65: 10000,
+        cppStartAge: 65,
+        oasAmountAt65: 8500,
+        oasStartAge: 65,
+      },
+    },
+    accounts: {
+      rrsp: 70000,
+      tfsa: 35000,
+      nonRegistered: 10000,
+      cash: 5000,
+    },
+    strategy: {
+      withdrawal: "tax-smart",
+      oasClawbackModeling: true,
+    },
+    uiState: {
+      firstRun: true,
+      hasStarted: false,
+      activeNav: "guided",
+      wizardStep: 1,
+      showScenarioCompare: false,
+      unlocked: {
+        advanced: false,
+        spouse: false,
+      },
+    },
+    notes: "",
+  };
+}
+
+function createDemoPlan() {
+  const plan = createDefaultPlan();
+  plan.profile.birthYear = APP.currentYear - 45;
+  plan.profile.retirementAge = 63;
+  plan.profile.lifeExpectancy = 94;
+  plan.profile.desiredSpending = 70000;
+  plan.savings.currentTotal = 380000;
+  plan.savings.annualContribution = 12000;
+  plan.assumptions.riskProfile = "balanced";
+  plan.income.pension.enabled = true;
+  plan.income.pension.amount = 15000;
+  plan.income.pension.startAge = 63;
+  plan.income.cpp.amountAt65 = 13000;
+  plan.income.cpp.startAge = 65;
+  plan.income.oas.amountAt65 = 9200;
+  plan.income.oas.startAge = 67;
+  plan.accounts = {
+    rrsp: 210000,
+    tfsa: 110000,
+    nonRegistered: 45000,
+    cash: 15000,
+  };
+  plan.savings.capitalInjects = [
+    { id: createLocalId(), enabled: true, label: "Downsize home", amount: 180000, age: 67 },
+  ];
+  plan.uiState.firstRun = false;
+  plan.uiState.hasStarted = true;
+  plan.uiState.activeNav = "dashboard";
+  plan.uiState.wizardStep = 5;
+  plan.uiState.unlocked.advanced = true;
+  plan.notes = "Demo assumptions loaded. Review advanced strategy and stress tests.";
+  return plan;
+}
+
+function createLocalId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `id_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createCapitalInjectItem() {
+  return {
+    id: createLocalId(),
+    enabled: true,
+    label: "Lump sum",
+    amount: 50000,
+    age: Math.max(state.profile.retirementAge, ageNow()),
+  };
+}
+
+function numberField(label, bind, value, attrs, tooltipKey, percentInput = false, disabled = false) {
+  const finalValue = percentInput ? formatNumber(value) : formatNumber(value);
+  const attrString = Object.entries(attrs || {})
+    .map(([k, v]) => `${k}="${String(v)}"`)
+    .join(" ");
+
+  return `
+    <label>
+      <span class="label-row">${escapeHtml(label)} ${tooltipButton(tooltipKey)}</span>
+      <input
+        type="number"
+        data-bind="${bind}"
+        data-type="number"
+        ${percentInput ? 'data-percent-input="1"' : ""}
+        value="${finalValue}"
+        ${attrString}
+        ${disabled ? "disabled" : ""}
+        aria-label="${escapeHtml(label)}"
+      />
+    </label>
+  `;
+}
+
+function selectField(label, bind, options, selected, tooltipKey) {
+  return `
+    <label>
+      <span class="label-row">${escapeHtml(label)} ${tooltipButton(tooltipKey)}</span>
+      <select data-bind="${bind}" aria-label="${escapeHtml(label)}">
+        ${options.map((opt) => `
+          <option value="${opt.value}" ${opt.value === selected ? "selected" : ""}>${escapeHtml(opt.label)}</option>
+        `).join("")}
+      </select>
+    </label>
+  `;
+}
+
+function renderCapitalInjectRows() {
+  const items = Array.isArray(state.savings.capitalInjects) ? state.savings.capitalInjects : [];
+  if (!items.length) return "<p class='muted form-span-full'>No lump-sum events added yet.</p>";
+
+  return items.map((item, index) => `
+    <div class="subsection form-span-full">
+      <div class="wizard-grid">
+        <label class="form-span-full inline-check">
+          <input type="checkbox" data-bind="savings.capitalInjects.${index}.enabled" ${item.enabled ? "checked" : ""} />
+          Include this event
+        </label>
+        <label>
+          <span class="label-row">Event label</span>
+          <input type="text" data-bind="savings.capitalInjects.${index}.label" value="${escapeHtml(item.label || "Lump sum")}" aria-label="Lump sum label" />
+        </label>
+        ${numberField("Amount", `savings.capitalInjects.${index}.amount`, Number(item.amount || 0), { min: 0, max: 5000000, step: 1000 }, "capitalInjectAmount")}
+        ${numberField("Age received", `savings.capitalInjects.${index}.age`, Number(item.age || state.profile.retirementAge), { min: 45, max: 105, step: 1 }, "capitalInjectAge")}
+      </div>
+      <div class="landing-actions">
+        <button type="button" class="btn btn-secondary" data-action="remove-capital-inject" data-value="${escapeHtml(item.id)}">Remove event</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function tooltipButton(key) {
+  return `<button class="tooltip-trigger" type="button" aria-label="Help: ${escapeHtml(key)}" data-tooltip-key="${escapeHtml(key)}">ⓘ</button>`;
+}
+
+function riskButton(key) {
+  const active = state.assumptions.riskProfile === key;
+  return `<button type="button" class="pill-radio ${active ? "active" : ""}" data-action="risk" data-value="${key}" aria-pressed="${active}">${capitalize(key)}</button>`;
+}
+
+function strategyButton(key, label) {
+  const active = state.strategy.withdrawal === key;
+  return `<button type="button" class="pill-radio ${active ? "active" : ""}" data-action="strategy" data-value="${key}" aria-pressed="${active}">${label}</button>`;
+}
+
+function accordionSection(id, title, affects, content) {
+  const open = !!ui.advancedOpen[id];
+  return `
+    <details class="accordion" data-accordion-id="${escapeHtml(id)}" ${open ? "open" : ""}>
+      <summary>${escapeHtml(title)}</summary>
+      <div class="accordion-content">
+        <p class="what-affects"><strong>What this affects:</strong> ${escapeHtml(affects)}</p>
+        ${content}
+      </div>
+    </details>
+  `;
+}
+
+function captureAdvancedAccordionState() {
+  const sections = Array.from(document.querySelectorAll("#advancedAccordion details[data-accordion-id]"));
+  if (!sections.length) return;
+  sections.forEach((details) => {
+    const id = details.getAttribute("data-accordion-id");
+    if (!id) return;
+    ui.advancedOpen[id] = details.open;
+  });
+}
+
+function handleDetailsToggle(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLDetailsElement)) return;
+  if (!target.matches("#advancedAccordion details[data-accordion-id]")) return;
+  const id = target.getAttribute("data-accordion-id");
+  if (!id) return;
+  ui.advancedOpen[id] = target.open;
+}
+
+function getReturnRate(plan) {
+  const profile = plan.assumptions.riskProfile;
+  return plan.assumptions.returns[profile] || plan.assumptions.returns.balanced;
+}
+
+function ageNow() {
+  return APP.currentYear - state.profile.birthYear;
+}
+
+function inflateAmountToRetirement(amount, inflationRate, years) {
+  return amount * Math.pow(1 + inflationRate, Math.max(0, years));
+}
+
+function normalizeCapitalInjects(items, defaultAge = 65) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => ({
+      id: String(item?.id || createLocalId()),
+      enabled: Boolean(item?.enabled ?? true),
+      label: String(item?.label || "Lump sum").trim() || "Lump sum",
+      amount: Math.max(0, Number(item?.amount || 0)),
+      age: clamp(Number(item?.age || defaultAge), 45, 105),
+    }))
+    .slice(0, 12);
+}
+
+function getCapitalInjectAtAge(plan, age) {
+  const items = Array.isArray(plan.savings?.capitalInjects) ? plan.savings.capitalInjects : [];
+  return items.reduce((sum, item) => {
+    if (!item.enabled) return sum;
+    return Number(item.age) === Number(age) ? sum + Math.max(0, Number(item.amount || 0)) : sum;
+  }, 0);
+}
+
+function toPct(decimal) {
+  return Number(decimal) * 100;
+}
+
+function normalizePct(value) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(n)));
+  if (!Number.isFinite(n)) return 0;
+  if (n > 1) return n / 100;
+  return n;
+}
+
+function formatPct(value) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatSignedPct(value) {
+  const pct = value * 100;
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct.toFixed(1)}%`;
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(value || 0);
+}
+
+function formatCompactCurrency(value) {
+  return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 1, notation: "compact" }).format(value || 0);
+}
+
+function formatSignedCurrency(value) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${formatCurrency(value)}`;
+}
+
+function formatNumber(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0";
+  return String(Math.round(n * 1000) / 1000);
+}
+
+function capitalize(value) {
+  return String(value || "").charAt(0).toUpperCase() + String(value || "").slice(1);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function setByPath(obj, path, value) {
+  const keys = path.split(".");
+  let ref = obj;
+  for (let i = 0; i < keys.length - 1; i += 1) {
+    const key = keys[i];
+    if (!ref[key] || typeof ref[key] !== "object") ref[key] = {};
+    ref = ref[key];
+  }
+
+  const finalKey = keys[keys.length - 1];
+
+  ref[finalKey] = value;
+}
+
+function sumAccounts(accounts) {
+  return Math.max(0, accounts.rrsp) + Math.max(0, accounts.tfsa) + Math.max(0, accounts.nonRegistered) + Math.max(0, accounts.cash);
 }
 
 function escapeHtml(value) {
@@ -2155,10 +2148,18 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function debounce(fn, wait) {
-  let timer = null;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), wait);
-  };
+function toast(message) {
+  el.appToast.textContent = message;
+  el.appToast.classList.add("visible");
+  clearTimeout(ui.toastTimer);
+  ui.toastTimer = setTimeout(() => {
+    el.appToast.classList.remove("visible");
+  }, 2200);
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("./sw.js").catch(() => {
+    // ignore registration errors in local file mode
+  });
 }

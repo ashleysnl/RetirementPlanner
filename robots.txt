@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://ashleysnl.github.io/RetirementPlanner/sitemap.xml
+Sitemap: https://example.com/sitemap.xml
