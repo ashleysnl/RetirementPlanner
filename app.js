@@ -377,6 +377,13 @@ const TOOLTIPS = {
     range: "Zero if income stays below clawback thresholds or OAS is not received.",
     example: "Large RRIF withdrawals can raise lifetime clawback totals.",
   },
+  forcedRrifDrawdown: {
+    term: "Forced RRIF drawdown",
+    plain: "After RRSP converts to RRIF, Canada requires a minimum annual withdrawal.",
+    why: "This can increase taxable income and tax even if spending needs are lower.",
+    range: "Starts at your RRIF conversion age (commonly 71) and rises with age.",
+    example: "At older ages, minimum RRIF withdrawals can exceed your spending gap.",
+  },
 };
 
 const TAX_BRACKETS = {
@@ -545,6 +552,7 @@ const el = {
   coverageLegend: document.getElementById("coverageLegend"),
   coverageHover: document.getElementById("coverageHover"),
   walkthroughStrip: document.getElementById("walkthroughStrip"),
+  walkthroughHeading: document.getElementById("walkthroughHeading"),
   yearCards: document.getElementById("yearCards"),
   dashboardReferences: document.getElementById("dashboardReferences"),
   planInputsPanel: document.getElementById("planInputsPanel"),
@@ -1114,7 +1122,12 @@ function renderKpiCards(model, age) {
 function renderDashboardNarrative(model) {
   const current = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge);
   if (!current) return;
+  if (el.walkthroughHeading) {
+    el.walkthroughHeading.textContent = `Income Vs Spending Explained for Age ${current.age}`;
+  }
   const coveragePct = current.spending > 0 ? (current.guaranteedNet / current.spending) * 100 : 0;
+  const rrifThresholdAge = state.strategy.rrifConversionAge || 71;
+  const showRrifExplanation = state.strategy.applyRrifMinimums && current.age >= rrifThresholdAge && current.rrifMinimum > 0;
   el.walkthroughStrip.innerHTML = `
     <article class="walk-step">
       <h4>Step 1 ${tooltipButton("kpiGuaranteedIncome")}</h4>
@@ -1128,6 +1141,12 @@ function renderDashboardNarrative(model) {
       <h4>Step 3 ${tooltipButton("kpiGrossWithdrawal")}</h4>
       <p>You withdraw <strong>${formatCurrency(current.withdrawal)}</strong> gross; tax drag is <strong>${formatCurrency(current.taxOnWithdrawal)}</strong>.</p>
     </article>
+    ${showRrifExplanation ? `
+      <article class="walk-step">
+        <h4>RRIF Rule ${tooltipButton("forcedRrifDrawdown")}</h4>
+        <p>From age <strong>${rrifThresholdAge}</strong>, minimum RRIF withdrawals can be required. This can raise income and taxes even when your spending need is lower.</p>
+      </article>
+    ` : ""}
   `;
   bindInlineTooltipTriggers(el.walkthroughStrip);
   renderYearCards(model);
