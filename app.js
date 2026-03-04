@@ -5,7 +5,7 @@ const APP = {
   defaultProvince: "NL",
 };
 
-const SUPPORT_URL = "https://retirement.simplekit.app";
+const SUPPORT_URL = "https://buymeacoffee.com/ashleysnl";
 
 const PROVINCES = {
   NL: "Newfoundland and Labrador",
