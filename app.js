@@ -770,6 +770,11 @@ function bindEvents() {
   el.glossaryModal?.addEventListener("click", (event) => {
     if (event.target === el.glossaryModal) el.glossaryModal.close();
   });
+  el.supportButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const opened = window.open(SUPPORT_URL, "_blank", "noopener,noreferrer");
+    if (!opened) window.location.assign(SUPPORT_URL);
+  });
   el.closePlanEditorBtn?.addEventListener("click", closePlanEditor);
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
