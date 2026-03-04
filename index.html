@@ -67,12 +67,56 @@
             <p>Quick snapshot with clear next actions.</p>
           </div>
 
-          <div id="kpiGrid" class="metric-grid"></div>
+          <div class="subsection">
+            <h3>At a glance</h3>
+            <div id="kpiGrid" class="metric-grid metric-grid-wide"></div>
+          </div>
 
           <div class="chart-wrap">
-            <h3>Projection overview</h3>
-            <canvas id="mainChart" width="1000" height="340" aria-label="Projected balance and income chart" role="img"></canvas>
+            <div class="chart-head-row">
+              <h3>Your retirement savings projection</h3>
+              <label class="inline-check small-copy no-print">
+                <input id="dashboardStressToggle" type="checkbox" checked />
+                Show stress band
+              </label>
+            </div>
+            <div class="chart-canvas-wrap">
+              <canvas id="mainChart" width="1000" height="340" aria-label="Projected portfolio balance chart" role="img"></canvas>
+              <div id="balanceHover" class="chart-hover" hidden></div>
+            </div>
             <div id="chartLegend" class="legend-row"></div>
+          </div>
+
+          <div class="chart-wrap">
+            <div class="chart-head-row">
+              <h3>Income vs Spending Coverage</h3>
+              <label class="inline-check small-copy no-print">
+                <input id="dollarModeToggle" type="checkbox" />
+                Show in today's dollars
+              </label>
+            </div>
+            <p class="muted small-copy">Assumption: For this view, all savings withdrawals are modeled as taxable registered withdrawals (RRSP/RRIF). <button class="tooltip-trigger" type="button" aria-label="Help: registered-only assumption" data-tooltip-key="registeredAssumption">ⓘ</button></p>
+            <div class="scrubber-row">
+              <label for="yearScrubber" class="small-copy">Pick age</label>
+              <input id="yearScrubber" type="range" min="55" max="95" step="1" />
+              <strong id="yearScrubberValue">Age 65</strong>
+            </div>
+            <div class="chart-canvas-wrap">
+              <canvas id="coverageChart" width="1000" height="340" aria-label="Income and spending coverage chart" role="img"></canvas>
+              <div id="coverageHover" class="chart-hover" hidden></div>
+            </div>
+            <div id="coverageLegend" class="legend-row"></div>
+            <p class="muted small-copy">Your spending target is after-tax. Pension/CPP/OAS are taxable, and RRSP/RRIF withdrawals are taxable. That is why gross withdrawal can be higher than the net gap.</p>
+          </div>
+
+          <div class="subsection">
+            <h3>Explain it</h3>
+            <div id="walkthroughStrip" class="walkthrough-strip" aria-live="polite"></div>
+          </div>
+
+          <div class="subsection">
+            <h3>Year breakdown cards</h3>
+            <div id="yearCards" class="withdrawal-explain" aria-live="polite"></div>
           </div>
 
           <div class="subsection">
@@ -145,6 +189,16 @@
     <footer class="app-footer no-print" aria-label="Footer">
       <strong>Planning-level estimate only.</strong>
       <span class="muted">Not tax, legal, or financial advice.</span>
+      <div class="associate-links" aria-label="Associate links">
+        <span class="muted small-copy">Associate links:</span>
+        <a href="https://amzn.to/4aXpF60" target="_blank" rel="noopener noreferrer nofollow sponsored">Die With Zero</a>
+        <a href="https://amzn.to/4u66Sy3" target="_blank" rel="noopener noreferrer nofollow sponsored">TurboTax</a>
+        <a href="https://amzn.to/4lgZ34D" target="_blank" rel="noopener noreferrer nofollow sponsored">The Complete Retirement Guide</a>
+      </div>
+      <div class="footer-reference-links" aria-label="Reference links">
+        <span class="muted small-copy">Reference Links:</span>
+        <div id="dashboardReferences" class="footer-reference-row"></div>
+      </div>
     </footer>
   </div>
 

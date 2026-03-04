@@ -235,6 +235,48 @@ const TOOLTIPS = {
     range: "Any non-negative value.",
     example: "A cash buffer can help cover 1-2 years of spending gaps.",
   },
+  kpiBalanceRetirement: {
+    term: "Balance at retirement",
+    plain: "Estimated portfolio value at your retirement age.",
+    why: "This is your starting pool for retirement withdrawals.",
+    range: "Based on your savings, contributions, returns, and timeline.",
+    example: "Higher contributions can lift this value materially.",
+  },
+  kpiSpendingTarget: {
+    term: "After-tax spending target",
+    plain: "How much spendable cash you want in retirement.",
+    why: "This is the benchmark income your plan needs to deliver.",
+    range: "Set in guided and advanced inputs.",
+    example: "$70,000 means $70,000 to spend after tax.",
+  },
+  kpiGuaranteedIncome: {
+    term: "Guaranteed income",
+    plain: "Combined pension, CPP, and OAS for the year.",
+    why: "This income reduces how much must come from savings.",
+    range: "Depends on benefit amounts and start ages.",
+    example: "If guaranteed income covers most spending, withdrawals are lower.",
+  },
+  kpiNetGap: {
+    term: "Net gap from savings",
+    plain: "The after-tax spending shortfall not covered by guaranteed income.",
+    why: "This is the net amount your savings must provide.",
+    range: "Cannot be below zero.",
+    example: "If spending is $60k and guaranteed net is $45k, gap is about $15k.",
+  },
+  kpiGrossWithdrawal: {
+    term: "Gross withdrawal required",
+    plain: "The pre-tax RRSP/RRIF withdrawal needed to fund the net gap.",
+    why: "Withdrawals are taxable, so gross is often higher than net needed.",
+    range: "Depends on taxable income and tax rate in that year.",
+    example: "A $20k net gap may require a $26k gross withdrawal.",
+  },
+  registeredAssumption: {
+    term: "Registered-only assumption",
+    plain: "This dashboard currently treats all savings withdrawals as RRSP/RRIF taxable withdrawals.",
+    why: "It makes the tax wedge clear and easier to interpret.",
+    range: "TFSA/cash effects are intentionally excluded here.",
+    example: "If you had TFSA withdrawals, tax wedge could be smaller than shown.",
+  },
 };
 
 const TAX_BRACKETS = {
@@ -256,6 +298,69 @@ const TAX_BRACKETS = {
   },
 };
 
+const OFFICIAL_REFERENCES = [
+  {
+    label: "CPP retirement pension (overview)",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp.html",
+    source: "Canada.ca (Service Canada)",
+  },
+  {
+    label: "CPP start-age timing (60-70)",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/when-start.html",
+    source: "Canada.ca (Service Canada)",
+  },
+  {
+    label: "Old Age Security (OAS) overview",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/old-age-security.html",
+    source: "Canada.ca (Service Canada)",
+  },
+  {
+    label: "OAS start-age timing (65-70)",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/old-age-security/when-start.html",
+    source: "Canada.ca (Service Canada)",
+  },
+  {
+    label: "OAS recovery tax (clawback)",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/old-age-security/recovery-tax.html",
+    source: "Canada.ca",
+  },
+  {
+    label: "RRSPs and other registered plans (T4040)",
+    href: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4040/rrsps-other-registered-plans-retirement.html",
+    source: "CRA",
+  },
+  {
+    label: "RRSP deduction limit rules",
+    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/rrsps-related-plans/contributing-a-rrsp-prpp/contributions-affect-your-rrsp-prpp-deduction-limit.html",
+    source: "CRA",
+  },
+  {
+    label: "Registered Retirement Income Fund (RRIF)",
+    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/registered-retirement-income-fund-rrif.html",
+    source: "CRA",
+  },
+  {
+    label: "Personal tax rates and brackets hub",
+    href: "https://www.canada.ca/en/revenue-agency/services/tax/rates.html",
+    source: "CRA",
+  },
+  {
+    label: "Federal/provincial tax thresholds and rates",
+    href: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/income-tax/reducing-remuneration-subject-income-tax.html",
+    source: "CRA",
+  },
+  {
+    label: "Tax-Free Savings Account (TFSA): opening and eligibility",
+    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/tax-free-savings-account/opening.html",
+    source: "CRA",
+  },
+  {
+    label: "Capital gains guide (non-registered investing context)",
+    href: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4037/capital-gains.html",
+    source: "CRA",
+  },
+];
+
 const el = {
   landingPanel: document.getElementById("landingPanel"),
   appPanel: document.getElementById("appPanel"),
@@ -274,7 +379,18 @@ const el = {
 
   kpiGrid: document.getElementById("kpiGrid"),
   mainChart: document.getElementById("mainChart"),
+  balanceHover: document.getElementById("balanceHover"),
   chartLegend: document.getElementById("chartLegend"),
+  dashboardStressToggle: document.getElementById("dashboardStressToggle"),
+  dollarModeToggle: document.getElementById("dollarModeToggle"),
+  yearScrubber: document.getElementById("yearScrubber"),
+  yearScrubberValue: document.getElementById("yearScrubberValue"),
+  coverageChart: document.getElementById("coverageChart"),
+  coverageLegend: document.getElementById("coverageLegend"),
+  coverageHover: document.getElementById("coverageHover"),
+  walkthroughStrip: document.getElementById("walkthroughStrip"),
+  yearCards: document.getElementById("yearCards"),
+  dashboardReferences: document.getElementById("dashboardReferences"),
   nextActions: document.getElementById("nextActions"),
   basicsSummary: document.getElementById("basicsSummary"),
 
@@ -306,6 +422,9 @@ let ui = {
   tooltipKey: "",
   toastTimer: null,
   lastModel: null,
+  selectedAge: null,
+  showStressBand: true,
+  showTodaysDollars: false,
   advancedOpen: {
     basics: true,
     assumptions: true,
@@ -314,6 +433,7 @@ let ui = {
     capitalInjects: false,
     withdrawal: false,
     tax: false,
+    references: false,
     modules: false,
   },
 };
@@ -403,6 +523,33 @@ function bindEvents() {
     savePlan();
   });
 
+  el.dashboardStressToggle?.addEventListener("change", () => {
+    ui.showStressBand = !!el.dashboardStressToggle.checked;
+    renderDashboard();
+  });
+
+  el.dollarModeToggle?.addEventListener("change", () => {
+    ui.showTodaysDollars = !!el.dollarModeToggle.checked;
+    renderDashboard();
+  });
+
+  el.yearScrubber?.addEventListener("input", () => {
+    ui.selectedAge = Number(el.yearScrubber.value);
+    el.yearScrubberValue.textContent = `Age ${ui.selectedAge}`;
+    renderKpiCards(ui.lastModel, ui.selectedAge);
+    drawCoverageChart(ui.lastModel, ui.selectedAge);
+    renderDashboardNarrative(ui.lastModel);
+  });
+
+  el.coverageChart?.addEventListener("mousemove", handleCoverageChartPointer);
+  el.coverageChart?.addEventListener("mouseleave", () => {
+    if (el.coverageHover) el.coverageHover.hidden = true;
+  });
+  el.mainChart?.addEventListener("mousemove", handleBalanceChartPointer);
+  el.mainChart?.addEventListener("mouseleave", () => {
+    if (el.balanceHover) el.balanceHover.hidden = true;
+  });
+
   el.scenarioCompareToggle?.addEventListener("change", () => {
     state.uiState.showScenarioCompare = !!el.scenarioCompareToggle.checked;
     savePlan();
@@ -426,8 +573,9 @@ function bindEvents() {
 }
 
 function handleDocumentClick(event) {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
+  const rawTarget = event.target;
+  const target = rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement;
+  if (!(target instanceof Element)) return;
 
   const tooltipBtn = target.closest("[data-tooltip-key]");
   if (tooltipBtn) {
@@ -590,34 +738,26 @@ function renderDashboard() {
   const model = ui.lastModel;
   if (!model) return;
 
-  const cards = [
-    {
-      label: "Balance at retirement",
-      value: formatCurrency(model.kpis.balanceAtRetirement),
-      sub: `Age ${state.profile.retirementAge}`,
-    },
-    {
-      label: "Income gap / surplus",
-      value: formatSignedCurrency(model.kpis.firstYearGap),
-      sub: model.kpis.firstYearGap >= 0 ? "Surplus in first retirement year" : "Gap in first retirement year",
-    },
-    {
-      label: "Depletion age",
-      value: model.kpis.depletionAge ? `Age ${model.kpis.depletionAge}` : "No depletion",
-      sub: model.kpis.depletionAge ? "Savings projected to run out" : "Balance remains through plan horizon",
-    },
-  ];
+  const retireRows = model.base.rows.filter((row) => row.age >= state.profile.retirementAge);
+  const minAge = retireRows[0]?.age ?? state.profile.retirementAge;
+  const maxAge = retireRows[retireRows.length - 1]?.age ?? state.profile.lifeExpectancy;
+  if (ui.selectedAge == null) ui.selectedAge = minAge;
+  ui.selectedAge = clamp(ui.selectedAge, minAge, maxAge);
 
-  el.kpiGrid.innerHTML = cards.map((card) => `
-    <article class="metric-card">
-      <span class="label">${escapeHtml(card.label)}</span>
-      <span class="value">${escapeHtml(card.value)}</span>
-      <span class="sub">${escapeHtml(card.sub)}</span>
-    </article>
-  `).join("");
+  el.dashboardStressToggle.checked = ui.showStressBand;
+  el.dollarModeToggle.checked = ui.showTodaysDollars;
+  el.yearScrubber.min = String(minAge);
+  el.yearScrubber.max = String(maxAge);
+  el.yearScrubber.value = String(ui.selectedAge);
+  el.yearScrubberValue.textContent = `Age ${ui.selectedAge}`;
 
-  renderLegend();
+  renderKpiCards(model, ui.selectedAge);
+  renderBalanceLegend();
   drawMainChart(model.base.rows, model.best.rows, model.worst.rows);
+  renderCoverageLegend();
+  drawCoverageChart(model, ui.selectedAge);
+  renderDashboardNarrative(model);
+  renderDashboardReferences();
 
   const actions = buildNextActions(model);
   el.nextActions.innerHTML = actions.map((text) => `<li>${escapeHtml(text)}</li>`).join("");
@@ -627,25 +767,276 @@ function renderDashboard() {
     `Retire at <strong>${state.profile.retirementAge}</strong>, plan through age <strong>${state.profile.lifeExpectancy}</strong>.`,
     `Risk profile: <strong>${capitalize(state.assumptions.riskProfile)}</strong> (${formatPct(model.base.returnRate)} return).`,
     `Estimated first retirement year guaranteed income: <strong>${formatCurrency(model.kpis.firstYearGuaranteed)}</strong>.`,
+    `Dashboard assumption: withdrawals are modeled as RRSP/RRIF taxable withdrawals for this explanatory view.`,
   ].join("<br>");
 }
 
-function renderLegend() {
-  const items = [
-    ["Balance", "#0f6abf"],
-    ["Balance upper/lower (stress)", "#7aa7d8"],
-    ["Spending", "#d9485f"],
-    ["Pension", "#f59e0b"],
-    ["CPP", "#16a34a"],
-    ["OAS", "#0ea5a8"],
+function renderDashboardReferences() {
+  if (!el.dashboardReferences) return;
+  el.dashboardReferences.innerHTML = OFFICIAL_REFERENCES.map((item, index) => `
+    ${index > 0 ? '<span class="reference-sep" aria-hidden="true">|</span>' : ""}
+    <a class="footer-reference-link" href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">
+      ${escapeHtml(item.label)}
+    </a>
+  `).join("");
+}
+
+function renderKpiCards(model, age) {
+  const row = findRowByAge(model.base.rows, age);
+  if (!row) return;
+  const kpis = [
+    { label: "Balance at retirement", value: formatCurrency(model.kpis.balanceAtRetirement), sub: `Age ${state.profile.retirementAge}`, tip: "kpiBalanceRetirement" },
+    { label: "After-tax spending target", value: formatCurrency(row.spending), sub: `At age ${row.age}`, tip: "kpiSpendingTarget" },
+    { label: "Guaranteed income", value: formatCurrency(row.guaranteedGross), sub: "Pension + CPP + OAS", tip: "kpiGuaranteedIncome" },
+    { label: "Net gap from savings", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "Needs savings funding" : "Guaranteed income covers target", tip: "kpiNetGap" },
+    { label: "Gross withdrawal required", value: formatCurrency(row.withdrawal), sub: `Tax drag ${formatCurrency(row.taxOnWithdrawal)}`, tip: "kpiGrossWithdrawal" },
+  ];
+  el.kpiGrid.innerHTML = kpis.map((card) => `
+    <article class="metric-card">
+      <span class="label">${escapeHtml(card.label)} ${tooltipButton(card.tip)}</span>
+      <span class="value">${escapeHtml(card.value)}</span>
+      <span class="sub">${escapeHtml(card.sub)}</span>
+    </article>
+  `).join("");
+}
+
+function renderDashboardNarrative(model) {
+  const current = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge);
+  if (!current) return;
+  const coveragePct = current.spending > 0 ? (current.guaranteedNet / current.spending) * 100 : 0;
+  el.walkthroughStrip.innerHTML = `
+    <article class="walk-step">
+      <h4>Step 1 ${tooltipButton("kpiGuaranteedIncome")}</h4>
+      <p>Guaranteed income covers <strong>${coveragePct.toFixed(0)}%</strong> of your spending target.</p>
+    </article>
+    <article class="walk-step">
+      <h4>Step 2 ${tooltipButton("kpiNetGap")}</h4>
+      <p>Remaining <strong>after-tax gap</strong> is <strong>${formatCurrency(current.netGap)}</strong>.</p>
+    </article>
+    <article class="walk-step">
+      <h4>Step 3 ${tooltipButton("kpiGrossWithdrawal")}</h4>
+      <p>You withdraw <strong>${formatCurrency(current.withdrawal)}</strong> gross; tax drag is <strong>${formatCurrency(current.taxOnWithdrawal)}</strong>.</p>
+    </article>
+  `;
+  renderYearCards(model);
+}
+
+function renderYearCards(model) {
+  const firstRetRow = findFirstRetirementRow(model.base.rows, state.profile.retirementAge);
+  const checkpoints = [
+    { label: `First retirement year (Age ${firstRetRow?.age ?? state.profile.retirementAge})`, row: firstRetRow },
+    { label: "Age 65", row: findRowByAge(model.base.rows, 65) },
+    { label: "RRIF conversion year (Age 71)", row: findRowByAge(model.base.rows, 71) },
   ];
 
+  el.yearCards.innerHTML = checkpoints.map((point) => {
+    if (!point.row) return `<article class="withdrawal-card"><h4>${escapeHtml(point.label)}</h4><p class="muted small-copy">Not in projection horizon.</p></article>`;
+    const row = point.row;
+    const parts = [
+      { label: "Guaranteed income", value: row.guaranteedNet, color: "#16a34a" },
+      { label: "Net withdrawal", value: row.netFromWithdrawal, color: "#0f6abf" },
+      { label: "Tax wedge", value: row.taxOnWithdrawal, color: "#d9485f" },
+    ];
+    const total = Math.max(1, parts.reduce((sum, p) => sum + p.value, 0));
+    return `
+      <article class="withdrawal-card">
+        <h4>${escapeHtml(point.label)}</h4>
+        <div class="withdrawal-bar">
+          ${parts.map((p) => `<span title="${escapeHtml(p.label)} ${formatCurrency(p.value)}" style="width:${((p.value / total) * 100).toFixed(1)}%; background:${p.color};"></span>`).join("")}
+        </div>
+        <div class="withdrawal-metrics">
+          <div><strong>Spending target (after-tax)</strong><span>${formatCurrency(row.spending)}</span></div>
+          <div><strong>Guaranteed income total</strong><span>${formatCurrency(row.guaranteedGross)}</span></div>
+          <div><strong>Net gap funded by savings</strong><span>${formatCurrency(row.netGap)}</span></div>
+          <div><strong>Gross withdrawal required</strong><span>${formatCurrency(row.withdrawal)}</span></div>
+          <div><strong>Tax on withdrawal</strong><span>${formatCurrency(row.taxOnWithdrawal)}</span></div>
+          <div><strong>Effective tax rate</strong><span>${formatPct(row.effectiveTaxRate)}</span></div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderBalanceLegend() {
+  const items = [["Portfolio balance", "#0f6abf"]];
+  if (ui.showStressBand) items.push(["Stress band (best/worst)", "#7aa7d8"]);
   el.chartLegend.innerHTML = items.map((item) => `
     <span class="legend-item">
       <span class="legend-chip" style="background:${item[1]};"></span>${item[0]}
     </span>
   `).join("");
 }
+
+function renderCoverageLegend() {
+  const items = [
+    ["Guaranteed income: Pension", "#f59e0b"],
+    ["Guaranteed income: CPP", "#16a34a"],
+    ["Guaranteed income: OAS", "#0ea5a8"],
+    ["From savings: RRSP/RRIF withdrawal (net)", "#0f6abf"],
+    ["Tax on withdrawal (drag)", "#d9485f"],
+    ["After-tax spending target", "#111827"],
+  ];
+
+  el.coverageLegend.innerHTML = items.map((item) => `
+    <span class="legend-item"><span class="legend-chip" style="background:${item[1]};"></span>${item[0]}</span>
+  `).join("");
+}
+
+function handleCoverageChartPointer(event) {
+  const model = ui.lastModel;
+  if (!model || !el.coverageChart || !el.coverageHover) return;
+  const rows = model.base.rows.filter((row) => row.age >= state.profile.retirementAge);
+  if (!rows.length) return;
+  const rect = el.coverageChart.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const idx = clamp(Math.round((x / rect.width) * (rows.length - 1)), 0, rows.length - 1);
+  const row = rows[idx];
+  const pension = amountForDisplay(row, row.pensionNet + row.spousePensionNet);
+  const cpp = amountForDisplay(row, row.cppNet + row.spouseCppNet);
+  const oas = amountForDisplay(row, row.oasNet + row.spouseOasNet);
+  const netW = amountForDisplay(row, row.netFromWithdrawal);
+  const taxW = amountForDisplay(row, row.taxOnWithdrawal);
+  const spend = amountForDisplay(row, row.spending);
+  el.coverageHover.innerHTML = `
+    <strong>Age ${row.age}</strong><br>
+    Pension: ${formatCurrency(pension)}<br>
+    CPP: ${formatCurrency(cpp)}<br>
+    OAS: ${formatCurrency(oas)}<br>
+    Net withdrawal: ${formatCurrency(netW)}<br>
+    Tax wedge: ${formatCurrency(taxW)}<br>
+    Spending target: ${formatCurrency(spend)}
+  `;
+  el.coverageHover.hidden = false;
+  el.coverageHover.style.left = `${clamp(x + 10, 8, rect.width - 220)}px`;
+  el.coverageHover.style.top = "8px";
+}
+
+function drawCoverageChart(model, selectedAge) {
+  const canvas = el.coverageChart;
+  if (!canvas) return;
+  const rows = model.base.rows.filter((row) => row.age >= state.profile.retirementAge);
+  if (!rows.length) return;
+
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 40) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(800, Math.floor(rect.width * dpr));
+  canvas.height = Math.floor(340 * dpr);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const w = rect.width;
+  const h = 340;
+  const pad = { left: 52, right: 16, top: 16, bottom: 36 };
+  const innerW = w - pad.left - pad.right;
+  const innerH = h - pad.top - pad.bottom;
+  ctx.clearRect(0, 0, w, h);
+
+  const values = [];
+  rows.forEach((r) => {
+    values.push(
+      amountForDisplay(r, r.guaranteedNet + r.netFromWithdrawal + r.taxOnWithdrawal),
+      amountForDisplay(r, r.spending)
+    );
+  });
+  const maxY = Math.max(1, ...values) * 1.15;
+
+  const x = (i) => pad.left + (innerW * i) / Math.max(1, rows.length - 1);
+  const y = (v) => pad.top + innerH - (v / maxY) * innerH;
+  const barW = Math.max(6, Math.min(14, innerW / Math.max(rows.length, 30)));
+
+  ctx.strokeStyle = "#e1e8f3";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const gy = pad.top + (innerH * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, gy);
+    ctx.lineTo(w - pad.right, gy);
+    ctx.stroke();
+  }
+
+  rows.forEach((row, idx) => {
+    const cx = x(idx) - barW / 2;
+    const pension = amountForDisplay(row, row.pensionNet + row.spousePensionNet);
+    const cpp = amountForDisplay(row, row.cppNet + row.spouseCppNet);
+    const oas = amountForDisplay(row, row.oasNet + row.spouseOasNet);
+    const netW = amountForDisplay(row, row.netFromWithdrawal);
+    const taxW = amountForDisplay(row, row.taxOnWithdrawal);
+
+    let stack = 0;
+    const segments = [
+      [pension, "#f59e0b"],
+      [cpp, "#16a34a"],
+      [oas, "#0ea5a8"],
+      [netW, "#0f6abf"],
+      [taxW, "#d9485f"],
+    ];
+    segments.forEach(([value, color]) => {
+      if (value <= 0) return;
+      const yTop = y(stack + value);
+      const yBottom = y(stack);
+      ctx.fillStyle = color;
+      ctx.fillRect(cx, yTop, barW, Math.max(1, yBottom - yTop));
+      stack += value;
+    });
+  });
+
+  const linePts = rows.map((r, i) => [x(i), y(amountForDisplay(r, r.spending))]);
+  plotLine(ctx, linePts, "#111827", 1.8);
+
+  const mark = findRowByAge(rows, selectedAge);
+  if (mark) {
+    const idx = rows.findIndex((r) => r.age === mark.age);
+    const mx = x(idx);
+    ctx.strokeStyle = "rgba(15,106,191,0.45)";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(mx, pad.top);
+    ctx.lineTo(mx, pad.top + innerH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle = "#5f6b7d";
+  ctx.font = "12px Avenir Next";
+  ctx.fillText(formatCurrency(0), 8, h - 10);
+  ctx.fillText(formatCompactCurrency(maxY), 8, pad.top + 4);
+  const step = Math.max(1, Math.ceil((rows.length - 1) / Math.max(3, Math.floor(innerW / 110))));
+  for (let i = 0; i < rows.length; i += step) {
+    const label = `Age ${rows[i].age}`;
+    const lx = x(i);
+    const lw = ctx.measureText(label).width;
+    ctx.fillText(label, clamp(lx - lw / 2, pad.left, w - pad.right - lw), h - 10);
+  }
+}
+
+function amountForDisplay(row, amount) {
+  if (!ui.showTodaysDollars) return amount;
+  const yearsFromNow = Math.max(0, row.year - APP.currentYear);
+  return amount / Math.pow(1 + state.assumptions.inflation, yearsFromNow);
+}
+
+function findRowByAge(rows, age) {
+  if (!rows.length) return null;
+  const exact = rows.find((row) => row.age === age);
+  if (exact) return exact;
+  let best = rows[0];
+  let bestDistance = Math.abs(best.age - age);
+  for (const row of rows) {
+    const d = Math.abs(row.age - age);
+    if (d < bestDistance) {
+      best = row;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+
+function findFirstRetirementRow(rows, retirementAge) {
+  return rows.find((row) => row.age >= retirementAge) || rows[0] || null;
+}
+
 
 function renderWizard() {
   const step = clamp(state.uiState.wizardStep || 1, 1, 5);
@@ -674,11 +1065,11 @@ function wizardStepTimeline(model) {
 
   return `
     <h3>Your Timeline</h3>
-    <div class="wizard-grid">
-      ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province")}
-      ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear")}
-      ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge")}
-      ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy")}
+    <div class="wizard-grid compact-mobile-two">
+      ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province", true)}
+      ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear", false, false, true)}
+      ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge", false, false, true)}
+      ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy", false, false, true)}
     </div>
 
     <section class="lesson-box">
@@ -707,9 +1098,9 @@ function wizardStepGoal(model) {
 
   return `
     <h3>Your Goal</h3>
-    <div class="wizard-grid">
+    <div class="wizard-grid compact-mobile-two">
       ${numberField("Desired retirement spending (after-tax, today dollars)", "profile.desiredSpending", state.profile.desiredSpending, { min: 12000, max: 350000, step: 500 }, "desiredSpending")}
-      ${numberField("Inflation assumption", "assumptions.inflation", toPct(state.assumptions.inflation), { min: 0.5, max: 5, step: 0.1 }, "inflation", true)}
+      ${numberField("Inflation assumption", "assumptions.inflation", toPct(state.assumptions.inflation), { min: 0.5, max: 5, step: 0.1 }, "inflation", true, false, true)}
     </div>
 
     <section class="lesson-box">
@@ -736,10 +1127,10 @@ function wizardStepSavings(model) {
 
   return `
     <h3>Your Savings</h3>
-    <div class="wizard-grid">
+    <div class="wizard-grid compact-mobile-two">
       ${numberField("Current total savings", "savings.currentTotal", state.savings.currentTotal, { min: 0, max: 5000000, step: 1000 }, "currentSavings")}
       ${numberField("Annual contribution", "savings.annualContribution", state.savings.annualContribution, { min: 0, max: 250000, step: 500 }, "annualContribution")}
-      ${numberField("Contribution increase (% per year)", "savings.contributionIncrease", toPct(state.savings.contributionIncrease), { min: 0, max: 15, step: 0.1 }, "contributionIncrease", true)}
+      ${numberField("Contribution increase (% per year)", "savings.contributionIncrease", toPct(state.savings.contributionIncrease), { min: 0, max: 15, step: 0.1 }, "contributionIncrease", true, false, true)}
       <div class="form-span-full">
         <div class="label-row">Risk profile ${tooltipButton("riskProfile")}</div>
         <div class="inline-radio-row">
@@ -778,17 +1169,17 @@ function wizardStepIncome(model) {
   const drawPct = (first.withdrawal / total) * 100;
   return `
     <h3>Income Sources</h3>
-    <div class="wizard-grid">
+    <div class="wizard-grid compact-mobile-two">
       <label class="form-span-full inline-check">
         <input type="checkbox" data-bind="income.pension.enabled" ${state.income.pension.enabled ? "checked" : ""} />
         Workplace pension?
       </label>
-      ${numberField("Pension amount", "income.pension.amount", state.income.pension.amount, { min: 0, max: 200000, step: 500 }, "pensionAmount", false, !state.income.pension.enabled)}
-      ${numberField("Pension start age", "income.pension.startAge", state.income.pension.startAge, { min: 50, max: 75, step: 1 }, "pensionStartAge", false, !state.income.pension.enabled)}
-      ${numberField("Estimated CPP at 65", "income.cpp.amountAt65", state.income.cpp.amountAt65, { min: 0, max: 35000, step: 250 }, "cppAmount65")}
-      ${numberField("CPP start age", "income.cpp.startAge", state.income.cpp.startAge, { min: 60, max: 70, step: 1 }, "cppStartAge")}
-      ${numberField("Estimated OAS at 65", "income.oas.amountAt65", state.income.oas.amountAt65, { min: 0, max: 12000, step: 100 }, "oasAmount65")}
-      ${numberField("OAS start age", "income.oas.startAge", state.income.oas.startAge, { min: 65, max: 70, step: 1 }, "oasStartAge")}
+      ${numberField("Pension amount", "income.pension.amount", state.income.pension.amount, { min: 0, max: 200000, step: 500 }, "pensionAmount", false, !state.income.pension.enabled, true)}
+      ${numberField("Pension start age", "income.pension.startAge", state.income.pension.startAge, { min: 50, max: 75, step: 1 }, "pensionStartAge", false, !state.income.pension.enabled, true)}
+      ${numberField("Estimated CPP at 65", "income.cpp.amountAt65", state.income.cpp.amountAt65, { min: 0, max: 35000, step: 250 }, "cppAmount65", false, false, true)}
+      ${numberField("CPP start age", "income.cpp.startAge", state.income.cpp.startAge, { min: 60, max: 70, step: 1 }, "cppStartAge", false, false, true)}
+      ${numberField("Estimated OAS at 65", "income.oas.amountAt65", state.income.oas.amountAt65, { min: 0, max: 12000, step: 100 }, "oasAmount65", false, false, true)}
+      ${numberField("OAS start age", "income.oas.startAge", state.income.oas.startAge, { min: 65, max: 70, step: 1 }, "oasStartAge", false, false, true)}
     </div>
 
     <section class="lesson-box">
@@ -860,13 +1251,13 @@ function renderAdvanced() {
 
   el.advancedAccordion.innerHTML = `
     ${accordionSection("basics", "Basics", "Changes timeline, spending target, and core savings assumptions used across all models.", `
-      <div class="form-grid">
-        ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province")}
-        ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear")}
-        ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge")}
-        ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy")}
+      <div class="form-grid compact-mobile-two">
+        ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province", true)}
+        ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear", false, false, true)}
+        ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge", false, false, true)}
+        ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy", false, false, true)}
         ${numberField("Desired spending (today's dollars)", "profile.desiredSpending", state.profile.desiredSpending, { min: 12000, max: 350000, step: 500 }, "desiredSpending")}
-        ${numberField("Inflation", "assumptions.inflation", toPct(state.assumptions.inflation), { min: 0.5, max: 5, step: 0.1 }, "inflation", true)}
+        ${numberField("Inflation", "assumptions.inflation", toPct(state.assumptions.inflation), { min: 0.5, max: 5, step: 0.1 }, "inflation", true, false, true)}
         ${numberField("Current total savings", "savings.currentTotal", state.savings.currentTotal, { min: 0, max: 5000000, step: 1000 }, "currentSavings")}
         ${numberField("Annual contribution", "savings.annualContribution", state.savings.annualContribution, { min: 0, max: 250000, step: 500 }, "annualContribution")}
       </div>
@@ -953,6 +1344,18 @@ function renderAdvanced() {
         <div class="preview-kpi-item"><strong>Current effective tax rate</strong><span>${formatPct(model.tax.currentEffectiveRate)}</span></div>
         <div class="preview-kpi-item"><strong>First retirement-year effective tax rate</strong><span>${formatPct(model.tax.firstRetirementEffectiveRate)}</span></div>
       </div>
+    `)}
+
+    ${accordionSection("references", "Official references", "Links to current CRA and Canada.ca source material used for planning context.", `
+      <p class="muted">These links are official government references. Rates and rules can change by tax year.</p>
+      <ul class="plain-list resource-list">
+        ${OFFICIAL_REFERENCES.map((item) => `
+          <li>
+            <a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}</a>
+            <span class="muted small-copy"> (${escapeHtml(item.source)})</span>
+          </li>
+        `).join("")}
+      </ul>
     `)}
 
     ${accordionSection("modules", "Educational unlock modules", "Adds concept-level guidance. Some modules are educational-only if not fully modeled.", `
@@ -1137,7 +1540,7 @@ function runSimpleProjection(plan, options) {
     const spouseCpp = spouseEnabled && age >= plan.income.spouse.cppStartAge ? adjustedCPP(plan.income.spouse.cppAmountAt65, plan.income.spouse.cppStartAge) : 0;
     const spouseOas = spouseEnabled && age >= plan.income.spouse.oasStartAge ? adjustedOAS(plan.income.spouse.oasAmountAt65, plan.income.spouse.oasStartAge) : 0;
 
-    const guaranteedIncome = pension + cpp + oas + spousePension + spouseCpp + spouseOas;
+    const guaranteedGross = pension + cpp + oas + spousePension + spouseCpp + spouseOas;
 
     const yearsFromRetirementStart = Math.max(0, age - retireAge);
     const targetAfterTax = retired
@@ -1146,18 +1549,52 @@ function runSimpleProjection(plan, options) {
 
     let withdrawal = 0;
     let tax = 0;
-    let taxableIncome = guaranteedIncome;
+    let taxableIncome = guaranteedGross;
+    let guaranteedTax = 0;
+    let guaranteedNet = guaranteedGross;
+    let pensionNet = pension;
+    let cppNet = cpp;
+    let oasNet = oas;
+    let spousePensionNet = spousePension;
+    let spouseCppNet = spouseCpp;
+    let spouseOasNet = spouseOas;
+    let netFromWithdrawal = 0;
+    let taxOnWithdrawal = 0;
+    let netGap = 0;
     let gap = 0;
 
     if (retired) {
-      const netFromGuaranteed = guaranteedIncome * (1 - estimateEffectiveTaxRate(plan, guaranteedIncome, Math.max(0, year - startYear)));
-      const netGap = Math.max(0, targetAfterTax - netFromGuaranteed);
-      const effectiveOnCombined = estimateEffectiveTaxRate(plan, guaranteedIncome + netGap, Math.max(0, year - startYear));
-      withdrawal = netGap / Math.max(0.45, 1 - effectiveOnCombined);
-      taxableIncome = guaranteedIncome + withdrawal;
-      tax = taxableIncome * estimateEffectiveTaxRate(plan, taxableIncome, Math.max(0, year - startYear));
-      const netIncome = guaranteedIncome + withdrawal - tax;
+      const yearOffset = Math.max(0, year - startYear);
+      guaranteedTax = estimateTotalTax(plan, guaranteedGross, yearOffset);
+      guaranteedNet = Math.max(0, guaranteedGross - guaranteedTax);
+      const netFactor = guaranteedGross > 0 ? guaranteedNet / guaranteedGross : 1;
+      pensionNet = pension * netFactor;
+      cppNet = cpp * netFactor;
+      oasNet = oas * netFactor;
+      spousePensionNet = spousePension * netFactor;
+      spouseCppNet = spouseCpp * netFactor;
+      spouseOasNet = spouseOas * netFactor;
+      netGap = Math.max(0, targetAfterTax - guaranteedNet);
+      const requiredWithdrawal = solveGrossWithdrawal(plan, guaranteedGross, netGap, yearOffset);
+      const availableForWithdrawal = Math.max(0, balance + capitalInject);
+      withdrawal = Math.min(requiredWithdrawal, availableForWithdrawal);
+      taxableIncome = guaranteedGross + withdrawal;
+      tax = estimateTotalTax(plan, taxableIncome, yearOffset);
+      taxOnWithdrawal = Math.max(0, tax - guaranteedTax);
+      netFromWithdrawal = Math.max(0, withdrawal - taxOnWithdrawal);
+      const netIncome = guaranteedNet + netFromWithdrawal;
       gap = netIncome - targetAfterTax;
+    } else {
+      tax = estimateTotalTax(plan, guaranteedGross, Math.max(0, year - startYear));
+      guaranteedTax = tax;
+      guaranteedNet = Math.max(0, guaranteedGross - guaranteedTax);
+      const netFactor = guaranteedGross > 0 ? guaranteedNet / guaranteedGross : 1;
+      pensionNet = pension * netFactor;
+      cppNet = cpp * netFactor;
+      oasNet = oas * netFactor;
+      spousePensionNet = spousePension * netFactor;
+      spouseCppNet = spouseCpp * netFactor;
+      spouseOasNet = spouseOas * netFactor;
     }
 
     const preGrowth = retired
@@ -1179,13 +1616,25 @@ function runSimpleProjection(plan, options) {
       spending: targetAfterTax,
       tax,
       taxableIncome,
+      effectiveTaxRate: taxableIncome > 0 ? tax / taxableIncome : 0,
       pension,
       cpp,
       oas,
       spousePension,
       spouseCpp,
       spouseOas,
-      guaranteedIncome,
+      pensionNet,
+      cppNet,
+      oasNet,
+      spousePensionNet,
+      spouseCppNet,
+      spouseOasNet,
+      guaranteedGross,
+      guaranteedTax,
+      guaranteedNet,
+      netGap,
+      netFromWithdrawal,
+      taxOnWithdrawal,
       gap,
     });
   }
@@ -1197,7 +1646,11 @@ function runSimpleProjection(plan, options) {
     balanceAtRetirement,
     firstYearGap: firstRet ? firstRet.gap : 0,
     depletionAge,
-    firstYearGuaranteed: firstRet ? firstRet.guaranteedIncome : 0,
+    firstYearGuaranteed: firstRet ? firstRet.guaranteedGross : 0,
+    firstYearSpendingTarget: firstRet ? firstRet.spending : 0,
+    firstYearNetGap: firstRet ? firstRet.netGap : 0,
+    firstYearGrossWithdrawal: firstRet ? firstRet.withdrawal : 0,
+    firstYearTaxWedge: firstRet ? firstRet.taxOnWithdrawal : 0,
     firstRetirementBreakdown: {
       pension: firstRet ? firstRet.pension : 0,
       cpp: firstRet ? firstRet.cpp : 0,
@@ -1229,6 +1682,7 @@ function runStrategyProjection(plan, baseProjection, strategyKey) {
   let totalTax = 0;
   let totalClawback = 0;
   let depletionAge = null;
+  const snapshotsByAge = {};
 
   for (let age = retireAge; age <= deathAge; age += 1) {
     const yearOffset = Math.max(0, age - ageNow());
@@ -1271,6 +1725,23 @@ function runStrategyProjection(plan, baseProjection, strategyKey) {
     totalTax += taxes;
     totalClawback += clawback;
 
+    if (age === retireAge || age === 65 || age === 71) {
+      snapshotsByAge[age] = {
+        age,
+        guaranteedGross,
+        spend,
+        tax: taxes,
+        clawback,
+        accountWithdrawals: {
+          rrsp: chosen.rrsp,
+          tfsa: chosen.tfsa,
+          nonRegistered: chosen.nonRegistered,
+          cash: chosen.cash,
+          total: chosen.total,
+        },
+      };
+    }
+
     if (!depletionAge && sumAccounts(balances) <= 0) depletionAge = age;
 
     for (const key of Object.keys(balances)) {
@@ -1287,6 +1758,7 @@ function runStrategyProjection(plan, baseProjection, strategyKey) {
     totalClawback,
     depletionAge,
     reasons,
+    snapshotsByAge,
   };
 }
 
@@ -1432,13 +1904,46 @@ function estimateEffectiveTaxRate(plan, income, yearOffset) {
   const taxable = Math.max(0, income);
   if (taxable <= 0) return 0;
 
+  const grossTax = estimateTotalTax(plan, taxable, yearOffset);
+  const effective = grossTax / taxable;
+  return clamp(effective, 0, 0.53);
+}
+
+function estimateTotalTax(plan, income, yearOffset) {
+  const taxable = Math.max(0, income);
   const federal = computeBracketTax(taxable, TAX_BRACKETS.federal, plan, yearOffset);
   const provincialBase = TAX_BRACKETS.provincial[plan.profile.province] || TAX_BRACKETS.provincial.NL;
   const provincial = computeBracketTax(taxable, provincialBase, plan, yearOffset);
+  return federal + provincial;
+}
 
-  const grossTax = federal + provincial;
-  const effective = grossTax / taxable;
-  return clamp(effective, 0, 0.53);
+function solveGrossWithdrawal(plan, otherTaxableIncome, targetNetFromWithdrawal, yearOffset) {
+  const target = Math.max(0, targetNetFromWithdrawal);
+  if (target <= 0) return 0;
+  const baseTax = estimateTotalTax(plan, otherTaxableIncome, yearOffset);
+  let low = target;
+  let high = target * 2 + 10000;
+
+  for (let i = 0; i < 16; i += 1) {
+    const taxable = otherTaxableIncome + high;
+    const totalTax = estimateTotalTax(plan, taxable, yearOffset);
+    const taxOnWithdrawal = Math.max(0, totalTax - baseTax);
+    const net = high - taxOnWithdrawal;
+    if (net >= target) break;
+    high *= 1.6;
+  }
+
+  for (let i = 0; i < 40; i += 1) {
+    const mid = (low + high) / 2;
+    const taxable = otherTaxableIncome + mid;
+    const totalTax = estimateTotalTax(plan, taxable, yearOffset);
+    const taxOnWithdrawal = Math.max(0, totalTax - baseTax);
+    const net = mid - taxOnWithdrawal;
+    if (net >= target) high = mid;
+    else low = mid;
+  }
+
+  return high;
 }
 
 function computeBracketTax(income, bracket, plan, yearOffset) {
@@ -1485,10 +1990,12 @@ function drawMainChart(rows, bestRows, worstRows) {
 
   const values = [];
   rows.forEach((row) => {
-    values.push(row.balance, row.spending, row.pension, row.cpp, row.oas);
+    values.push(row.balance);
   });
-  (bestRows || []).forEach((row) => values.push(row.balance));
-  (worstRows || []).forEach((row) => values.push(row.balance));
+  if (ui.showStressBand) {
+    (bestRows || []).forEach((row) => values.push(row.balance));
+    (worstRows || []).forEach((row) => values.push(row.balance));
+  }
   const maxY = Math.max(1, ...values) * 1.06;
 
   ctx.strokeStyle = "#dfe7f3";
@@ -1512,11 +2019,11 @@ function drawMainChart(rows, bestRows, worstRows) {
   balanceArea.addColorStop(0, "rgba(15, 106, 191, 0.26)");
   balanceArea.addColorStop(1, "rgba(14, 165, 168, 0.04)");
 
-  if (Array.isArray(bestRows) && bestRows.length === rows.length) {
-    plotLine(ctx, bestRows.map((r, i) => [x(i), y(r.balance)]), "#7aa7d8", 1.8, [4, 4]);
+  if (ui.showStressBand && Array.isArray(bestRows) && bestRows.length === rows.length) {
+    plotLine(ctx, bestRows.map((r, i) => [x(i), y(r.balance)]), "#7aa7d8", 1.6, [4, 4]);
   }
-  if (Array.isArray(worstRows) && worstRows.length === rows.length) {
-    plotLine(ctx, worstRows.map((r, i) => [x(i), y(r.balance)]), "#7aa7d8", 1.8, [4, 4]);
+  if (ui.showStressBand && Array.isArray(worstRows) && worstRows.length === rows.length) {
+    plotLine(ctx, worstRows.map((r, i) => [x(i), y(r.balance)]), "#7aa7d8", 1.6, [4, 4]);
   }
 
   const balancePoints = rows.map((r, i) => [x(i), y(r.balance)]);
@@ -1531,10 +2038,6 @@ function drawMainChart(rows, bestRows, worstRows) {
   }
 
   plotLine(ctx, balancePoints, balanceGradient, 2.8);
-  plotLine(ctx, rows.map((r, i) => [x(i), y(r.spending)]), "#d9485f", 2);
-  plotLine(ctx, rows.map((r, i) => [x(i), y(r.pension)]), "#f59e0b", 1.8);
-  plotLine(ctx, rows.map((r, i) => [x(i), y(r.cpp)]), "#16a34a", 1.8);
-  plotLine(ctx, rows.map((r, i) => [x(i), y(r.oas)]), "#0ea5a8", 1.8);
 
   ctx.fillStyle = "#5f6b7d";
   ctx.font = "12px Avenir Next";
@@ -1555,6 +2058,21 @@ function drawMainChart(rows, bestRows, worstRows) {
   const endLabel = `Age ${last.age}`;
   const endWidth = ctx.measureText(endLabel).width;
   ctx.fillText(endLabel, w - pad.right - endWidth, h - 10);
+}
+
+function handleBalanceChartPointer(event) {
+  const model = ui.lastModel;
+  if (!model || !el.mainChart || !el.balanceHover) return;
+  const rows = model.base.rows;
+  if (!rows.length) return;
+  const rect = el.mainChart.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const idx = clamp(Math.round((x / rect.width) * (rows.length - 1)), 0, rows.length - 1);
+  const row = rows[idx];
+  el.balanceHover.innerHTML = `<strong>Age ${row.age}</strong><br>Balance: ${formatCurrency(row.balance)}`;
+  el.balanceHover.hidden = false;
+  el.balanceHover.style.left = `${clamp(x + 10, 8, rect.width - 190)}px`;
+  el.balanceHover.style.top = "8px";
 }
 
 function plotLine(ctx, points, color, width, dash = []) {
@@ -1591,10 +2109,14 @@ function openTooltip(key, anchor) {
     <p class="tooltip-example muted"></p>
   `;
 
-  const top = rect.bottom + window.scrollY + 8;
-  const left = Math.max(10, Math.min(window.innerWidth - 330, rect.left + window.scrollX - 140));
-  pop.style.top = `${top}px`;
-  pop.style.left = `${left}px`;
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    pop.classList.add("mobile-centered");
+  } else {
+    const top = rect.bottom + window.scrollY + 8;
+    const left = Math.max(10, Math.min(window.innerWidth - 330, rect.left + window.scrollX - 140));
+    pop.style.top = `${top}px`;
+    pop.style.left = `${left}px`;
+  }
   el.tooltipLayer.appendChild(pop);
 }
 
@@ -1932,14 +2454,14 @@ function createCapitalInjectItem() {
   };
 }
 
-function numberField(label, bind, value, attrs, tooltipKey, percentInput = false, disabled = false) {
+function numberField(label, bind, value, attrs, tooltipKey, percentInput = false, disabled = false, compact = false) {
   const finalValue = percentInput ? formatNumber(value) : formatNumber(value);
   const attrString = Object.entries(attrs || {})
     .map(([k, v]) => `${k}="${String(v)}"`)
     .join(" ");
 
   return `
-    <label>
+    <label class="${compact ? "compact-field" : ""}">
       <span class="label-row">${escapeHtml(label)} ${tooltipButton(tooltipKey)}</span>
       <input
         type="number"
@@ -1955,9 +2477,9 @@ function numberField(label, bind, value, attrs, tooltipKey, percentInput = false
   `;
 }
 
-function selectField(label, bind, options, selected, tooltipKey) {
+function selectField(label, bind, options, selected, tooltipKey, compact = false) {
   return `
-    <label>
+    <label class="${compact ? "compact-field" : ""}">
       <span class="label-row">${escapeHtml(label)} ${tooltipButton(tooltipKey)}</span>
       <select data-bind="${bind}" aria-label="${escapeHtml(label)}">
         ${options.map((opt) => `
@@ -1974,7 +2496,7 @@ function renderCapitalInjectRows() {
 
   return items.map((item, index) => `
     <div class="subsection form-span-full">
-      <div class="wizard-grid">
+      <div class="wizard-grid compact-mobile-two">
         <label class="form-span-full inline-check">
           <input type="checkbox" data-bind="savings.capitalInjects.${index}.enabled" ${item.enabled ? "checked" : ""} />
           Include this event
@@ -1983,8 +2505,8 @@ function renderCapitalInjectRows() {
           <span class="label-row">Event label</span>
           <input type="text" data-bind="savings.capitalInjects.${index}.label" value="${escapeHtml(item.label || "Lump sum")}" aria-label="Lump sum label" />
         </label>
-        ${numberField("Amount", `savings.capitalInjects.${index}.amount`, Number(item.amount || 0), { min: 0, max: 5000000, step: 1000 }, "capitalInjectAmount")}
-        ${numberField("Age received", `savings.capitalInjects.${index}.age`, Number(item.age || state.profile.retirementAge), { min: 45, max: 105, step: 1 }, "capitalInjectAge")}
+        ${numberField("Amount", `savings.capitalInjects.${index}.amount`, Number(item.amount || 0), { min: 0, max: 5000000, step: 1000 }, "capitalInjectAmount", false, false, true)}
+        ${numberField("Age received", `savings.capitalInjects.${index}.age`, Number(item.age || state.profile.retirementAge), { min: 45, max: 105, step: 1 }, "capitalInjectAge", false, false, true)}
       </div>
       <div class="landing-actions">
         <button type="button" class="btn btn-secondary" data-action="remove-capital-inject" data-value="${escapeHtml(item.id)}">Remove event</button>
@@ -1994,7 +2516,8 @@ function renderCapitalInjectRows() {
 }
 
 function tooltipButton(key) {
-  return `<button class="tooltip-trigger" type="button" aria-label="Help: ${escapeHtml(key)}" data-tooltip-key="${escapeHtml(key)}">ⓘ</button>`;
+  const term = TOOLTIPS[key]?.term || key;
+  return `<button class="tooltip-trigger" type="button" aria-label="Help: ${escapeHtml(term)}" data-tooltip-key="${escapeHtml(key)}">ⓘ</button>`;
 }
 
 function riskButton(key) {
