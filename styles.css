@@ -202,6 +202,16 @@ summary:focus-visible,
   margin: 12px 0 8px;
 }
 
+.text-link-btn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #0b4f8f;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+
 .tabs {
   margin-top: 14px;
   display: flex;
@@ -557,6 +567,10 @@ textarea {
   color: var(--ink);
 }
 
+select {
+  min-height: 44px;
+}
+
 textarea {
   width: 100%;
   resize: vertical;
@@ -612,6 +626,10 @@ textarea {
   margin-top: 2px;
   font-size: 0.98rem;
   font-weight: 700;
+}
+
+.learn-rrif-out {
+  margin-top: 12px;
 }
 
 .stacked-bar {
@@ -685,6 +703,80 @@ textarea {
   border-radius: 10px;
   padding: 8px;
   margin-bottom: 10px;
+}
+
+.learn-layout {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.learn-toc-wrap {
+  position: relative;
+}
+
+.learn-toc {
+  position: sticky;
+  top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.learn-toc h3 {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
+.learn-toc a {
+  color: #0b4f8f;
+  text-decoration: none;
+  font-size: 0.84rem;
+}
+
+.learn-toc a:hover {
+  text-decoration: underline;
+}
+
+.learn-content {
+  display: grid;
+  gap: 12px;
+}
+
+.learn-section {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+  background: #fff;
+  scroll-margin-top: 18px;
+}
+
+.learn-section h3 {
+  margin: 0 0 6px;
+}
+
+.learn-callout-grid {
+  margin: 8px 0;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.learn-callout {
+  border: 1px solid #dcecff;
+  background: #eff6ff;
+  color: #1f3f64;
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.learn-callout p {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
 }
 
 .table-scroll {
@@ -923,6 +1015,15 @@ textarea {
 
   .wizard-actions .btn {
     width: 100%;
+  }
+
+  .learn-layout,
+  .learn-callout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .learn-toc {
+    position: static;
   }
 
   .tooltip-popover.mobile-centered {

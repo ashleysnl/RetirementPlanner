@@ -30,13 +30,14 @@
         <p class="hero-subtitle">Start simple in under 60 seconds, then refine taxes, accounts, and withdrawal strategy.</p>
         <p class="hero-proof">No accounts. No cloud sync. Your plan stays on this device.</p>
       </div>
-      <div class="hero-actions no-print" aria-label="Plan actions">
-        <span class="offline-badge">Local-first</span>
-        <button id="exportJsonBtn" class="btn btn-secondary" type="button">Save plan</button>
-        <button id="importJsonBtn" class="btn btn-secondary" type="button">Load plan</button>
-        <button id="loadDemoBtn" class="btn btn-secondary" type="button">Load Demo</button>
-        <button id="resetBtn" class="btn btn-secondary" type="button">Reset</button>
-        <button id="openGlossaryBtn" class="btn btn-secondary" type="button">Glossary</button>
+        <div class="hero-actions no-print" aria-label="Plan actions">
+          <span class="offline-badge">Local-first</span>
+          <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics</button>
+          <button id="exportJsonBtn" class="btn btn-secondary" type="button">Save plan</button>
+          <button id="importJsonBtn" class="btn btn-secondary" type="button">Load plan</button>
+          <button id="loadDemoBtn" class="btn btn-secondary" type="button">Load Demo</button>
+          <button id="resetBtn" class="btn btn-secondary" type="button">Reset</button>
+          <button id="openGlossaryBtn" class="btn btn-secondary" type="button">Glossary</button>
       </div>
     </header>
 
@@ -46,6 +47,7 @@
         <p class="muted">Start with defaults and get a first projection quickly. You can unlock advanced details later.</p>
         <div class="landing-actions no-print">
           <button id="startSimpleBtn" class="btn btn-primary" type="button">Start a simple plan</button>
+          <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics first</button>
           <button id="landingDemoBtn" class="btn btn-secondary" type="button">Load demo plan</button>
           <button id="landingImportBtn" class="btn btn-secondary" type="button">Load plan</button>
         </div>
@@ -55,6 +57,7 @@
       <section id="appPanel" class="app-panel" hidden>
         <nav class="tabs no-print" aria-label="App sections">
           <button type="button" class="tab-btn active" data-nav-target="dashboard">Dashboard</button>
+          <button type="button" class="tab-btn" data-nav-target="learn">Learn</button>
           <button type="button" class="tab-btn" data-nav-target="guided">Guided setup</button>
           <button type="button" class="tab-btn" data-nav-target="inputs">Plan inputs</button>
           <button type="button" class="tab-btn" data-nav-target="advanced">Advanced inputs</button>
@@ -67,10 +70,12 @@
           <div class="panel-header">
             <h2 id="dashboardHeading">Simple Dashboard</h2>
             <p>Quick snapshot with clear next actions.</p>
+            <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">New to retirement planning? Learn the basics first →</button></p>
           </div>
 
           <div class="subsection">
             <h3>At a glance</h3>
+            <p id="kpiContext" class="small-copy muted"></p>
             <div id="kpiGrid" class="metric-grid metric-grid-wide"></div>
           </div>
 
@@ -136,6 +141,7 @@
           <div class="panel-header">
             <h2 id="guidedHeading">Guided Setup</h2>
             <p>Complete the essentials first, then unlock advanced controls.</p>
+            <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">Need a concept refresher? Learn the basics first →</button></p>
           </div>
 
           <div class="wizard-progress" aria-label="Wizard progress">
@@ -164,20 +170,23 @@
           <div class="panel-header">
             <h2 id="inputsHeading">Plan Inputs (Basics)</h2>
             <p>Core assumptions in one place. Advanced controls remain in Advanced Inputs.</p>
+            <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">New to retirement planning? Learn the basics first →</button></p>
           </div>
           <div id="planInputsPanel" class="subsection"></div>
+        </section>
+
+        <section class="panel nav-panel" data-nav-panel="learn" aria-labelledby="learnHeading" hidden>
+          <div class="panel-header">
+            <h2 id="learnHeading">Retirement Basics (Canada)</h2>
+            <p>Understand inflation, taxes, CPP, OAS, RRSPs, RRIF rules, and retirement spending phases before building your plan.</p>
+          </div>
+          <div id="learnPanel"></div>
         </section>
 
         <section class="panel nav-panel" data-nav-panel="stress" aria-labelledby="stressHeading" hidden>
           <div class="panel-header">
             <h2 id="stressHeading">Stress Test Matrix</h2>
-            <p>See how your plan reacts to return and inflation shifts.</p>
-          </div>
-          <div class="scenario-toggle-row no-print">
-            <label class="inline-check">
-              <input id="scenarioCompareToggle" type="checkbox" />
-              Show best / base / worst comparison
-            </label>
+            <p>Simple stress check: best case, base case, and downside case.</p>
           </div>
           <div id="scenarioSummary" class="subsection"></div>
           <div class="table-scroll">

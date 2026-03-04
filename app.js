@@ -298,6 +298,83 @@ const TOOLTIPS = {
     range: "Calculated using a planning threshold and 15% recovery rate.",
     example: "Large RRIF withdrawals can trigger partial OAS recovery tax.",
   },
+  learnInflationCalc: {
+    term: "Inflation spending calculator",
+    plain: "Shows how a spending amount today grows over time with inflation.",
+    why: "Retirement budgets need future-dollar planning, not just today’s prices.",
+    range: "Common inflation assumptions are around 1.5%-3.0%.",
+    example: "$80,000 today at 2.5% for 10 years is about $102,000.",
+  },
+  learnTaxGrossUp: {
+    term: "Tax gross-up",
+    plain: "To receive a net amount after tax, you must withdraw a larger gross amount.",
+    why: "This explains why RRSP/RRIF withdrawals can exceed your spending gap.",
+    range: "Effective tax rates vary by income and province.",
+    example: "If you need $80,000 net and tax is 22%, gross is about $102,564.",
+  },
+  learnRrifMinimum: {
+    term: "RRIF minimum withdrawal",
+    plain: "RRIF rules require a minimum annual withdrawal based on age.",
+    why: "Minimums can force higher taxable income in later retirement.",
+    range: "Starts at age 71 conversion, then rises with age.",
+    example: "At age 72, minimum is about 5.40% of RRIF balance.",
+  },
+  learnOasClawback: {
+    term: "OAS clawback estimator",
+    plain: "OAS can be reduced when income exceeds the annual recovery threshold.",
+    why: "Higher taxable income may reduce government benefits.",
+    range: "Recovery tax is 15% of income above threshold (up to full OAS).",
+    example: "If income is above threshold, part of OAS is paid back.",
+  },
+  learnPensionSplit: {
+    term: "Spousal pension splitting",
+    plain: "Eligible pension income can be shifted between spouses (up to 50%) for tax purposes.",
+    why: "Balancing taxable income between spouses can lower total household tax.",
+    range: "Split percentage can range from 0% to 50%.",
+    example: "Shifting pension from higher-income spouse may reduce combined tax.",
+  },
+  phaseWeightedSpending: {
+    term: "Phase-weighted annual spending",
+    plain: "A single average annual spending value based on your Go-Go, Slow-Go, and No-Go years.",
+    why: "It summarizes a changing spending path into one planning benchmark.",
+    range: "Depends on your base spending, phase percentages, and years in each phase.",
+    example: "Higher Go-Go spending and longer Go-Go years raise the weighted average.",
+  },
+  stressScenario: {
+    term: "Stress scenario",
+    plain: "A simple what-if case that changes return and inflation assumptions.",
+    why: "It helps you see how sensitive your plan is to good or bad environments.",
+    range: "Shown as best, base, and downside cases.",
+    example: "Downside means lower returns and higher inflation than your base assumptions.",
+  },
+  stressGapSurplus: {
+    term: "First-year gap/surplus",
+    plain: "Difference between your retirement spending target and available income in the first retirement year.",
+    why: "A gap means savings must fund the shortfall; a surplus gives flexibility.",
+    range: "Negative values are gaps, positive values are surpluses.",
+    example: "-$8,000 means you need extra savings withdrawals in year one.",
+  },
+  depletionAge: {
+    term: "Depletion age",
+    plain: "The age when projected savings reach zero in a scenario.",
+    why: "It highlights longevity risk if withdrawals outpace portfolio growth.",
+    range: "If assets last through your horizon, depletion is not triggered.",
+    example: "Depletion at age 88 means the model runs out of savings at 88.",
+  },
+  strategyLifetimeTaxes: {
+    term: "Estimated lifetime taxes",
+    plain: "Total projected taxes paid across your full retirement projection for this strategy.",
+    why: "Comparing lifetime tax totals helps evaluate withdrawal order tradeoffs.",
+    range: "Planning estimate only; actual taxes will vary by year and rules.",
+    example: "A lower lifetime tax total can leave more net spending capacity.",
+  },
+  strategyLifetimeClawback: {
+    term: "Estimated lifetime OAS clawback",
+    plain: "Total projected OAS recovery tax across your full retirement projection.",
+    why: "Strategies with higher taxable income can increase clawback over time.",
+    range: "Zero if income stays below clawback thresholds or OAS is not received.",
+    example: "Large RRIF withdrawals can raise lifetime clawback totals.",
+  },
 };
 
 const TAX_BRACKETS = {
@@ -431,6 +508,7 @@ const el = {
   navPanels: Array.from(document.querySelectorAll(".nav-panel")),
 
   kpiGrid: document.getElementById("kpiGrid"),
+  kpiContext: document.getElementById("kpiContext"),
   mainChart: document.getElementById("mainChart"),
   balanceHover: document.getElementById("balanceHover"),
   chartLegend: document.getElementById("chartLegend"),
@@ -445,6 +523,7 @@ const el = {
   yearCards: document.getElementById("yearCards"),
   dashboardReferences: document.getElementById("dashboardReferences"),
   planInputsPanel: document.getElementById("planInputsPanel"),
+  learnPanel: document.getElementById("learnPanel"),
   nextActions: document.getElementById("nextActions"),
   basicsSummary: document.getElementById("basicsSummary"),
 
@@ -491,11 +570,22 @@ let ui = {
     references: false,
     modules: false,
   },
+  learnChartHover: {
+    inflation: null,
+    indexed: null,
+    phases: null,
+  },
 };
 
 init();
 
 function init() {
+  const hashNav = navFromHash(location.hash);
+  if (hashNav) {
+    ui.activeNav = hashNav;
+    state.uiState.firstRun = false;
+    state.uiState.activeNav = hashNav;
+  }
   bindEvents();
   renderAll();
   registerServiceWorker();
@@ -618,6 +708,8 @@ function bindEvents() {
 
   document.addEventListener("input", handleBoundInput);
   document.addEventListener("change", handleBoundInput);
+  document.addEventListener("input", handleLearnBoundInput);
+  document.addEventListener("change", handleLearnBoundInput);
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("toggle", handleDetailsToggle, true);
 
@@ -653,6 +745,14 @@ function handleDocumentClick(event) {
   const actionBtn = target.closest("[data-action]");
   if (actionBtn) {
     const action = actionBtn.getAttribute("data-action");
+    if (action === "open-learn") {
+      setActiveNav("learn");
+      return;
+    }
+    if (action === "launch-planner") {
+      setActiveNav("guided");
+      return;
+    }
     if (action === "open-advanced") {
       state.uiState.unlocked.advanced = true;
       setActiveNav("advanced");
@@ -706,6 +806,28 @@ function handleDocumentClick(event) {
       if (tip && body) body.textContent = tip.example || "No example available.";
       return;
     }
+    if (action === "learn-send-spending") {
+      state.profile.desiredSpending = Math.max(12000, Number(state.uiState.learn.inflation.spendingToday || state.profile.desiredSpending));
+      state.assumptions.inflation = clamp(normalizePct(state.uiState.learn.inflation.rate), 0.005, 0.08);
+      savePlan();
+      renderAll();
+      toast("Spending and inflation sent to planner.");
+      return;
+    }
+    if (action === "learn-send-tax-rate") {
+      state.uiState.learn.taxGrossUp.rate = clamp(normalizePct(state.uiState.learn.taxGrossUp.rate), 0, 0.5);
+      savePlan();
+      toast("Tax gross-up assumption saved in Learn.");
+      return;
+    }
+    if (action === "learn-send-phases") {
+      const weighted = calculatePhaseWeightedSpending(state.uiState.learn.phases);
+      state.profile.desiredSpending = Math.max(12000, weighted);
+      savePlan();
+      renderAll();
+      toast("Phase-adjusted spending estimate sent to planner.");
+      return;
+    }
   }
 
   if (!target.closest(".tooltip-popover")) closeTooltip();
@@ -755,6 +877,33 @@ function handleBoundInput(event) {
   savePlan();
 }
 
+function handleLearnBoundInput(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.matches("[data-learn-bind]")) return;
+
+  const path = target.getAttribute("data-learn-bind");
+  if (!path) return;
+
+  let value;
+  if (target instanceof HTMLInputElement && target.type === "checkbox") value = target.checked;
+  else value = target.value;
+
+  const type = target.getAttribute("data-type") || "string";
+  if (type === "number") {
+    const parsed = Number(value);
+    value = Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (target.getAttribute("data-percent-input") === "1" && typeof value === "number") {
+    value /= 100;
+  }
+
+  setByPath(state, path, value);
+  ensureValidState();
+  savePlan();
+  updateLearnOutputs();
+}
+
 function renderAll() {
   ensureValidState();
   ui.lastModel = buildPlanModel(state);
@@ -765,11 +914,13 @@ function renderAll() {
 
   renderNav();
   renderDashboard();
+  renderLearn();
   renderWizard();
   renderPlanInputs();
   renderAdvanced();
   renderStress();
   renderNotes();
+  bindInlineTooltipTriggers(document.body);
 }
 
 function renderNav() {
@@ -791,6 +942,7 @@ function setActiveNav(next) {
   state.uiState.firstRun = false;
   state.uiState.activeNav = next;
   state.uiState.hasStarted = true;
+  syncNavHash(next);
   savePlan();
   renderAll();
 }
@@ -843,15 +995,19 @@ function renderDashboardReferences() {
 }
 
 function renderKpiCards(model, age) {
-  const row = findRowByAge(model.base.rows, age);
+  const retirementRow = findRowByAge(model.base.rows, state.profile.retirementAge);
+  const row = retirementRow || findRowByAge(model.base.rows, age);
   if (!row) return;
+  if (el.kpiContext) {
+    el.kpiContext.textContent = `All values shown at retirement start (Age ${state.profile.retirementAge}).`;
+  }
   const kpis = [
-    { label: "Balance at retirement", value: formatCurrency(model.kpis.balanceAtRetirement), sub: `Age ${state.profile.retirementAge}`, tip: "kpiBalanceRetirement" },
-    { label: "After-tax spending target", value: formatCurrency(row.spending), sub: `At age ${row.age}`, tip: "kpiSpendingTarget" },
-    { label: "Guaranteed income", value: formatCurrency(row.guaranteedGross), sub: "Pension + CPP + OAS", tip: "kpiGuaranteedIncome" },
-    { label: "Net gap from savings", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "Needs savings funding" : "Guaranteed income covers target", tip: "kpiNetGap" },
-    { label: "Gross withdrawal required", value: formatCurrency(row.withdrawal), sub: `Tax drag ${formatCurrency(row.taxOnWithdrawal + row.oasClawback)}`, tip: "kpiGrossWithdrawal" },
-    { label: "Estimated tax + effective rate", value: formatCurrency(row.tax + row.oasClawback), sub: formatPct(row.effectiveTaxRate), tip: "oasClawback" },
+    { label: "Retirement balance", value: formatCurrency(model.kpis.balanceAtRetirement), sub: `Age ${state.profile.retirementAge}`, tip: "kpiBalanceRetirement" },
+    { label: "Spending target", value: formatCurrency(row.spending), sub: `Age ${state.profile.retirementAge}`, tip: "kpiSpendingTarget" },
+    { label: "Guaranteed income", value: formatCurrency(row.guaranteedGross), sub: `Age ${state.profile.retirementAge}`, tip: "kpiGuaranteedIncome" },
+    { label: "Net gap", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "Needs savings funding" : "Covered", tip: "kpiNetGap" },
+    { label: "Gross withdrawal", value: formatCurrency(row.withdrawal), sub: `Tax drag ${formatCurrency(row.taxOnWithdrawal + row.oasClawback)}`, tip: "kpiGrossWithdrawal" },
+    { label: "Tax estimate", value: formatCurrency(row.tax + row.oasClawback), sub: `${formatPct(row.effectiveTaxRate)} at start`, tip: "oasClawback" },
   ];
   el.kpiGrid.innerHTML = kpis.map((card) => `
     <article class="metric-card">
@@ -899,6 +1055,16 @@ function bindInlineTooltipTriggers(container) {
       if (ui.tooltipKey === key) closeTooltip();
       else openTooltip(key, button);
     });
+    button.addEventListener("keydown", (event) => {
+      if (!(event instanceof KeyboardEvent)) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      event.stopPropagation();
+      const key = button.getAttribute("data-tooltip-key") || "";
+      if (!key) return;
+      if (ui.tooltipKey === key) closeTooltip();
+      else openTooltip(key, button);
+    });
   });
 }
 
@@ -926,14 +1092,14 @@ function renderYearCards(model) {
           ${parts.map((p) => `<span title="${escapeHtml(p.label)} ${formatCurrency(p.value)}" style="width:${((p.value / total) * 100).toFixed(1)}%; background:${p.color};"></span>`).join("")}
         </div>
         <div class="withdrawal-metrics">
-          <div><strong>Spending target (after-tax)</strong><span>${formatCurrency(row.spending)}</span></div>
-          <div><strong>Guaranteed income total</strong><span>${formatCurrency(row.guaranteedGross)}</span></div>
-          <div><strong>Net gap funded by savings</strong><span>${formatCurrency(row.netGap)}</span></div>
-          <div><strong>Gross withdrawal required</strong><span>${formatCurrency(row.withdrawal)}</span></div>
-          <div><strong>Tax on withdrawal</strong><span>${formatCurrency(row.taxOnWithdrawal)}</span></div>
-          <div><strong>OAS clawback</strong><span>${formatCurrency(row.oasClawback)}</span></div>
-          <div><strong>RRIF minimum (if applicable)</strong><span>${formatCurrency(row.rrifMinimum)}</span></div>
-          <div><strong>Effective tax rate</strong><span>${formatPct(row.effectiveTaxRate)}</span></div>
+          <div><strong>Spending target (after-tax) ${tooltipButton("kpiSpendingTarget")}</strong><span>${formatCurrency(row.spending)}</span></div>
+          <div><strong>Guaranteed income total ${tooltipButton("kpiGuaranteedIncome")}</strong><span>${formatCurrency(row.guaranteedGross)}</span></div>
+          <div><strong>Net gap funded by savings ${tooltipButton("kpiNetGap")}</strong><span>${formatCurrency(row.netGap)}</span></div>
+          <div><strong>Gross withdrawal required ${tooltipButton("kpiGrossWithdrawal")}</strong><span>${formatCurrency(row.withdrawal)}</span></div>
+          <div><strong>Tax on withdrawal ${tooltipButton("learnTaxGrossUp")}</strong><span>${formatCurrency(row.taxOnWithdrawal)}</span></div>
+          <div><strong>OAS clawback ${tooltipButton("oasClawback")}</strong><span>${formatCurrency(row.oasClawback)}</span></div>
+          <div><strong>RRIF minimum (if applicable) ${tooltipButton("rrifMinimums")}</strong><span>${formatCurrency(row.rrifMinimum)}</span></div>
+          <div><strong>Effective tax rate ${tooltipButton("learnTaxGrossUp")}</strong><span>${formatPct(row.effectiveTaxRate)}</span></div>
         </div>
       </article>
     `;
@@ -1125,7 +1291,9 @@ function renderPlanInputs() {
   el.planInputsPanel.innerHTML = `
     <p class="what-affects"><strong>What this affects:</strong> These are your core plan assumptions used by all projections.</p>
     <div class="form-grid compact-mobile-two">
-      ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province", true)}
+      <div class="form-span-full">
+        ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province")}
+      </div>
       ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear", false, false, true)}
       ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge", false, false, true)}
       ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy", false, false, true)}
@@ -1136,6 +1304,276 @@ function renderPlanInputs() {
       ${numberField("Contribution increase (%/yr)", "savings.contributionIncrease", toPct(state.savings.contributionIncrease), { min: 0, max: 15, step: 0.1 }, "contributionIncrease", true, false, true)}
     </div>
   `;
+}
+
+function renderLearn() {
+  if (!el.learnPanel) return;
+  const learn = state.uiState.learn;
+  if (!learn) return;
+
+  el.learnPanel.innerHTML = `
+    <div class="learn-layout">
+      <aside class="learn-toc-wrap no-print">
+        <nav class="learn-toc" aria-label="Learn table of contents">
+          <h3>On this page</h3>
+          <a href="#learn-inflation">1. Today Dollars vs Future Dollars (Inflation)</a>
+          <a href="#learn-income">2. Retirement Income Sources</a>
+          <a href="#learn-indexing">3. What Indexing Means</a>
+          <a href="#learn-taxes">4. Taxes in Retirement</a>
+          <a href="#learn-rrif">5. RRSP to RRIF Rules</a>
+          <a href="#learn-spousal">6. Spousal Tax Sharing</a>
+          <a href="#learn-oas">7. OAS Clawback</a>
+          <a href="#learn-life">8. Life Expectancy and Planning Horizon</a>
+          <a href="#learn-phases">9. Go-Go / Slow-Go / No-Go Retirement Years</a>
+          <a href="#learn-together">10. Bringing It All Together</a>
+        </nav>
+      </aside>
+      <div class="learn-content">
+        <section class="learn-section" id="learn-inflation">
+          <h3>1) Today Dollars vs Future Dollars (Inflation)</h3>
+          <p class="muted">A retirement budget set in today’s dollars will be higher in future years. Inflation quietly changes what your money buys.</p>
+          ${learnCallouts("Common misconception", "If inflation looks low today, it will not matter over decades.", "Try moving the slider", "Increase years and inflation to see compounding in action.")}
+          <div class="form-grid compact-mobile-two">
+            ${learnNumberField("Retirement Annual Budget (Today's Dollars)", "uiState.learn.inflation.spendingToday", learn.inflation.spendingToday, { min: 10000, max: 400000, step: 500 }, "learnInflationCalc")}
+            ${learnNumberField("Years until retirement", "uiState.learn.inflation.years", learn.inflation.years, { min: 0, max: 45, step: 1 }, "retirementAge", false, false, true)}
+            <label class="form-span-full">
+              <span class="label-row">Inflation rate <strong id="learnInflationRateValue">${formatNumber(toPct(learn.inflation.rate))}%</strong> ${tooltipButton("inflation")}</span>
+              <input type="range" data-learn-bind="uiState.learn.inflation.rate" data-type="number" data-percent-input="1" min="1" max="5" step="0.1" value="${formatNumber(toPct(learn.inflation.rate))}" aria-label="Inflation rate slider" />
+            </label>
+          </div>
+          <div class="preview-kpi" id="learnInflationOut"></div>
+          <canvas id="learnInflationChart" width="1000" height="240" aria-label="Inflation spending growth chart" role="img"></canvas>
+          <p class="small-copy muted"><strong>Why this matters:</strong> If your spending target is not inflation-aware, your future plan can be underfunded.</p>
+        </section>
+
+        <section class="learn-section" id="learn-income">
+          <h3>2) Retirement Income Sources</h3>
+          <p class="muted">Most plans combine guaranteed income (private pension, CPP, OAS) with withdrawals from savings.</p>
+          <ul class="plain-list">
+            <li><strong>Private pension:</strong> often starts at a set age and may or may not be indexed.</li>
+            <li><strong>CPP:</strong> public pension based on your contribution history.</li>
+            <li><strong>OAS:</strong> age-based benefit, separate from CPP, with clawback at higher incomes.</li>
+            <li><strong>RRSP/RRIF withdrawals:</strong> taxable income used to fill the remaining gap.</li>
+            <li><strong>TFSA savings:</strong> eligible withdrawals are tax-free, including TFSA capital gains.</li>
+            <li><strong>Cash / non-registered savings:</strong> growth can create taxable income (for example interest, dividends, or capital gains).</li>
+          </ul>
+          <p class="small-copy muted"><strong>Tax note:</strong> TFSA capital gains are not taxed when withdrawn. Capital gains from cash/non-registered investing are taxable under current tax rules.</p>
+        </section>
+
+        <section class="learn-section" id="learn-indexing">
+          <h3>3) What Indexing Means</h3>
+          <p class="muted">Indexed income grows with inflation. Non-indexed income stays flat in dollars but loses purchasing power over time.</p>
+          ${learnCallouts("Why this matters", "CPP and OAS are indexed. This helps protect spending power as prices rise.", "Try moving the slider", "Raise inflation and compare indexed vs flat income over 25 years.")}
+          <div class="form-grid compact-mobile-two">
+            ${learnNumberField("Starting income", "uiState.learn.indexedIncome.startIncome", learn.indexedIncome.startIncome, { min: 0, max: 100000, step: 250 }, "cppAmount65")}
+            ${learnNumberField("Years", "uiState.learn.indexedIncome.years", learn.indexedIncome.years, { min: 1, max: 40, step: 1 }, "lifeExpectancy", false, false, true)}
+            <label class="form-span-full">
+              <span class="label-row">Inflation rate <strong id="learnIndexedInflationValue">${formatNumber(toPct(learn.indexedIncome.inflation))}%</strong> ${tooltipButton("inflation")}</span>
+              <input type="range" data-learn-bind="uiState.learn.indexedIncome.inflation" data-type="number" data-percent-input="1" min="0" max="5" step="0.1" value="${formatNumber(toPct(learn.indexedIncome.inflation))}" aria-label="Indexed income inflation slider" />
+            </label>
+          </div>
+          <canvas id="learnIndexedChart" width="1000" height="240" aria-label="Indexed vs non-indexed income chart" role="img"></canvas>
+          <div class="legend-row learn-chart-legend">
+            <span class="legend-item"><span class="legend-chip" style="background:#16a34a;"></span>Indexed income</span>
+            <span class="legend-item"><span class="legend-chip" style="background:#f59e0b;"></span>Non-indexed income (nominal)</span>
+            <span class="legend-item"><span class="legend-chip" style="background:#d9485f;"></span>Non-indexed purchasing power (today's dollars)</span>
+          </div>
+          <p class="small-copy muted"><strong>Why this matters:</strong> A flat pension can feel smaller each year when prices rise.</p>
+        </section>
+
+        <section class="learn-section" id="learn-taxes">
+          <h3>4) Taxes in Retirement</h3>
+          <p class="muted">Retirement spending targets are usually after-tax, but withdrawals from RRSP/RRIF are taxable. That creates a gross-up need.</p>
+          ${learnCallouts("Common misconception", "If I need $80,000 to spend, I only need to withdraw $80,000.", "Why this matters", "You need to withdraw enough to cover both spending and tax.")}
+          <div class="form-grid compact-mobile-two">
+            ${learnNumberField("After-tax income goal", "uiState.learn.taxGrossUp.netGoal", learn.taxGrossUp.netGoal, { min: 12000, max: 300000, step: 500 }, "desiredSpending")}
+            <label class="form-span-full">
+              <span class="label-row">Effective tax rate <strong id="learnTaxRateValue">${formatNumber(toPct(learn.taxGrossUp.rate))}%</strong> ${tooltipButton("learnTaxGrossUp")}</span>
+              <input type="range" data-learn-bind="uiState.learn.taxGrossUp.rate" data-type="number" data-percent-input="1" min="5" max="45" step="0.5" value="${formatNumber(toPct(learn.taxGrossUp.rate))}" aria-label="Effective tax rate slider" />
+            </label>
+          </div>
+          <div class="preview-kpi" id="learnTaxOut"></div>
+          <p class="small-copy muted">Marginal tax applies to the next dollar. Effective tax is average tax across all dollars.</p>
+        </section>
+
+        <section class="learn-section" id="learn-rrif">
+          <h3>5) RRSP to RRIF Rules</h3>
+          <p class="muted">You must convert RRSP assets to a RRIF (or annuity) by the end of age 71. RRIF has minimum withdrawals that grow with age.</p>
+          <div class="form-grid compact-mobile-two">
+            <label class="form-span-full">
+              <span class="label-row">Age <strong id="learnRrifAgeValue">${formatNumber(learn.rrif.age)}</strong> ${tooltipButton("learnRrifMinimum")}</span>
+              <input type="range" data-learn-bind="uiState.learn.rrif.age" data-type="number" min="65" max="95" step="1" value="${formatNumber(learn.rrif.age)}" aria-label="RRIF age slider" />
+            </label>
+            ${learnNumberField("RRIF balance", "uiState.learn.rrif.balance", learn.rrif.balance, { min: 0, max: 5000000, step: 1000 }, "rrifMinimums")}
+          </div>
+          <div class="preview-kpi learn-rrif-out" id="learnRrifOut"></div>
+          <p class="small-copy muted"><strong>Why this matters:</strong> Even when spending drops, RRIF minimums can keep taxable income elevated.</p>
+        </section>
+
+        <section class="learn-section" id="learn-spousal">
+          <h3>6) Spousal Tax Sharing</h3>
+          <p class="muted">Pension income splitting can move up to 50% of eligible pension income between spouses, potentially reducing combined tax.</p>
+          <div class="form-grid compact-mobile-two">
+            ${learnNumberField("Spouse A Income", "uiState.learn.spousalSplit.spouseA", learn.spousalSplit.spouseA, { min: 0, max: 300000, step: 500 }, "learnPensionSplit")}
+            ${learnNumberField("Spouse B Income", "uiState.learn.spousalSplit.spouseB", learn.spousalSplit.spouseB, { min: 0, max: 300000, step: 500 }, "learnPensionSplit")}
+            <label class="form-span-full">
+              <span class="label-row">Split to spouse B <strong id="learnSplitPctValue">${formatNumber(toPct(learn.spousalSplit.splitPct))}%</strong> ${tooltipButton("learnPensionSplit")}</span>
+              <input type="range" data-learn-bind="uiState.learn.spousalSplit.splitPct" data-type="number" data-percent-input="1" min="0" max="50" step="1" value="${formatNumber(toPct(learn.spousalSplit.splitPct))}" aria-label="Pension split percentage slider" />
+            </label>
+          </div>
+          <div class="preview-kpi" id="learnSpousalOut"></div>
+        </section>
+
+        <section class="learn-section" id="learn-oas">
+          <h3>7) OAS Clawback</h3>
+          <p class="muted">When taxable income rises above the OAS recovery threshold, part of OAS is repaid through recovery tax.</p>
+          <div class="form-grid compact-mobile-two">
+            <label class="form-span-full">
+              <span class="label-row">Annual income <strong id="learnOasIncomeValue">${formatCurrency(learn.oas.income)}</strong> ${tooltipButton("learnOasClawback")}</span>
+              <input type="range" data-learn-bind="uiState.learn.oas.income" data-type="number" min="30000" max="250000" step="500" value="${formatNumber(learn.oas.income)}" aria-label="Annual income slider" />
+            </label>
+            ${learnNumberField("OAS monthly (per person)", "uiState.learn.oas.monthly", learn.oas.monthly, { min: 500, max: 1200, step: 1 }, "oasAmount65", false, false, true)}
+            <label class="compact-field">
+              <span class="label-row">Recipients ${tooltipButton("learnOasClawback")}</span>
+              <select data-learn-bind="uiState.learn.oas.recipients" data-type="number" aria-label="OAS recipients">
+                <option value="1" ${Number(learn.oas.recipients) === 1 ? "selected" : ""}>1</option>
+                <option value="2" ${Number(learn.oas.recipients) === 2 ? "selected" : ""}>2</option>
+              </select>
+            </label>
+          </div>
+          <div class="preview-kpi" id="learnOasOut"></div>
+        </section>
+
+        <section class="learn-section" id="learn-life">
+          <h3>8) Life Expectancy and Planning Horizon</h3>
+          <p class="muted">Planning for a longer horizon helps protect against outliving your money.</p>
+          <ul class="plain-list">
+            <li>Retiring at 60 and planning to 95 means a 35-year drawdown horizon.</li>
+            <li>Small spending or return changes compound over long horizons.</li>
+            <li>Use stress tests to understand downside risk.</li>
+          </ul>
+        </section>
+
+        <section class="learn-section" id="learn-phases">
+          <h3>9) Go-Go / Slow-Go / No-Go Retirement Years</h3>
+          <p class="muted">Many retirees spend more in early active years, then less later. This can improve planning realism.</p>
+          <div class="form-grid">
+            <div class="form-span-full">
+              ${learnNumberField("Base Annual Spend", "uiState.learn.phases.base", learn.phases.base, { min: 12000, max: 250000, step: 500 }, "desiredSpending")}
+            </div>
+            ${learnNumberField("Go-Go years (spend more)", "uiState.learn.phases.goYears", learn.phases.goYears, { min: 1, max: 20, step: 1 }, "lifeExpectancy", false, false, true)}
+            ${learnNumberField("Go-Go spending % of base", "uiState.learn.phases.goPct", toPct(learn.phases.goPct), { min: 60, max: 150, step: 1 }, "desiredSpending", true, false, true)}
+            ${learnNumberField("Slow-Go years (spend less)", "uiState.learn.phases.slowYears", learn.phases.slowYears, { min: 1, max: 20, step: 1 }, "lifeExpectancy", false, false, true)}
+            ${learnNumberField("Slow-Go spending % of base", "uiState.learn.phases.slowPct", toPct(learn.phases.slowPct), { min: 50, max: 130, step: 1 }, "desiredSpending", true, false, true)}
+            ${learnNumberField("No-Go years (spend less again)", "uiState.learn.phases.noYears", learn.phases.noYears, { min: 1, max: 25, step: 1 }, "lifeExpectancy", false, false, true)}
+            ${learnNumberField("No-Go spending % of base", "uiState.learn.phases.noPct", toPct(learn.phases.noPct), { min: 40, max: 120, step: 1 }, "desiredSpending", true, false, true)}
+          </div>
+          <canvas id="learnPhaseChart" width="1000" height="240" aria-label="Retirement spending phases chart" role="img"></canvas>
+          <div class="preview-kpi" id="learnPhaseOut"></div>
+          <p class="small-copy muted"><strong>Important takeaway:</strong> Oversaving has opportunity cost. A phased spending plan can better match real life.</p>
+        </section>
+
+        <section class="learn-section" id="learn-together">
+          <h3>10) Bringing It All Together</h3>
+          <p class="muted">You now have the core concepts to build a stronger retirement plan with confidence.</p>
+          <p class="small-copy muted">Use your new understanding of inflation, indexing, taxes, RRIF rules, and spending phases in the Guided Setup flow.</p>
+          <div class="landing-actions">
+            <button class="btn btn-primary" type="button" data-action="launch-planner">Go to Guided setup</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  `;
+
+  updateLearnOutputs();
+}
+
+function updateLearnOutputs() {
+  if (!el.learnPanel || !el.learnPanel.querySelector("#learnInflationOut")) return;
+  const learn = state.uiState.learn;
+
+  const infAnnual = learn.inflation.spendingToday * Math.pow(1 + learn.inflation.rate, learn.inflation.years);
+  const infRateValue = el.learnPanel.querySelector("#learnInflationRateValue");
+  if (infRateValue) infRateValue.textContent = `${formatNumber(toPct(learn.inflation.rate))}%`;
+  const infOut = el.learnPanel.querySelector("#learnInflationOut");
+  if (infOut) {
+    infOut.innerHTML = `
+      <div class="preview-kpi-item"><strong>Future Annual Budget</strong><span>${formatCurrency(infAnnual)}</span></div>
+    `;
+  }
+
+  const gross = learn.taxGrossUp.rate >= 0.99 ? learn.taxGrossUp.netGoal : learn.taxGrossUp.netGoal / (1 - learn.taxGrossUp.rate);
+  const tax = Math.max(0, gross - learn.taxGrossUp.netGoal);
+  const taxRateValue = el.learnPanel.querySelector("#learnTaxRateValue");
+  if (taxRateValue) taxRateValue.textContent = `${formatNumber(toPct(learn.taxGrossUp.rate))}%`;
+  const taxOut = el.learnPanel.querySelector("#learnTaxOut");
+  if (taxOut) {
+    taxOut.innerHTML = `
+      <div class="preview-kpi-item"><strong>Required gross withdrawal</strong><span>${formatCurrency(gross)}</span></div>
+      <div class="preview-kpi-item"><strong>Tax amount</strong><span>${formatCurrency(tax)}</span></div>
+      <div class="preview-kpi-item"><strong>Net target</strong><span>${formatCurrency(learn.taxGrossUp.netGoal)}</span></div>
+      <div class="preview-kpi-item"><strong>Gross-up difference</strong><span>${formatCurrency(gross - learn.taxGrossUp.netGoal)}</span></div>
+    `;
+  }
+
+  const rrifFactor = RRIF_MIN_WITHDRAWAL[learn.rrif.age] ?? 0.2;
+  const rrifMin = learn.rrif.balance * rrifFactor;
+  const rrifAgeValue = el.learnPanel.querySelector("#learnRrifAgeValue");
+  if (rrifAgeValue) rrifAgeValue.textContent = `${formatNumber(learn.rrif.age)}`;
+  const rrifOut = el.learnPanel.querySelector("#learnRrifOut");
+  if (rrifOut) {
+    rrifOut.innerHTML = `
+      <div class="preview-kpi-item"><strong>Minimum withdrawal %</strong><span>${formatPct(rrifFactor)}</span></div>
+      <div class="preview-kpi-item"><strong>Minimum withdrawal amount</strong><span>${formatCurrency(rrifMin)}</span></div>
+    `;
+  }
+
+  const oasAnnualTotal = learn.oas.monthly * 12 * Number(learn.oas.recipients || 1);
+  const oasThreshold = 90000;
+  const oasLoss = Math.min(oasAnnualTotal, Math.max(0, (learn.oas.income - oasThreshold) * 0.15));
+  const oasRemain = Math.max(0, oasAnnualTotal - oasLoss);
+  const oasIncomeValue = el.learnPanel.querySelector("#learnOasIncomeValue");
+  if (oasIncomeValue) oasIncomeValue.textContent = `${formatCurrency(learn.oas.income)}`;
+  const oasOut = el.learnPanel.querySelector("#learnOasOut");
+  if (oasOut) {
+    oasOut.innerHTML = `
+      <div class="preview-kpi-item"><strong>Estimated OAS lost</strong><span>${formatCurrency(oasLoss)}</span></div>
+      <div class="preview-kpi-item"><strong>Estimated OAS remaining</strong><span>${formatCurrency(oasRemain)}</span></div>
+      <div class="preview-kpi-item"><strong>OAS before clawback</strong><span>${formatCurrency(oasAnnualTotal)}</span></div>
+      <div class="preview-kpi-item"><strong>Threshold used</strong><span>${formatCurrency(oasThreshold)}</span></div>
+    `;
+  }
+
+  const split = clamp(learn.spousalSplit.splitPct, 0, 0.5);
+  const splitPctValue = el.learnPanel.querySelector("#learnSplitPctValue");
+  if (splitPctValue) splitPctValue.textContent = `${formatNumber(toPct(split))}%`;
+  const move = learn.spousalSplit.spouseA * split;
+  const beforeTax = estimateTotalTax(state, learn.spousalSplit.spouseA, 0) + estimateTotalTax(state, learn.spousalSplit.spouseB, 0);
+  const afterTax = estimateTotalTax(state, Math.max(0, learn.spousalSplit.spouseA - move), 0)
+    + estimateTotalTax(state, learn.spousalSplit.spouseB + move, 0);
+  const spousalOut = el.learnPanel.querySelector("#learnSpousalOut");
+  if (spousalOut) {
+    spousalOut.innerHTML = `
+      <div class="preview-kpi-item"><strong>Combined tax before split</strong><span>${formatCurrency(beforeTax)}</span></div>
+      <div class="preview-kpi-item"><strong>Combined tax after split</strong><span>${formatCurrency(afterTax)}</span></div>
+      <div class="preview-kpi-item"><strong>Estimated tax difference</strong><span>${formatSignedCurrency(beforeTax - afterTax)}</span></div>
+      <div class="preview-kpi-item"><strong>Income shifted</strong><span>${formatCurrency(move)}</span></div>
+    `;
+  }
+
+  const weightedSpending = calculatePhaseWeightedSpending(learn.phases);
+  const phaseOut = el.learnPanel.querySelector("#learnPhaseOut");
+  if (phaseOut) {
+    phaseOut.innerHTML = `
+      <div class="preview-kpi-item"><strong>Phase-weighted annual spending ${tooltipButton("phaseWeightedSpending")}</strong><span>${formatCurrency(weightedSpending)}</span></div>
+      <div class="preview-kpi-item"><strong>Total years modeled</strong><span>${learn.phases.goYears + learn.phases.slowYears + learn.phases.noYears}</span></div>
+    `;
+    bindInlineTooltipTriggers(phaseOut);
+  }
+
+  drawLearnInflationChart();
+  drawLearnIndexedChart();
+  drawLearnPhaseChart();
 }
 
 
@@ -1169,7 +1607,9 @@ function wizardStepTimeline(model) {
   return `
     <h3>Your Timeline</h3>
     <div class="wizard-grid compact-mobile-two">
-      ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province", true)}
+      <div class="form-span-full">
+        ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province")}
+      </div>
       ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear", false, false, true)}
       ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge", false, false, true)}
       ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy", false, false, true)}
@@ -1349,10 +1789,10 @@ function wizardStepReality(model) {
     <div class="preview-box">
       <h3>Mini preview</h3>
       <div class="preview-kpi">
-        <div class="preview-kpi-item"><strong>Guaranteed income coverage</strong><span>${coverage.toFixed(0)}%</span></div>
-        <div class="preview-kpi-item"><strong>Net gap from savings</strong><span>${formatCurrency(first.netGap)}</span></div>
-        <div class="preview-kpi-item"><strong>Gross withdrawal</strong><span>${formatCurrency(first.withdrawal)}</span></div>
-        <div class="preview-kpi-item"><strong>Estimated tax drag</strong><span>${formatCurrency(first.taxOnWithdrawal + first.oasClawback)}</span></div>
+        <div class="preview-kpi-item"><strong>Guaranteed income coverage ${tooltipButton("kpiGuaranteedIncome")}</strong><span>${coverage.toFixed(0)}%</span></div>
+        <div class="preview-kpi-item"><strong>Net gap ${tooltipButton("kpiNetGap")}</strong><span>${formatCurrency(first.netGap)}</span></div>
+        <div class="preview-kpi-item"><strong>Gross withdrawal ${tooltipButton("kpiGrossWithdrawal")}</strong><span>${formatCurrency(first.withdrawal)}</span></div>
+        <div class="preview-kpi-item"><strong>Estimated tax drag ${tooltipButton("oasClawback")}</strong><span>${formatCurrency(first.taxOnWithdrawal + first.oasClawback)}</span></div>
       </div>
     </div>
   `;
@@ -1417,7 +1857,9 @@ function renderAdvanced() {
   el.advancedAccordion.innerHTML = `
     ${accordionSection("basics", "Basics", "Changes timeline, spending target, and core savings assumptions used across all models.", `
       <div class="form-grid compact-mobile-two">
-        ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province", true)}
+        <div class="form-span-full">
+          ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province")}
+        </div>
         ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear", false, false, true)}
         ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge", false, false, true)}
         ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy", false, false, true)}
@@ -1511,10 +1953,11 @@ function renderAdvanced() {
       <label class="inline-check"><input type="checkbox" data-bind="strategy.oasClawbackModeling" ${state.strategy.oasClawbackModeling ? "checked" : ""} />Model OAS clawback</label>
       <div class="table-scroll">
         <table class="data-table">
-          <thead><tr><th>Strategy</th><th>Estimated taxes</th><th>OAS clawback</th><th>Depletion</th></tr></thead>
+          <thead><tr><th>Strategy</th><th>Estimated lifetime taxes ${tooltipButton("strategyLifetimeTaxes")}</th><th>Estimated lifetime OAS clawback ${tooltipButton("strategyLifetimeClawback")}</th><th>Depletion ${tooltipButton("depletionAge")}</th></tr></thead>
           <tbody>${strategyRows}</tbody>
         </table>
       </div>
+      <p class="small-copy muted">These tax and clawback values are totals across the full retirement projection horizon (planning estimate).</p>
       <div class="subsection">
         <h3>Why this order?</h3>
         <ul class="plain-list">${selected.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
@@ -1542,15 +1985,11 @@ function renderAdvanced() {
     `)}
 
     ${accordionSection("modules", "Educational unlock modules", "Adds concept-level guidance. Some modules are educational-only if not fully modeled.", `
-      <ul class="plain-list">
-        <li>CPP timing tradeoffs: modeled in projection and strategy engine.</li>
-        <li>OAS timing: modeled in projection and strategy engine.</li>
-        <li>OAS clawback: modeled when toggle is enabled.</li>
-        <li>RRSP to RRIF conversion and minimum withdrawals: modeled with configurable conversion age and schedule toggle.</li>
-        <li>Pension income splitting: educational only in this version.</li>
-        <li>TFSA vs RRSP vs non-registered tax differences: modeled with planning heuristics.</li>
-        <li>Private pension bridge to 65: educational only in this version.</li>
-      </ul>
+      <div class="lesson-box">
+        <h3>Coming soon feature</h3>
+        <p class="muted">Educational unlock modules are being rebuilt for a more guided learning experience.</p>
+        <p class="small-copy muted">Current planning calculations remain available in Dashboard, Guided Setup, and Advanced inputs.</p>
+      </div>
     `)}
   `;
 }
@@ -1559,47 +1998,45 @@ function renderStress() {
   const model = ui.lastModel;
   if (!model) return;
 
-  el.scenarioCompareToggle.checked = !!state.uiState.showScenarioCompare;
+  const best = model.scenarioRows.find((r) => r.label === "Best") || model.scenarioRows[0];
+  const base = model.scenarioRows.find((r) => r.label === "Base") || model.scenarioRows[1] || model.scenarioRows[0];
+  const worst = model.scenarioRows.find((r) => r.label === "Worst") || model.scenarioRows[2] || model.scenarioRows[0];
+  const quickRows = [best, base, worst].filter(Boolean);
 
-  if (state.uiState.showScenarioCompare) {
-    el.scenarioSummary.innerHTML = `
-      <h3>Deterministic scenarios</h3>
-      <div class="table-scroll">
-        <table class="data-table">
-          <thead><tr><th>Scenario</th><th>Return</th><th>Balance at retirement</th><th>Depletion age</th></tr></thead>
-          <tbody>
-            ${model.scenarioRows.map((row) => `
-              <tr>
-                <td>${row.label}</td>
-                <td>${formatPct(row.returnRate)}</td>
-                <td>${formatCurrency(row.balanceAtRetirement)}</td>
-                <td>${row.depletionAge ? `Age ${row.depletionAge}` : "No depletion"}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
-  } else {
-    el.scenarioSummary.innerHTML = "<p class='muted'>Enable scenario comparison to view best/base/worst outcomes.</p>";
-  }
+  el.scenarioSummary.innerHTML = `
+    <h3>Quick stress check ${tooltipButton("stressScenario")}</h3>
+    <p class="muted">Simple view: how your plan changes if long-run returns are better or worse than expected.</p>
+    <ul class="plain-list">
+      <li><strong>Best case:</strong> higher return by your scenario spread.</li>
+      <li><strong>Base case:</strong> your current assumptions.</li>
+      <li><strong>Downside case:</strong> lower return by your scenario spread.</li>
+    </ul>
+    <div class="preview-kpi">
+      ${quickRows.map((row) => `
+        <div class="preview-kpi-item">
+          <strong>${row.label === "Worst" ? "Downside case" : `${row.label} case`}</strong>
+          <span>${formatCurrency(row.balanceAtRetirement)}</span>
+          <small class="muted">Retirement balance</small>
+        </div>
+      `).join("")}
+    </div>
+  `;
 
-  const rows = model.stressMatrix;
   el.stressTable.innerHTML = `
     <thead>
       <tr>
-        <th>Return shift</th>
-        <th>Inflation shift</th>
-        <th>Balance at retirement</th>
-        <th>Depletion age</th>
-        <th>First-year gap/surplus</th>
+        <th>Scenario ${tooltipButton("stressScenario")}</th>
+        <th>Return ${tooltipButton("scenarioSpread")}</th>
+        <th>Balance at retirement ${tooltipButton("kpiBalanceRetirement")}</th>
+        <th>Depletion ${tooltipButton("depletionAge")}</th>
+        <th>First-year gap/surplus ${tooltipButton("stressGapSurplus")}</th>
       </tr>
     </thead>
     <tbody>
-      ${rows.map((row) => `
+      ${quickRows.map((row) => `
         <tr>
-          <td>${formatSignedPct(row.returnShift)}</td>
-          <td>${formatSignedPct(row.inflationShift)}</td>
+          <td>${row.label === "Worst" ? "Downside" : row.label}</td>
+          <td>${formatPct(row.returnRate)}</td>
           <td>${formatCurrency(row.balanceAtRetirement)}</td>
           <td>${row.depletionAge ? `Age ${row.depletionAge}` : "No depletion"}</td>
           <td>${formatSignedCurrency(row.firstYearGap)}</td>
@@ -1607,6 +2044,8 @@ function renderStress() {
       `).join("")}
     </tbody>
   `;
+  bindInlineTooltipTriggers(el.scenarioSummary);
+  bindInlineTooltipTriggers(el.stressTable);
 }
 
 function renderNotes() {
@@ -1632,6 +2071,7 @@ function buildPlanModel(plan) {
       returnRate: def.returnRate,
       balanceAtRetirement: res.kpis.balanceAtRetirement,
       depletionAge: res.kpis.depletionAge,
+      firstYearGap: res.kpis.firstYearGap,
       rows: res.rows,
     };
   });
@@ -1640,6 +2080,7 @@ function buildPlanModel(plan) {
     returnRate: row.returnRate,
     balanceAtRetirement: row.balanceAtRetirement,
     depletionAge: row.depletionAge,
+    firstYearGap: row.firstYearGap,
   }));
   const best = scenarioRuns.find((x) => x.key === "best") || { rows: base.rows };
   const worst = scenarioRuns.find((x) => x.key === "worst") || { rows: base.rows };
@@ -2310,8 +2751,8 @@ function openTooltip(key, anchor) {
   if (window.matchMedia("(max-width: 900px)").matches) {
     pop.classList.add("mobile-centered");
   } else {
-    const top = rect.bottom + window.scrollY + 8;
-    const left = Math.max(10, Math.min(window.innerWidth - 330, rect.left + window.scrollX - 140));
+    const top = rect.bottom + 8;
+    const left = Math.max(10, Math.min(window.innerWidth - 330, rect.left - 140));
     pop.style.top = `${top}px`;
     pop.style.left = `${left}px`;
   }
@@ -2441,6 +2882,7 @@ function normalizePlan(input) {
     uiState: {
       ...base.uiState,
       ...(migrated.uiState || {}),
+      learn: normalizeLearnState(migrated.uiState?.learn || base.uiState.learn),
       unlocked: {
         ...base.uiState.unlocked,
         ...(migrated.uiState?.unlocked || {}),
@@ -2484,6 +2926,7 @@ function migratePlan(plan) {
   if (!next.strategy) next.strategy = { withdrawal: "tax-smart", oasClawbackModeling: true, rrifConversionAge: 71, applyRrifMinimums: true };
   if (!next.accounts) next.accounts = { rrsp: 0, tfsa: 0, nonRegistered: 0, cash: 0 };
   if (!next.uiState) next.uiState = createDefaultPlan().uiState;
+  if (!next.uiState.learn) next.uiState.learn = createDefaultLearnState();
   if (!next.savings) next.savings = createDefaultPlan().savings;
   if (!Array.isArray(next.savings.capitalInjects)) next.savings.capitalInjects = [];
   next.version = APP.version;
@@ -2523,8 +2966,114 @@ function ensureValidState() {
   state.income.spouse.oasAmountAt65 = Math.max(0, Number(state.income.spouse.oasAmountAt65));
   state.strategy.rrifConversionAge = clamp(Number(state.strategy.rrifConversionAge || 71), 65, 75);
   state.strategy.applyRrifMinimums = Boolean(state.strategy.applyRrifMinimums ?? true);
+  state.uiState.learn = normalizeLearnState(state.uiState.learn);
 
   if (!PROVINCES[state.profile.province]) state.profile.province = APP.defaultProvince;
+}
+
+function createDefaultLearnState() {
+  return {
+    phaseDefaultsSeeded: false,
+    inflation: {
+      spendingToday: 80000,
+      years: 10,
+      rate: 0.025,
+    },
+    indexedIncome: {
+      startIncome: 30000,
+      years: 25,
+      inflation: 0.02,
+      highlight: "indexed",
+    },
+    taxGrossUp: {
+      netGoal: 80000,
+      rate: 0.22,
+    },
+    rrif: {
+      age: 72,
+      balance: 600000,
+    },
+    oas: {
+      income: 95000,
+      monthly: 742,
+      recipients: 1,
+    },
+    spousalSplit: {
+      spouseA: 70000,
+      spouseB: 30000,
+      splitPct: 0.25,
+    },
+    phases: {
+      base: 80000,
+      goYears: 10,
+      goPct: 1.1,
+      slowYears: 10,
+      slowPct: 0.9,
+      noYears: 10,
+      noPct: 0.75,
+    },
+  };
+}
+
+function normalizeLearnState(input) {
+  const base = createDefaultLearnState();
+  const wasSeeded = Boolean(input?.phaseDefaultsSeeded);
+  const out = {
+    phaseDefaultsSeeded: true,
+    inflation: { ...base.inflation, ...(input?.inflation || {}) },
+    indexedIncome: { ...base.indexedIncome, ...(input?.indexedIncome || {}) },
+    taxGrossUp: { ...base.taxGrossUp, ...(input?.taxGrossUp || {}) },
+    rrif: { ...base.rrif, ...(input?.rrif || {}) },
+    oas: { ...base.oas, ...(input?.oas || {}) },
+    spousalSplit: { ...base.spousalSplit, ...(input?.spousalSplit || {}) },
+    phases: { ...base.phases, ...(input?.phases || {}) },
+  };
+
+  out.inflation.spendingToday = Math.max(10000, Number(out.inflation.spendingToday));
+  out.inflation.years = clamp(Number(out.inflation.years), 0, 45);
+  out.inflation.rate = clamp(normalizePct(out.inflation.rate), 0.005, 0.08);
+
+  out.indexedIncome.startIncome = Math.max(0, Number(out.indexedIncome.startIncome));
+  out.indexedIncome.years = clamp(Number(out.indexedIncome.years), 1, 40);
+  out.indexedIncome.inflation = clamp(normalizePct(out.indexedIncome.inflation), 0, 0.08);
+  out.indexedIncome.highlight = out.indexedIncome.highlight === "flat" ? "flat" : "indexed";
+
+  out.taxGrossUp.netGoal = Math.max(12000, Number(out.taxGrossUp.netGoal));
+  out.taxGrossUp.rate = clamp(normalizePct(out.taxGrossUp.rate), 0.05, 0.45);
+
+  out.rrif.age = clamp(Number(out.rrif.age), 65, 95);
+  out.rrif.balance = Math.max(0, Number(out.rrif.balance));
+
+  out.oas.income = Math.max(0, Number(out.oas.income));
+  out.oas.monthly = Math.max(0, Number(out.oas.monthly));
+  out.oas.recipients = clamp(Number(out.oas.recipients), 1, 2);
+
+  out.spousalSplit.spouseA = Math.max(0, Number(out.spousalSplit.spouseA));
+  out.spousalSplit.spouseB = Math.max(0, Number(out.spousalSplit.spouseB));
+  out.spousalSplit.splitPct = clamp(normalizePct(out.spousalSplit.splitPct), 0, 0.5);
+
+  out.phases.base = Math.max(12000, Number(out.phases.base));
+  out.phases.goYears = clamp(Number(out.phases.goYears), 1, 20);
+  out.phases.slowYears = clamp(Number(out.phases.slowYears), 1, 20);
+  out.phases.noYears = clamp(Number(out.phases.noYears), 1, 25);
+  out.phases.goPct = normalizePhasePct(out.phases.goPct, 0.6, 1.5);
+  out.phases.slowPct = normalizePhasePct(out.phases.slowPct, 0.5, 1.3);
+  out.phases.noPct = normalizePhasePct(out.phases.noPct, 0.4, 1.2);
+  if (!wasSeeded) {
+    out.phases.goPct = 1.1;
+    out.phases.slowPct = 0.9;
+    out.phases.noPct = 0.75;
+  }
+
+  return out;
+}
+
+function normalizePhasePct(value, min, max) {
+  let n = Number(value);
+  if (!Number.isFinite(n)) return min;
+  // Accept either percent-entry style (e.g. 110) or ratio style (e.g. 1.1).
+  if (n > 2) n /= 100;
+  return clamp(n, min, max);
 }
 
 function createDefaultPlan() {
@@ -2598,6 +3147,7 @@ function createDefaultPlan() {
       activeNav: "guided",
       wizardStep: 1,
       showScenarioCompare: false,
+      learn: createDefaultLearnState(),
       unlocked: {
         advanced: false,
         spouse: false,
@@ -2654,6 +3204,177 @@ function createCapitalInjectItem() {
     amount: 50000,
     age: Math.max(state.profile.retirementAge, ageNow()),
   };
+}
+
+function learnCallouts(titleA, bodyA, titleB, bodyB) {
+  return `
+    <div class="learn-callout-grid">
+      <article class="learn-callout">
+        <strong>${escapeHtml(titleA)}</strong>
+        <p>${escapeHtml(bodyA)}</p>
+      </article>
+      <article class="learn-callout">
+        <strong>${escapeHtml(titleB)}</strong>
+        <p>${escapeHtml(bodyB)}</p>
+      </article>
+    </div>
+  `;
+}
+
+function learnNumberField(label, bind, value, attrs, tooltipKey, percentInput = false, disabled = false, compact = false) {
+  const finalValue = percentInput ? formatNumber(value) : formatNumber(value);
+  const attrString = Object.entries(attrs || {})
+    .map(([k, v]) => `${k}="${String(v)}"`)
+    .join(" ");
+
+  return `
+    <label class="${compact ? "compact-field" : ""}">
+      <span class="label-row">${escapeHtml(label)} ${tooltipButton(tooltipKey)}</span>
+      <input
+        type="number"
+        data-learn-bind="${bind}"
+        data-type="number"
+        ${percentInput ? 'data-percent-input="1"' : ""}
+        value="${finalValue}"
+        ${attrString}
+        ${disabled ? "disabled" : ""}
+        aria-label="${escapeHtml(label)}"
+      />
+    </label>
+  `;
+}
+
+function drawLearnInflationChart() {
+  const canvas = el.learnPanel?.querySelector("#learnInflationChart");
+  if (!(canvas instanceof HTMLCanvasElement)) return;
+  const d = state.uiState.learn.inflation;
+  const points = [];
+  for (let i = 0; i <= d.years; i += 1) {
+    points.push(d.spendingToday * Math.pow(1 + d.rate, i));
+  }
+  drawLearnLineChart(canvas, points, {
+    color: "#0f6abf",
+    fill: "rgba(15, 106, 191, 0.16)",
+    xLabeler: (i) => `${i}y`,
+  });
+}
+
+function drawLearnIndexedChart() {
+  const canvas = el.learnPanel?.querySelector("#learnIndexedChart");
+  if (!(canvas instanceof HTMLCanvasElement)) return;
+  const d = state.uiState.learn.indexedIncome;
+  const infValue = el.learnPanel?.querySelector("#learnIndexedInflationValue");
+  if (infValue) infValue.textContent = `${formatNumber(toPct(d.inflation))}%`;
+  const indexed = [];
+  const flatNominal = [];
+  const flatReal = [];
+  for (let i = 0; i <= d.years; i += 1) {
+    indexed.push(d.startIncome * Math.pow(1 + d.inflation, i));
+    flatNominal.push(d.startIncome);
+    flatReal.push(d.startIncome / Math.pow(1 + d.inflation, i));
+  }
+  drawLearnMultiLineChart(canvas, [indexed, flatNominal, flatReal], {
+    colors: ["#16a34a", "#f59e0b", "#d9485f"],
+    xLabeler: (i, total) => (i % Math.max(1, Math.ceil(total / 5)) === 0 ? `${i}y` : ""),
+  });
+}
+
+function drawLearnPhaseChart() {
+  const canvas = el.learnPanel?.querySelector("#learnPhaseChart");
+  if (!(canvas instanceof HTMLCanvasElement)) return;
+  const d = state.uiState.learn.phases;
+  const points = [];
+  for (let i = 0; i < d.goYears; i += 1) points.push(d.base * d.goPct);
+  for (let i = 0; i < d.slowYears; i += 1) points.push(d.base * d.slowPct);
+  for (let i = 0; i < d.noYears; i += 1) points.push(d.base * d.noPct);
+  drawLearnLineChart(canvas, points, {
+    color: "#0ea5a8",
+    fill: "rgba(14, 165, 168, 0.14)",
+    xLabeler: (i, total) => (i % Math.max(1, Math.ceil(total / 6)) === 0 ? `Y${i + 1}` : ""),
+  });
+}
+
+function drawLearnLineChart(canvas, series, options = {}) {
+  drawLearnMultiLineChart(canvas, [series], {
+    colors: [options.color || "#0f6abf"],
+    fills: [options.fill || "rgba(15, 106, 191, 0.1)"],
+    labels: [],
+    xLabeler: options.xLabeler,
+  });
+}
+
+function drawLearnMultiLineChart(canvas, seriesList, options = {}) {
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 40) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(640, Math.floor(rect.width * dpr));
+  canvas.height = Math.floor(220 * dpr);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const w = rect.width;
+  const h = 220;
+  const pad = { left: 50, right: 12, top: 14, bottom: 30 };
+  const innerW = w - pad.left - pad.right;
+  const innerH = h - pad.top - pad.bottom;
+  ctx.clearRect(0, 0, w, h);
+
+  const allValues = seriesList.flat();
+  const maxY = Math.max(1, ...allValues) * 1.1;
+  const maxLen = Math.max(2, ...seriesList.map((s) => s.length));
+  const x = (idx) => pad.left + (innerW * idx) / Math.max(1, maxLen - 1);
+  const y = (v) => pad.top + innerH - (v / maxY) * innerH;
+
+  ctx.strokeStyle = "#e1e8f3";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const gy = pad.top + (innerH * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, gy);
+    ctx.lineTo(w - pad.right, gy);
+    ctx.stroke();
+  }
+
+  seriesList.forEach((series, index) => {
+    const points = series.map((v, i) => [x(i), y(v)]);
+    const fill = options.fills?.[index];
+    if (fill && points.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], y(0));
+      points.forEach((p) => ctx.lineTo(p[0], p[1]));
+      ctx.lineTo(points[points.length - 1][0], y(0));
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+    plotLine(ctx, points, options.colors?.[index] || "#0f6abf", 2);
+  });
+
+  ctx.fillStyle = "#5f6b7d";
+  ctx.font = "12px Avenir Next";
+  ctx.fillText(formatCurrency(0), 8, h - 10);
+  ctx.fillText(formatCompactCurrency(maxY), 8, pad.top + 4);
+  const labeler = typeof options.xLabeler === "function"
+    ? options.xLabeler
+    : (i, total) => (i % Math.max(1, Math.ceil(total / 6)) === 0 ? `${i}` : "");
+  for (let i = 0; i < maxLen; i += 1) {
+    const label = labeler(i, maxLen - 1);
+    if (!label) continue;
+    const lx = x(i);
+    const lw = ctx.measureText(label).width;
+    ctx.fillText(label, clamp(lx - lw / 2, pad.left, w - pad.right - lw), h - 10);
+  }
+}
+
+function calculatePhaseWeightedSpending(phases) {
+  const totalYears = Math.max(1, Number(phases.goYears) + Number(phases.slowYears) + Number(phases.noYears));
+  const totalAmount = Number(phases.base) * (
+    Number(phases.goYears) * Number(phases.goPct)
+    + Number(phases.slowYears) * Number(phases.slowPct)
+    + Number(phases.noYears) * Number(phases.noPct)
+  );
+  return totalAmount / totalYears;
 }
 
 function numberField(label, bind, value, attrs, tooltipKey, percentInput = false, disabled = false, compact = false) {
@@ -2771,6 +3492,19 @@ function getReturnRate(plan) {
 
 function ageNow() {
   return APP.currentYear - state.profile.birthYear;
+}
+
+function navFromHash(hash) {
+  const key = String(hash || "").replace("#", "").trim();
+  if (key.startsWith("learn-")) return "learn";
+  const allowed = new Set(["dashboard", "learn", "guided", "inputs", "advanced", "stress", "notes", "export"]);
+  return allowed.has(key) ? key : "";
+}
+
+function syncNavHash(nav) {
+  if (!history.replaceState) return;
+  const safeNav = navFromHash(`#${nav}`) || "dashboard";
+  history.replaceState(null, "", `#${safeNav}`);
 }
 
 function inflateAmountToRetirement(amount, inflationRate, years) {
