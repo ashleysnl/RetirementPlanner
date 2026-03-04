@@ -1,18 +1,29 @@
 # Canadian Retirement Planner (NL Default Province)
 
-Static, local-first retirement planning web app built with the existing template style tokens and components.
+Static, local-first retirement planning app built with the existing template theme/tokens.
 
-## What This App Includes
+## What This Rebuild Includes
 
-- Progressive first-run UX with guided 5-step setup
-- Simple dashboard with key KPIs and projection chart
-- Advanced model (tax estimate, account mix, withdrawal strategies, OAS clawback toggle)
-- Deterministic scenarios (best/base/worst) and stress test matrix
-- Reusable `ⓘ` tooltip system and global glossary modal
-- LocalStorage plan persistence with versioned JSON model
-- JSON export/import with schema validation
-- Demo plan loader and full reset
-- Offline-friendly service worker (`sw.js`)
+- First-run **Quick Start** flow for a usable forecast in under a minute.
+- Progressive **7-step Guided Setup** (basic -> intermediate -> advanced unlock).
+- Rebuilt dashboard narrative:
+  - At-a-glance KPI row
+  - Portfolio balance chart (optional stress band)
+  - Income coverage + tax wedge chart
+  - Explain-it strip
+  - Key age cards (retirement year, age 65, age 71/RRIF year)
+- Top-level IA sections:
+  - Dashboard
+  - Guided setup
+  - Plan inputs
+  - Advanced inputs
+  - Stress test
+  - Notes
+  - Export/Import
+- LocalStorage persistence with JSON export/import, demo, and reset.
+- Tooltip/glossary education system.
+- OAS clawback modeling and RRIF rule controls/schedule display.
+- Offline-friendly service worker.
 
 ## Tech Stack
 
@@ -24,31 +35,33 @@ Static, local-first retirement planning web app built with the existing template
 
 ## File Structure
 
-- `index.html` - App layout, wizard container, dashboard, advanced/stress/notes panels, glossary modal
-- `styles.css` - Template-aligned design tokens + component styles
-- `app.js` - State model, progressive UX rendering, calculation engine, tooltips, import/export, storage
-- `sw.js` - Offline cache strategy for app shell files
+- `index.html` - Main layout, navigation, wizard, dashboard sections, modals
+- `styles.css` - Template-based tokens/utilities and component styling
+- `app.js` - State, rendering, model calculations, tooltip system, storage and import/export
+- `sw.js` - App shell caching for offline usage
 - `manifest.webmanifest` - PWA metadata
-- `icons/` - App icons
+- `docs/audit.md` - UX/model audit and rebuild mapping
 
-## Local Run Instructions
+## Run Locally
 
-1. Open `index.html` directly in a browser for quick local use.
-2. For best service-worker behavior, serve with a local static server (example: `python3 -m http.server 8080`) and open `http://localhost:8080`.
+1. Quick open: open `index.html` in a browser.
+2. Recommended for service worker behavior:
+   - `python3 -m http.server 8080`
+   - Open `http://localhost:8080`
 
 ## GitHub Pages Deploy
 
-1. Push this project to a GitHub repository.
-2. In GitHub, open `Settings` -> `Pages`.
-3. Under `Build and deployment`, choose:
+1. Push repository to GitHub.
+2. Go to `Settings -> Pages`.
+3. Under `Build and deployment`:
    - Source: `Deploy from a branch`
-   - Branch: `main` (or your default) and `/ (root)`
-4. Save, then wait for Pages publish.
-5. Open the published URL shown in the Pages settings.
+   - Branch: `main` (or default), folder `/ (root)`
+4. Save and wait for deployment.
+5. Open the published Pages URL.
 
 ## Data Model
 
-The app stores one plan object in LocalStorage (`retirementPlanner.plan.v2`) with:
+Stored under LocalStorage key `retirementPlanner.plan.v2` with:
 
 - `version`
 - `profile`
@@ -60,8 +73,8 @@ The app stores one plan object in LocalStorage (`retirementPlanner.plan.v2`) wit
 - `uiState`
 - `notes`
 
-Import validates and normalizes this schema. Older versions are migrated where possible.
+Import validates and normalizes schema with backward-compatible migration.
 
-## Planning Disclaimer
+## Disclaimer
 
-This tool provides planning-level educational estimates only. It is not financial, legal, or tax advice.
+Planning-level estimate only. Not financial, legal, or tax advice.

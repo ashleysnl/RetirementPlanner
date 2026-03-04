@@ -232,7 +232,7 @@ summary:focus-visible,
 }
 
 .metric-grid-wide {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .metric-card {
@@ -394,6 +394,11 @@ summary {
 
 .footer-reference-link:hover {
   text-decoration: underline;
+}
+
+.reference-sep {
+  color: #94a3b8;
+  font-size: 0.72rem;
 }
 
 .withdrawal-explain {

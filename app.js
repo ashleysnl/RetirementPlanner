@@ -277,6 +277,27 @@ const TOOLTIPS = {
     range: "TFSA/cash effects are intentionally excluded here.",
     example: "If you had TFSA withdrawals, tax wedge could be smaller than shown.",
   },
+  rrifConversionAge: {
+    term: "RRIF conversion age",
+    plain: "Age when RRSP is treated as RRIF for minimum withdrawal rules.",
+    why: "From this age, minimum withdrawals can force taxable income.",
+    range: "Typical conversion age: 71.",
+    example: "At 71, required RRIF minimums may raise taxable income even if spending is lower.",
+  },
+  rrifMinimums: {
+    term: "RRIF minimum withdrawals",
+    plain: "Annual minimum percentage that must be withdrawn from RRIF by age.",
+    why: "Can increase taxes and OAS clawback exposure in later retirement.",
+    range: "Age-based schedule from CRA.",
+    example: "If required minimum exceeds your spending gap, taxable income still rises.",
+  },
+  oasClawback: {
+    term: "OAS clawback",
+    plain: "OAS can be reduced when taxable income exceeds the recovery threshold.",
+    why: "Higher taxable withdrawals can reduce net OAS received.",
+    range: "Calculated using a planning threshold and 15% recovery rate.",
+    example: "Large RRIF withdrawals can trigger partial OAS recovery tax.",
+  },
 };
 
 const TAX_BRACKETS = {
@@ -296,6 +317,34 @@ const TAX_BRACKETS = {
     AB: { thresholds: [0, 151234, 181481, 241974, 362961], rates: [0.1, 0.12, 0.13, 0.14, 0.15] },
     BC: { thresholds: [0, 47937, 95875, 110076, 133664, 181232, 252752], rates: [0.0506, 0.077, 0.105, 0.1229, 0.147, 0.168, 0.205] },
   },
+};
+
+const RRIF_MIN_WITHDRAWAL = {
+  71: 0.0528,
+  72: 0.054,
+  73: 0.0553,
+  74: 0.0567,
+  75: 0.0582,
+  76: 0.0598,
+  77: 0.0617,
+  78: 0.0636,
+  79: 0.0658,
+  80: 0.0682,
+  81: 0.0708,
+  82: 0.0738,
+  83: 0.0771,
+  84: 0.0808,
+  85: 0.0851,
+  86: 0.0899,
+  87: 0.0955,
+  88: 0.1021,
+  89: 0.1099,
+  90: 0.1192,
+  91: 0.1306,
+  92: 0.1449,
+  93: 0.1634,
+  94: 0.1879,
+  95: 0.2,
 };
 
 const OFFICIAL_REFERENCES = [
@@ -368,9 +417,13 @@ const el = {
   landingDemoBtn: document.getElementById("landingDemoBtn"),
   landingImportBtn: document.getElementById("landingImportBtn"),
   exportJsonBtn: document.getElementById("exportJsonBtn"),
+  exportJsonBtnSecondary: document.getElementById("exportJsonBtnSecondary"),
   importJsonBtn: document.getElementById("importJsonBtn"),
+  importJsonBtnSecondary: document.getElementById("importJsonBtnSecondary"),
   loadDemoBtn: document.getElementById("loadDemoBtn"),
+  loadDemoBtnSecondary: document.getElementById("loadDemoBtnSecondary"),
   resetBtn: document.getElementById("resetBtn"),
+  resetBtnSecondary: document.getElementById("resetBtnSecondary"),
   openGlossaryBtn: document.getElementById("openGlossaryBtn"),
   importJsonFile: document.getElementById("importJsonFile"),
 
@@ -391,6 +444,7 @@ const el = {
   walkthroughStrip: document.getElementById("walkthroughStrip"),
   yearCards: document.getElementById("yearCards"),
   dashboardReferences: document.getElementById("dashboardReferences"),
+  planInputsPanel: document.getElementById("planInputsPanel"),
   nextActions: document.getElementById("nextActions"),
   basicsSummary: document.getElementById("basicsSummary"),
 
@@ -430,6 +484,7 @@ let ui = {
     assumptions: true,
     income: false,
     accounts: false,
+    rrif: false,
     capitalInjects: false,
     withdrawal: false,
     tax: false,
@@ -451,6 +506,7 @@ function bindEvents() {
     state.uiState.firstRun = false;
     state.uiState.hasStarted = true;
     state.uiState.activeNav = "guided";
+    state.uiState.wizardStep = 1;
     ui.activeNav = "guided";
     savePlan();
     renderAll();
@@ -473,9 +529,13 @@ function bindEvents() {
   });
 
   el.exportJsonBtn?.addEventListener("click", exportJson);
+  el.exportJsonBtnSecondary?.addEventListener("click", exportJson);
   el.importJsonBtn?.addEventListener("click", () => el.importJsonFile?.click());
+  el.importJsonBtnSecondary?.addEventListener("click", () => el.importJsonFile?.click());
   el.landingImportBtn?.addEventListener("click", () => el.importJsonFile?.click());
   el.importJsonFile?.addEventListener("change", importJsonFromFile);
+  el.loadDemoBtnSecondary?.addEventListener("click", () => el.loadDemoBtn?.click());
+  el.resetBtnSecondary?.addEventListener("click", () => el.resetBtn?.click());
 
   el.resetBtn?.addEventListener("click", () => {
     const ok = confirm("Reset your local plan to defaults?");
@@ -497,12 +557,12 @@ function bindEvents() {
   el.wizardBackBtn?.addEventListener("click", () => {
     state.uiState.wizardStep = Math.max(1, state.uiState.wizardStep - 1);
     savePlan();
-    renderWizard();
+    renderAll();
   });
 
   el.wizardNextBtn?.addEventListener("click", () => {
-    if (state.uiState.wizardStep >= 5) {
-      state.uiState.wizardStep = 5;
+    if (state.uiState.wizardStep >= 7) {
+      state.uiState.wizardStep = 7;
       state.uiState.unlocked.advanced = true;
       state.uiState.activeNav = "dashboard";
       ui.activeNav = "dashboard";
@@ -512,8 +572,8 @@ function bindEvents() {
       return;
     }
 
-    state.uiState.wizardStep = Math.min(5, state.uiState.wizardStep + 1);
-    if (state.uiState.wizardStep >= 5) state.uiState.unlocked.advanced = true;
+    state.uiState.wizardStep = Math.min(7, state.uiState.wizardStep + 1);
+    if (state.uiState.wizardStep >= 7) state.uiState.unlocked.advanced = true;
     savePlan();
     renderAll();
   });
@@ -706,6 +766,7 @@ function renderAll() {
   renderNav();
   renderDashboard();
   renderWizard();
+  renderPlanInputs();
   renderAdvanced();
   renderStress();
   renderNotes();
@@ -789,7 +850,8 @@ function renderKpiCards(model, age) {
     { label: "After-tax spending target", value: formatCurrency(row.spending), sub: `At age ${row.age}`, tip: "kpiSpendingTarget" },
     { label: "Guaranteed income", value: formatCurrency(row.guaranteedGross), sub: "Pension + CPP + OAS", tip: "kpiGuaranteedIncome" },
     { label: "Net gap from savings", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "Needs savings funding" : "Guaranteed income covers target", tip: "kpiNetGap" },
-    { label: "Gross withdrawal required", value: formatCurrency(row.withdrawal), sub: `Tax drag ${formatCurrency(row.taxOnWithdrawal)}`, tip: "kpiGrossWithdrawal" },
+    { label: "Gross withdrawal required", value: formatCurrency(row.withdrawal), sub: `Tax drag ${formatCurrency(row.taxOnWithdrawal + row.oasClawback)}`, tip: "kpiGrossWithdrawal" },
+    { label: "Estimated tax + effective rate", value: formatCurrency(row.tax + row.oasClawback), sub: formatPct(row.effectiveTaxRate), tip: "oasClawback" },
   ];
   el.kpiGrid.innerHTML = kpis.map((card) => `
     <article class="metric-card">
@@ -818,7 +880,26 @@ function renderDashboardNarrative(model) {
       <p>You withdraw <strong>${formatCurrency(current.withdrawal)}</strong> gross; tax drag is <strong>${formatCurrency(current.taxOnWithdrawal)}</strong>.</p>
     </article>
   `;
+  bindInlineTooltipTriggers(el.walkthroughStrip);
   renderYearCards(model);
+}
+
+function bindInlineTooltipTriggers(container) {
+  if (!(container instanceof HTMLElement)) return;
+  const buttons = container.querySelectorAll("[data-tooltip-key]");
+  buttons.forEach((button) => {
+    if (!(button instanceof HTMLElement)) return;
+    if (button.dataset.tipBound === "1") return;
+    button.dataset.tipBound = "1";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const key = button.getAttribute("data-tooltip-key") || "";
+      if (!key) return;
+      if (ui.tooltipKey === key) closeTooltip();
+      else openTooltip(key, button);
+    });
+  });
 }
 
 function renderYearCards(model) {
@@ -835,7 +916,7 @@ function renderYearCards(model) {
     const parts = [
       { label: "Guaranteed income", value: row.guaranteedNet, color: "#16a34a" },
       { label: "Net withdrawal", value: row.netFromWithdrawal, color: "#0f6abf" },
-      { label: "Tax wedge", value: row.taxOnWithdrawal, color: "#d9485f" },
+      { label: "Tax wedge", value: row.taxOnWithdrawal + row.oasClawback, color: "#d9485f" },
     ];
     const total = Math.max(1, parts.reduce((sum, p) => sum + p.value, 0));
     return `
@@ -850,6 +931,8 @@ function renderYearCards(model) {
           <div><strong>Net gap funded by savings</strong><span>${formatCurrency(row.netGap)}</span></div>
           <div><strong>Gross withdrawal required</strong><span>${formatCurrency(row.withdrawal)}</span></div>
           <div><strong>Tax on withdrawal</strong><span>${formatCurrency(row.taxOnWithdrawal)}</span></div>
+          <div><strong>OAS clawback</strong><span>${formatCurrency(row.oasClawback)}</span></div>
+          <div><strong>RRIF minimum (if applicable)</strong><span>${formatCurrency(row.rrifMinimum)}</span></div>
           <div><strong>Effective tax rate</strong><span>${formatPct(row.effectiveTaxRate)}</span></div>
         </div>
       </article>
@@ -873,7 +956,7 @@ function renderCoverageLegend() {
     ["Guaranteed income: CPP", "#16a34a"],
     ["Guaranteed income: OAS", "#0ea5a8"],
     ["From savings: RRSP/RRIF withdrawal (net)", "#0f6abf"],
-    ["Tax on withdrawal (drag)", "#d9485f"],
+    ["Tax on withdrawal + clawback (drag)", "#d9485f"],
     ["After-tax spending target", "#111827"],
   ];
 
@@ -895,7 +978,7 @@ function handleCoverageChartPointer(event) {
   const cpp = amountForDisplay(row, row.cppNet + row.spouseCppNet);
   const oas = amountForDisplay(row, row.oasNet + row.spouseOasNet);
   const netW = amountForDisplay(row, row.netFromWithdrawal);
-  const taxW = amountForDisplay(row, row.taxOnWithdrawal);
+  const taxW = amountForDisplay(row, row.taxOnWithdrawal + row.oasClawback);
   const spend = amountForDisplay(row, row.spending);
   el.coverageHover.innerHTML = `
     <strong>Age ${row.age}</strong><br>
@@ -903,7 +986,7 @@ function handleCoverageChartPointer(event) {
     CPP: ${formatCurrency(cpp)}<br>
     OAS: ${formatCurrency(oas)}<br>
     Net withdrawal: ${formatCurrency(netW)}<br>
-    Tax wedge: ${formatCurrency(taxW)}<br>
+    Tax wedge (tax + clawback): ${formatCurrency(taxW)}<br>
     Spending target: ${formatCurrency(spend)}
   `;
   el.coverageHover.hidden = false;
@@ -936,7 +1019,7 @@ function drawCoverageChart(model, selectedAge) {
   const values = [];
   rows.forEach((r) => {
     values.push(
-      amountForDisplay(r, r.guaranteedNet + r.netFromWithdrawal + r.taxOnWithdrawal),
+      amountForDisplay(r, r.guaranteedNet + r.netFromWithdrawal + r.taxOnWithdrawal + r.oasClawback),
       amountForDisplay(r, r.spending)
     );
   });
@@ -962,7 +1045,7 @@ function drawCoverageChart(model, selectedAge) {
     const cpp = amountForDisplay(row, row.cppNet + row.spouseCppNet);
     const oas = amountForDisplay(row, row.oasNet + row.spouseOasNet);
     const netW = amountForDisplay(row, row.netFromWithdrawal);
-    const taxW = amountForDisplay(row, row.taxOnWithdrawal);
+    const taxW = amountForDisplay(row, row.taxOnWithdrawal + row.oasClawback);
 
     let stack = 0;
     const segments = [
@@ -1037,15 +1120,33 @@ function findFirstRetirementRow(rows, retirementAge) {
   return rows.find((row) => row.age >= retirementAge) || rows[0] || null;
 }
 
+function renderPlanInputs() {
+  if (!el.planInputsPanel) return;
+  el.planInputsPanel.innerHTML = `
+    <p class="what-affects"><strong>What this affects:</strong> These are your core plan assumptions used by all projections.</p>
+    <div class="form-grid compact-mobile-two">
+      ${selectField("Province", "profile.province", Object.entries(PROVINCES).map(([code, name]) => ({ value: code, label: name })), state.profile.province, "province", true)}
+      ${numberField("Year of birth", "profile.birthYear", state.profile.birthYear, { min: 1940, max: APP.currentYear - 18, step: 1 }, "birthYear", false, false, true)}
+      ${numberField("Retirement age", "profile.retirementAge", state.profile.retirementAge, { min: 50, max: 75, step: 1 }, "retirementAge", false, false, true)}
+      ${numberField("Life expectancy", "profile.lifeExpectancy", state.profile.lifeExpectancy, { min: 75, max: 105, step: 1 }, "lifeExpectancy", false, false, true)}
+      ${numberField("After-tax spending target", "profile.desiredSpending", state.profile.desiredSpending, { min: 12000, max: 350000, step: 500 }, "desiredSpending")}
+      ${numberField("Inflation", "assumptions.inflation", toPct(state.assumptions.inflation), { min: 0.5, max: 5, step: 0.1 }, "inflation", true, false, true)}
+      ${numberField("Current registered savings", "savings.currentTotal", state.savings.currentTotal, { min: 0, max: 5000000, step: 1000 }, "currentSavings")}
+      ${numberField("Annual contribution", "savings.annualContribution", state.savings.annualContribution, { min: 0, max: 250000, step: 500 }, "annualContribution")}
+      ${numberField("Contribution increase (%/yr)", "savings.contributionIncrease", toPct(state.savings.contributionIncrease), { min: 0, max: 15, step: 0.1 }, "contributionIncrease", true, false, true)}
+    </div>
+  `;
+}
+
 
 function renderWizard() {
-  const step = clamp(state.uiState.wizardStep || 1, 1, 5);
+  const step = clamp(state.uiState.wizardStep || 1, 1, 7);
   state.uiState.wizardStep = step;
-  const progress = (step / 5) * 100;
+  const progress = (step / 7) * 100;
   el.wizardProgressBar.style.width = `${progress}%`;
-  el.wizardStepLabel.textContent = `Step ${step} of 5`;
+  el.wizardStepLabel.textContent = `Step ${step} of 7`;
   el.wizardBackBtn.disabled = step === 1;
-  el.wizardNextBtn.textContent = step === 5 ? "Finish" : "Next";
+  el.wizardNextBtn.textContent = step === 7 ? "Finish" : "Next";
 
   const model = ui.lastModel;
   const stepHtml = {
@@ -1053,7 +1154,9 @@ function renderWizard() {
     2: wizardStepGoal(model),
     3: wizardStepSavings(model),
     4: wizardStepIncome(model),
-    5: wizardStepRefine(model),
+    5: wizardStepReality(model),
+    6: wizardStepTaxIntro(model),
+    7: wizardStepRefine(model),
   }[step];
 
   el.wizardBody.innerHTML = stepHtml;
@@ -1229,6 +1332,68 @@ function wizardStepRefine() {
   `;
 }
 
+function wizardStepReality(model) {
+  const first = findFirstRetirementRow(model.base.rows, state.profile.retirementAge);
+  if (!first) return "<p class='muted'>Projection unavailable.</p>";
+  const coverage = first.spending > 0 ? (first.guaranteedNet / first.spending) * 100 : 0;
+  return `
+    <h3>Reality checks</h3>
+    <div class="lesson-box">
+      <h3>Why this matters</h3>
+      <ul>
+        <li>Guaranteed income usually covers only part of retirement spending.</li>
+        <li>The remaining after-tax gap must come from registered savings.</li>
+        <li>If the gap is large, tax drag and depletion risk rise.</li>
+      </ul>
+    </div>
+    <div class="preview-box">
+      <h3>Mini preview</h3>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Guaranteed income coverage</strong><span>${coverage.toFixed(0)}%</span></div>
+        <div class="preview-kpi-item"><strong>Net gap from savings</strong><span>${formatCurrency(first.netGap)}</span></div>
+        <div class="preview-kpi-item"><strong>Gross withdrawal</strong><span>${formatCurrency(first.withdrawal)}</span></div>
+        <div class="preview-kpi-item"><strong>Estimated tax drag</strong><span>${formatCurrency(first.taxOnWithdrawal + first.oasClawback)}</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function wizardStepTaxIntro(model) {
+  const first = findFirstRetirementRow(model.base.rows, state.profile.retirementAge);
+  if (!first) return "<p class='muted'>Projection unavailable.</p>";
+  return `
+    <h3>Taxes & withdrawals (intro)</h3>
+    <div class="wizard-grid compact-mobile-two">
+      <label class="inline-check form-span-full">
+        <input type="checkbox" data-bind="strategy.oasClawbackModeling" ${state.strategy.oasClawbackModeling ? "checked" : ""} />
+        Model OAS clawback ${tooltipButton("oasClawback")}
+      </label>
+      ${numberField("RRIF conversion age", "strategy.rrifConversionAge", state.strategy.rrifConversionAge, { min: 65, max: 75, step: 1 }, "rrifConversionAge", false, false, true)}
+      <label class="inline-check compact-field">
+        <input type="checkbox" data-bind="strategy.applyRrifMinimums" ${state.strategy.applyRrifMinimums ? "checked" : ""} />
+        Apply RRIF minimums ${tooltipButton("rrifMinimums")}
+      </label>
+    </div>
+    <section class="lesson-box">
+      <h3>Micro-lesson</h3>
+      <ul>
+        <li>Your spending target is after-tax, but RRSP/RRIF withdrawals are taxable.</li>
+        <li>Gross withdrawal must be higher than the net amount you need to spend.</li>
+        <li>OAS clawback and RRIF minimums can force higher taxable income.</li>
+      </ul>
+    </section>
+    <section class="preview-box">
+      <h3>First retirement-year gross-up</h3>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Net gap</strong><span>${formatCurrency(first.netGap)}</span></div>
+        <div class="preview-kpi-item"><strong>Gross withdrawal</strong><span>${formatCurrency(first.withdrawal)}</span></div>
+        <div class="preview-kpi-item"><strong>Tax wedge</strong><span>${formatCurrency(first.taxOnWithdrawal + first.oasClawback)}</span></div>
+        <div class="preview-kpi-item"><strong>Effective tax rate</strong><span>${formatPct(first.effectiveTaxRate)}</span></div>
+      </div>
+    </section>
+  `;
+}
+
 function renderAdvanced() {
   const model = ui.lastModel;
   const locked = !state.uiState.unlocked.advanced;
@@ -1307,6 +1472,24 @@ function renderAdvanced() {
       </div>
     `)}
 
+    ${accordionSection("rrif", "RRIF rules", "Applies RRSP to RRIF conversion age and minimum withdrawal schedule effects.", `
+      <div class="form-grid compact-mobile-two">
+        ${numberField("RRIF conversion age", "strategy.rrifConversionAge", state.strategy.rrifConversionAge, { min: 65, max: 75, step: 1 }, "rrifConversionAge", false, false, true)}
+        <label class="inline-check compact-field">
+          <input type="checkbox" data-bind="strategy.applyRrifMinimums" ${state.strategy.applyRrifMinimums ? "checked" : ""} />
+          Apply RRIF minimum schedule ${tooltipButton("rrifMinimums")}
+        </label>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>Age</th><th>Minimum %</th></tr></thead>
+          <tbody>
+            ${Object.entries(RRIF_MIN_WITHDRAWAL).map(([age, pct]) => `<tr><td>${age}</td><td>${(pct * 100).toFixed(2)}%</td></tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    `)}
+
     ${accordionSection("capitalInjects", "Capital injects", "Adds one-time lump-sum proceeds (for example home downsizing) at chosen ages.", `
       <div class="subsection">
         <p class="muted small-copy">Each enabled row is a one-time injection added to plan assets at the selected age.</p>
@@ -1363,7 +1546,7 @@ function renderAdvanced() {
         <li>CPP timing tradeoffs: modeled in projection and strategy engine.</li>
         <li>OAS timing: modeled in projection and strategy engine.</li>
         <li>OAS clawback: modeled when toggle is enabled.</li>
-        <li>RRSP to RRIF conversion and minimum withdrawals: educational only in this version.</li>
+        <li>RRSP to RRIF conversion and minimum withdrawals: modeled with configurable conversion age and schedule toggle.</li>
         <li>Pension income splitting: educational only in this version.</li>
         <li>TFSA vs RRSP vs non-registered tax differences: modeled with planning heuristics.</li>
         <li>Private pension bridge to 65: educational only in this version.</li>
@@ -1561,6 +1744,8 @@ function runSimpleProjection(plan, options) {
     let netFromWithdrawal = 0;
     let taxOnWithdrawal = 0;
     let netGap = 0;
+    let oasClawback = 0;
+    let rrifMinimum = 0;
     let gap = 0;
 
     if (retired) {
@@ -1577,11 +1762,13 @@ function runSimpleProjection(plan, options) {
       netGap = Math.max(0, targetAfterTax - guaranteedNet);
       const requiredWithdrawal = solveGrossWithdrawal(plan, guaranteedGross, netGap, yearOffset);
       const availableForWithdrawal = Math.max(0, balance + capitalInject);
-      withdrawal = Math.min(requiredWithdrawal, availableForWithdrawal);
+      rrifMinimum = getRrifMinimumRequired(plan, age, availableForWithdrawal);
+      withdrawal = Math.min(Math.max(requiredWithdrawal, rrifMinimum), availableForWithdrawal);
       taxableIncome = guaranteedGross + withdrawal;
       tax = estimateTotalTax(plan, taxableIncome, yearOffset);
       taxOnWithdrawal = Math.max(0, tax - guaranteedTax);
-      netFromWithdrawal = Math.max(0, withdrawal - taxOnWithdrawal);
+      oasClawback = plan.strategy.oasClawbackModeling ? estimateOasClawback(plan, taxableIncome, oas + spouseOas, yearOffset) : 0;
+      netFromWithdrawal = Math.max(0, withdrawal - taxOnWithdrawal - oasClawback);
       const netIncome = guaranteedNet + netFromWithdrawal;
       gap = netIncome - targetAfterTax;
     } else {
@@ -1635,6 +1822,8 @@ function runSimpleProjection(plan, options) {
       netGap,
       netFromWithdrawal,
       taxOnWithdrawal,
+      oasClawback,
+      rrifMinimum,
       gap,
     });
   }
@@ -1651,6 +1840,8 @@ function runSimpleProjection(plan, options) {
     firstYearNetGap: firstRet ? firstRet.netGap : 0,
     firstYearGrossWithdrawal: firstRet ? firstRet.withdrawal : 0,
     firstYearTaxWedge: firstRet ? firstRet.taxOnWithdrawal : 0,
+    firstYearOasClawback: firstRet ? firstRet.oasClawback : 0,
+    firstYearRrifMinimum: firstRet ? firstRet.rrifMinimum : 0,
     firstRetirementBreakdown: {
       pension: firstRet ? firstRet.pension : 0,
       cpp: firstRet ? firstRet.cpp : 0,
@@ -1944,6 +2135,13 @@ function solveGrossWithdrawal(plan, otherTaxableIncome, targetNetFromWithdrawal,
   }
 
   return high;
+}
+
+function getRrifMinimumRequired(plan, age, registeredBalance) {
+  if (!plan.strategy.applyRrifMinimums) return 0;
+  if (age < plan.strategy.rrifConversionAge) return 0;
+  const factor = RRIF_MIN_WITHDRAWAL[age] ?? 0.2;
+  return Math.max(0, registeredBalance) * factor;
 }
 
 function computeBracketTax(income, bracket, plan, yearOffset) {
@@ -2283,7 +2481,7 @@ function migratePlan(plan) {
   if (version >= APP.version) return plan;
 
   const next = { ...plan };
-  if (!next.strategy) next.strategy = { withdrawal: "tax-smart", oasClawbackModeling: true };
+  if (!next.strategy) next.strategy = { withdrawal: "tax-smart", oasClawbackModeling: true, rrifConversionAge: 71, applyRrifMinimums: true };
   if (!next.accounts) next.accounts = { rrsp: 0, tfsa: 0, nonRegistered: 0, cash: 0 };
   if (!next.uiState) next.uiState = createDefaultPlan().uiState;
   if (!next.savings) next.savings = createDefaultPlan().savings;
@@ -2323,6 +2521,8 @@ function ensureValidState() {
   state.income.spouse.pensionAmount = Math.max(0, Number(state.income.spouse.pensionAmount));
   state.income.spouse.cppAmountAt65 = Math.max(0, Number(state.income.spouse.cppAmountAt65));
   state.income.spouse.oasAmountAt65 = Math.max(0, Number(state.income.spouse.oasAmountAt65));
+  state.strategy.rrifConversionAge = clamp(Number(state.strategy.rrifConversionAge || 71), 65, 75);
+  state.strategy.applyRrifMinimums = Boolean(state.strategy.applyRrifMinimums ?? true);
 
   if (!PROVINCES[state.profile.province]) state.profile.province = APP.defaultProvince;
 }
@@ -2389,6 +2589,8 @@ function createDefaultPlan() {
     strategy: {
       withdrawal: "tax-smart",
       oasClawbackModeling: true,
+      rrifConversionAge: 71,
+      applyRrifMinimums: true,
     },
     uiState: {
       firstRun: true,
@@ -2433,7 +2635,7 @@ function createDemoPlan() {
   plan.uiState.firstRun = false;
   plan.uiState.hasStarted = true;
   plan.uiState.activeNav = "dashboard";
-  plan.uiState.wizardStep = 5;
+  plan.uiState.wizardStep = 7;
   plan.uiState.unlocked.advanced = true;
   plan.notes = "Demo assumptions loaded. Review advanced strategy and stress tests.";
   return plan;

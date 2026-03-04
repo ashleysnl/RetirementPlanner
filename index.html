@@ -32,8 +32,8 @@
       </div>
       <div class="hero-actions no-print" aria-label="Plan actions">
         <span class="offline-badge">Local-first</span>
-        <button id="exportJsonBtn" class="btn btn-secondary" type="button">Export JSON</button>
-        <button id="importJsonBtn" class="btn btn-secondary" type="button">Import JSON</button>
+        <button id="exportJsonBtn" class="btn btn-secondary" type="button">Save plan</button>
+        <button id="importJsonBtn" class="btn btn-secondary" type="button">Load plan</button>
         <button id="loadDemoBtn" class="btn btn-secondary" type="button">Load Demo</button>
         <button id="resetBtn" class="btn btn-secondary" type="button">Reset</button>
         <button id="openGlossaryBtn" class="btn btn-secondary" type="button">Glossary</button>
@@ -47,7 +47,7 @@
         <div class="landing-actions no-print">
           <button id="startSimpleBtn" class="btn btn-primary" type="button">Start a simple plan</button>
           <button id="landingDemoBtn" class="btn btn-secondary" type="button">Load demo plan</button>
-          <button id="landingImportBtn" class="btn btn-secondary" type="button">Import plan</button>
+          <button id="landingImportBtn" class="btn btn-secondary" type="button">Load plan</button>
         </div>
         <p class="small-copy muted">No accounts. Your data stays on this device.</p>
       </section>
@@ -56,9 +56,11 @@
         <nav class="tabs no-print" aria-label="App sections">
           <button type="button" class="tab-btn active" data-nav-target="dashboard">Dashboard</button>
           <button type="button" class="tab-btn" data-nav-target="guided">Guided setup</button>
+          <button type="button" class="tab-btn" data-nav-target="inputs">Plan inputs</button>
           <button type="button" class="tab-btn" data-nav-target="advanced">Advanced inputs</button>
           <button type="button" class="tab-btn" data-nav-target="stress">Stress test</button>
           <button type="button" class="tab-btn" data-nav-target="notes">Notes</button>
+          <button type="button" class="tab-btn" data-nav-target="export">Save/Load</button>
         </nav>
 
         <section class="panel nav-panel active" data-nav-panel="dashboard" aria-labelledby="dashboardHeading">
@@ -139,7 +141,7 @@
           <div class="wizard-progress" aria-label="Wizard progress">
             <div id="wizardProgressBar" class="wizard-progress-fill"></div>
           </div>
-          <p id="wizardStepLabel" class="small-copy muted">Step 1 of 5</p>
+          <p id="wizardStepLabel" class="small-copy muted">Step 1 of 7</p>
 
           <div id="wizardBody" class="wizard-body"></div>
 
@@ -156,6 +158,14 @@
           </div>
 
           <div class="accordion-list" id="advancedAccordion"></div>
+        </section>
+
+        <section class="panel nav-panel" data-nav-panel="inputs" aria-labelledby="inputsHeading" hidden>
+          <div class="panel-header">
+            <h2 id="inputsHeading">Plan Inputs (Basics)</h2>
+            <p>Core assumptions in one place. Advanced controls remain in Advanced Inputs.</p>
+          </div>
+          <div id="planInputsPanel" class="subsection"></div>
         </section>
 
         <section class="panel nav-panel" data-nav-panel="stress" aria-labelledby="stressHeading" hidden>
@@ -182,6 +192,21 @@
           </div>
           <label for="notesInput" class="muted">Planning notes</label>
           <textarea id="notesInput" rows="12" placeholder="Write assumptions, advisor questions, and action items..."></textarea>
+        </section>
+
+        <section class="panel nav-panel" data-nav-panel="export" aria-labelledby="exportHeading" hidden>
+          <div class="panel-header">
+            <h2 id="exportHeading">Save / Load Plan</h2>
+            <p>Back up or move your plan file. Data remains local-first.</p>
+          </div>
+          <div class="subsection">
+            <div class="landing-actions">
+              <button id="exportJsonBtnSecondary" class="btn btn-primary" type="button">Save plan</button>
+              <button id="importJsonBtnSecondary" class="btn btn-secondary" type="button">Load plan</button>
+              <button id="loadDemoBtnSecondary" class="btn btn-secondary" type="button">Load demo</button>
+              <button id="resetBtnSecondary" class="btn btn-secondary" type="button">Reset</button>
+            </div>
+          </div>
         </section>
       </section>
     </main>
