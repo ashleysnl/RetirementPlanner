@@ -609,6 +609,7 @@ let ui = {
     phases: null,
   },
   planEditorKey: "",
+  isMobileLayout: false,
 };
 
 init();
@@ -622,6 +623,7 @@ function init() {
   }
   if (el.supportButton) el.supportButton.href = SUPPORT_URL;
   bindEvents();
+  updateResponsiveLayout();
   renderAll();
   registerServiceWorker();
 }
@@ -751,6 +753,8 @@ function bindEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeTooltip();
   });
+  window.addEventListener("resize", updateResponsiveLayout);
+  window.addEventListener("orientationchange", updateResponsiveLayout);
 
   el.openGlossary?.addEventListener("click", openGlossary);
   el.openGlossaryBtnTools?.addEventListener("click", openGlossary);
@@ -762,6 +766,12 @@ function bindEvents() {
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
   });
+}
+
+function updateResponsiveLayout() {
+  const mobile = window.matchMedia("(max-width: 1100px)").matches;
+  ui.isMobileLayout = mobile;
+  document.body.classList.toggle("mobile-layout", mobile);
 }
 
 function handleDocumentClick(event) {

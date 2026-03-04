@@ -227,6 +227,14 @@ summary:focus-visible,
   display: inline-flex;
 }
 
+body.mobile-layout #appPanel .tabs {
+  display: none !important;
+}
+
+body.mobile-layout .bottom-tabs {
+  display: grid;
+}
+
 .tab-btn {
   border: 1px solid #dce8f6;
   background: #fff;
