@@ -13,14 +13,12 @@ Static, local-first retirement planning app built with the existing template the
   - Explain-it strip
   - Key age cards (retirement year, age 65, age 71/RRIF year)
 - Top-level IA sections:
+  - Start (Guided setup)
   - Dashboard
-  - Learn
-  - Guided setup
-  - Plan inputs
-  - Advanced inputs
-  - Stress test
-  - Notes
-  - Save/Load
+  - Plan Inputs (summary row editors)
+  - Learn the Basics
+  - Tools (stress test, notes, save/load, glossary)
+  - Advanced Settings (desktop nav, hidden controls by default)
 - New **Learn** educational page with sticky table of contents and 7 mini calculators:
   - Inflation spending growth
   - Indexed vs non-indexed income
@@ -46,6 +44,8 @@ Static, local-first retirement planning app built with the existing template the
 
 - `index.html` - Main layout, navigation, wizard, dashboard sections, modals
 - Hash navigation supports direct section tabs (example: `#learn`)
+- Mobile-first bottom tab navigation: Start / Dashboard / Plan / Learn / Tools
+- Floating support button wired from `SUPPORT_URL` constant
 - `styles.css` - Template-based tokens/utilities and component styling
 - `app.js` - State, rendering, model calculations, tooltip system, storage and import/export
 - `sw.js` - App shell caching for offline usage

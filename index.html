@@ -25,7 +25,7 @@
   <div class="page-shell">
     <header class="hero" aria-label="Planner header">
       <div class="hero-content">
-        <p class="eyebrow">Canadian Retirement Planner • Local-first • Educational</p>
+        <p class="eyebrow">Canadian Retirement Planner • Local-first • Educational • Updated for 2026</p>
         <h1 id="appTitle">Canadian Retirement Planner</h1>
         <p class="hero-subtitle">Start simple in under 60 seconds, then refine taxes, accounts, and withdrawal strategy.</p>
         <p class="hero-proof">No accounts. No cloud sync. Your plan stays on this device.</p>
@@ -56,14 +56,12 @@
 
       <section id="appPanel" class="app-panel" hidden>
         <nav class="tabs no-print" aria-label="App sections">
+          <button type="button" class="tab-btn" data-nav-target="start">Start</button>
           <button type="button" class="tab-btn active" data-nav-target="dashboard">Dashboard</button>
-          <button type="button" class="tab-btn" data-nav-target="learn">Learn</button>
-          <button type="button" class="tab-btn" data-nav-target="guided">Guided setup</button>
-          <button type="button" class="tab-btn" data-nav-target="inputs">Plan inputs</button>
-          <button type="button" class="tab-btn" data-nav-target="advanced">Advanced inputs</button>
-          <button type="button" class="tab-btn" data-nav-target="stress">Stress test</button>
-          <button type="button" class="tab-btn" data-nav-target="notes">Notes</button>
-          <button type="button" class="tab-btn" data-nav-target="export">Save/Load</button>
+          <button type="button" class="tab-btn" data-nav-target="plan">Plan Inputs</button>
+          <button type="button" class="tab-btn" data-nav-target="learn">Learn the Basics</button>
+          <button type="button" class="tab-btn" data-nav-target="tools">Tools</button>
+          <button type="button" class="tab-btn desktop-only-tab" data-nav-target="advanced">Advanced Settings</button>
         </nav>
 
         <section class="panel nav-panel active" data-nav-panel="dashboard" aria-labelledby="dashboardHeading">
@@ -71,6 +69,7 @@
             <h2 id="dashboardHeading">Simple Dashboard</h2>
             <p>Quick snapshot with clear next actions.</p>
             <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">New to retirement planning? Learn the basics first →</button></p>
+            <div id="dashboardStatus" class="status-pill"></div>
           </div>
 
           <div class="subsection">
@@ -137,9 +136,9 @@
           </details>
         </section>
 
-        <section class="panel nav-panel" data-nav-panel="guided" aria-labelledby="guidedHeading" hidden>
+        <section class="panel nav-panel" data-nav-panel="start" aria-labelledby="guidedHeading" hidden>
           <div class="panel-header">
-            <h2 id="guidedHeading">Guided Setup</h2>
+            <h2 id="guidedHeading">Start (Guided Setup)</h2>
             <p>Complete the essentials first, then unlock advanced controls.</p>
             <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">Need a concept refresher? Learn the basics first →</button></p>
           </div>
@@ -159,14 +158,14 @@
 
         <section class="panel nav-panel" data-nav-panel="advanced" aria-labelledby="advancedHeading" hidden>
           <div class="panel-header">
-            <h2 id="advancedHeading">Advanced Inputs</h2>
+            <h2 id="advancedHeading">Advanced Settings</h2>
             <p>Tax-aware modeling and strategy comparison.</p>
           </div>
 
           <div class="accordion-list" id="advancedAccordion"></div>
         </section>
 
-        <section class="panel nav-panel" data-nav-panel="inputs" aria-labelledby="inputsHeading" hidden>
+        <section class="panel nav-panel" data-nav-panel="plan" aria-labelledby="inputsHeading" hidden>
           <div class="panel-header">
             <h2 id="inputsHeading">Plan Inputs (Basics)</h2>
             <p>Core assumptions in one place. Advanced controls remain in Advanced Inputs.</p>
@@ -183,42 +182,51 @@
           <div id="learnPanel"></div>
         </section>
 
-        <section class="panel nav-panel" data-nav-panel="stress" aria-labelledby="stressHeading" hidden>
+        <section class="panel nav-panel" data-nav-panel="tools" aria-labelledby="toolsHeading" hidden>
           <div class="panel-header">
-            <h2 id="stressHeading">Stress Test Matrix</h2>
-            <p>Simple stress check: best case, base case, and downside case.</p>
+            <h2 id="toolsHeading">Tools</h2>
+            <p>Stress test, notes, save/load, and glossary in one place.</p>
           </div>
-          <div id="scenarioSummary" class="subsection"></div>
-          <div class="table-scroll">
-            <table class="data-table" id="stressTable" aria-label="Stress test results table"></table>
-          </div>
-        </section>
 
-        <section class="panel nav-panel" data-nav-panel="notes" aria-labelledby="notesHeading" hidden>
-          <div class="panel-header">
-            <h2 id="notesHeading">Notes</h2>
-            <p>Saved locally with your plan.</p>
-          </div>
-          <label for="notesInput" class="muted">Planning notes</label>
-          <textarea id="notesInput" rows="12" placeholder="Write assumptions, advisor questions, and action items..."></textarea>
-        </section>
-
-        <section class="panel nav-panel" data-nav-panel="export" aria-labelledby="exportHeading" hidden>
-          <div class="panel-header">
-            <h2 id="exportHeading">Save / Load Plan</h2>
-            <p>Back up or move your plan file. Data remains local-first.</p>
-          </div>
           <div class="subsection">
+            <h3>Stress Test</h3>
+            <div id="scenarioSummary" class="subsection"></div>
+            <div class="table-scroll">
+              <table class="data-table" id="stressTable" aria-label="Stress test results table"></table>
+            </div>
+          </div>
+
+          <div class="subsection">
+            <h3>Notes</h3>
+            <label for="notesInput" class="muted">Planning notes</label>
+            <textarea id="notesInput" rows="10" placeholder="Write assumptions, advisor questions, and action items..."></textarea>
+          </div>
+
+          <div class="subsection">
+            <h3>Save / Load Plan</h3>
             <div class="landing-actions">
               <button id="exportJsonBtnSecondary" class="btn btn-primary" type="button">Save plan</button>
               <button id="importJsonBtnSecondary" class="btn btn-secondary" type="button">Load plan</button>
               <button id="loadDemoBtnSecondary" class="btn btn-secondary" type="button">Load demo</button>
               <button id="resetBtnSecondary" class="btn btn-secondary" type="button">Reset</button>
+              <button id="openGlossaryBtnTools" class="btn btn-secondary" type="button">Glossary</button>
             </div>
           </div>
         </section>
       </section>
     </main>
+
+    <nav id="bottomTabs" class="bottom-tabs no-print" aria-label="Mobile app sections">
+      <button type="button" class="tab-btn" data-nav-target="start">Start</button>
+      <button type="button" class="tab-btn active" data-nav-target="dashboard">Dashboard</button>
+      <button type="button" class="tab-btn" data-nav-target="plan">Plan</button>
+      <button type="button" class="tab-btn" data-nav-target="learn">Learn</button>
+      <button type="button" class="tab-btn" data-nav-target="tools">Tools</button>
+    </nav>
+
+    <a id="supportButton" class="support-fab no-print" href="#" target="_blank" rel="noopener noreferrer" aria-label="Support development">
+      ☕ Support
+    </a>
 
     <footer class="app-footer no-print" aria-label="Footer">
       <strong>Planning-level estimate only.</strong>
@@ -247,6 +255,16 @@
         <button id="closeGlossaryBtn" class="icon-btn" type="button" aria-label="Close glossary">Close</button>
       </div>
       <div id="glossaryContent" class="modal-content"></div>
+    </div>
+  </dialog>
+
+  <dialog id="planEditorModal" class="modal editor-modal" aria-labelledby="planEditorTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="planEditorTitle">Edit Assumption</h2>
+        <button id="closePlanEditorBtn" class="icon-btn" type="button" aria-label="Close editor">Close</button>
+      </div>
+      <div id="planEditorContent" class="modal-content"></div>
     </div>
   </dialog>
 
