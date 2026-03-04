@@ -1151,8 +1151,11 @@ textarea {
     margin-top: 12px;
   }
 
-  .tabs {
-    display: none;
+  .tabs,
+  #appPanel .tabs {
+    display: none !important;
+    position: static;
+    top: auto;
   }
 
   .desktop-only-tab {
