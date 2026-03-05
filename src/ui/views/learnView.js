@@ -29,6 +29,8 @@ export function buildLearnHtml(ctx) {
           <a href="#learn-life">8. Life Expectancy and Planning Horizon</a>
           <a href="#learn-phases">9. Go-Go / Slow-Go / No-Go Retirement Years</a>
           <a href="#learn-together">10. Bringing It All Together</a>
+          <a href="#learn-grossnet">11. Gross vs Net Withdrawals (Tax Wedge)</a>
+          <a href="#learn-meltdown">12. RRSP Meltdown Strategy</a>
         </nav>
       </aside>
       <div class="learn-content">
@@ -197,6 +199,28 @@ export function buildLearnHtml(ctx) {
           <div class="landing-actions">
             <button class="btn btn-primary" type="button" data-action="launch-planner">Go to Guided setup</button>
           </div>
+        </section>
+
+        <section class="learn-section" id="learn-grossnet">
+          <h3>11) Gross vs Net Withdrawals (Tax Wedge)</h3>
+          <p class="muted">If you need a net spending amount, you often need a larger gross RRSP/RRIF withdrawal because some goes to tax.</p>
+          <ul class="plain-list">
+            <li><strong>Net spending need:</strong> what you keep to live on.</li>
+            <li><strong>Gross withdrawal:</strong> total amount taken from RRSP/RRIF.</li>
+            <li><strong>Tax wedge:</strong> the part of gross sent to tax.</li>
+          </ul>
+          <p class="small-copy muted">This is why the planner shows both net gap and gross withdrawal.</p>
+        </section>
+
+        <section class="learn-section" id="learn-meltdown">
+          <h3>12) RRSP Meltdown: Why earlier withdrawals can help</h3>
+          <p class="muted">A planned early withdrawal strategy can reduce large forced RRIF withdrawals later, potentially lowering peak tax and clawback pressure.</p>
+          <ul class="plain-list">
+            <li>Withdraw moderately in lower-tax years.</li>
+            <li>Reduce RRSP size before RRIF minimums rise.</li>
+            <li>Potentially reduce OAS clawback in high-income years.</li>
+          </ul>
+          <p class="small-copy muted">This is a planning illustration, not advice.</p>
         </section>
       </div>
     </div>

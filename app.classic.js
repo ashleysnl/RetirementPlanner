@@ -3,7 +3,7 @@
 /* FILE: src/model/constants.js */
 const APP = {
   storageKey: "retirementPlanner.plan.v2",
-  version: 2,
+  version: 3,
   currentYear: new Date().getFullYear(),
   defaultProvince: "NL",
 };
@@ -186,6 +186,12 @@ function buildPlanModel(plan) {
     inflationRate: plan.assumptions.inflation,
     currentAge,
   });
+  const baseNoMeltdown = runSimpleProjection(plan, {
+    returnRate: baseReturn,
+    inflationRate: plan.assumptions.inflation,
+    currentAge,
+    disableMeltdown: true,
+  });
 
   const spread = plan.assumptions.scenarioSpread;
   const scenarioDefs = [
@@ -259,6 +265,7 @@ function buildPlanModel(plan) {
 
   return {
     base,
+    baseNoMeltdown,
     best,
     worst,
     scenarioRows,
@@ -289,10 +296,12 @@ function runSimpleProjection(plan, options) {
   const returnRate = options.returnRate;
   const inflationRate = options.inflationRate;
   const contributionIncrease = plan.savings.contributionIncrease;
+  const disableMeltdown = Boolean(options.disableMeltdown);
 
   let balance = plan.savings.currentTotal;
   let depletionAge = null;
   let balanceAtRetirement = plan.savings.currentTotal;
+  let totalRetirementTax = 0;
 
   const rows = [];
 
@@ -338,6 +347,7 @@ function runSimpleProjection(plan, options) {
     let netGap = 0;
     let oasClawback = 0;
     let rrifMinimum = 0;
+    let plannedMeltdownWithdrawal = 0;
     let gap = 0;
 
     if (retired) {
@@ -355,7 +365,9 @@ function runSimpleProjection(plan, options) {
       const requiredWithdrawal = solveGrossWithdrawal(plan, guaranteedGross, netGap, yearOffset);
       const availableForWithdrawal = Math.max(0, balance + capitalInject);
       rrifMinimum = getRrifMinimumRequired(plan, age, availableForWithdrawal);
-      withdrawal = Math.min(Math.max(requiredWithdrawal, rrifMinimum), availableForWithdrawal);
+      plannedMeltdownWithdrawal = disableMeltdown ? 0 : getPlannedMeltdownWithdrawal(plan, age, guaranteedGross, availableForWithdrawal);
+      const baseNeed = Math.max(requiredWithdrawal, rrifMinimum);
+      withdrawal = Math.min(baseNeed + plannedMeltdownWithdrawal, availableForWithdrawal);
       taxableIncome = guaranteedGross + withdrawal;
       tax = estimateTotalTax(plan, taxableIncome, yearOffset);
       taxOnWithdrawal = Math.max(0, tax - guaranteedTax);
@@ -363,6 +375,7 @@ function runSimpleProjection(plan, options) {
       netFromWithdrawal = Math.max(0, withdrawal - taxOnWithdrawal - oasClawback);
       const netIncome = guaranteedNet + netFromWithdrawal;
       gap = netIncome - targetAfterTax;
+      totalRetirementTax += tax + oasClawback;
     } else {
       tax = estimateTotalTax(plan, guaranteedGross, Math.max(0, year - startYear));
       guaranteedTax = tax;
@@ -416,6 +429,7 @@ function runSimpleProjection(plan, options) {
       taxOnWithdrawal,
       oasClawback,
       rrifMinimum,
+      plannedMeltdownWithdrawal,
       gap,
     });
   }
@@ -434,6 +448,7 @@ function runSimpleProjection(plan, options) {
     firstYearTaxWedge: firstRet ? firstRet.taxOnWithdrawal : 0,
     firstYearOasClawback: firstRet ? firstRet.oasClawback : 0,
     firstYearRrifMinimum: firstRet ? firstRet.rrifMinimum : 0,
+    totalRetirementTax,
     firstRetirementBreakdown: {
       pension: firstRet ? firstRet.pension : 0,
       cpp: firstRet ? firstRet.cpp : 0,
@@ -444,6 +459,19 @@ function runSimpleProjection(plan, options) {
   };
 
   return { rows, kpis, returnRate };
+}
+
+function getPlannedMeltdownWithdrawal(plan, age, guaranteedGross, availableForWithdrawal) {
+  if (!plan.strategy?.meltdownEnabled) return 0;
+  const start = Number(plan.strategy.meltdownStartAge || plan.profile.retirementAge || 60);
+  const end = Number(plan.strategy.meltdownEndAge || 65);
+  if (age < start || age > end) return 0;
+  let amount = Math.max(0, Number(plan.strategy.meltdownAmount || 0));
+  const ceiling = Math.max(0, Number(plan.strategy.meltdownIncomeCeiling || 0));
+  if (ceiling > 0) {
+    amount = Math.max(0, Math.min(amount, ceiling - guaranteedGross));
+  }
+  return Math.min(amount, Math.max(0, availableForWithdrawal));
 }
 
 function runStrategyProjection(plan, strategyKey, currentAge) {
@@ -667,6 +695,159 @@ function currentAgeForPlan(plan) {
   return APP.currentYear - Number(plan.profile?.birthYear || APP.currentYear);
 }
 
+/* FILE: src/model/score.js */
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function computeCoverageScore(plan, model) {
+  const rows = model?.base?.rows || [];
+  const retireAge = Number(plan.profile.retirementAge || 65);
+  const lifeExpectancy = Number(plan.profile.lifeExpectancy || 90);
+  const firstRet = rows.find((r) => r.age === retireAge) || rows[0];
+  const retirementRows = rows.filter((r) => r.age >= retireAge);
+
+  const coverageRatio = firstRet?.spending > 0 ? firstRet.guaranteedNet / firstRet.spending : 1;
+  const coveragePoints = clamp(coverageRatio, 0, 1) * 40;
+
+  const depletionAge = model?.kpis?.depletionAge;
+  const longevityRatio = depletionAge
+    ? (depletionAge - retireAge) / Math.max(1, lifeExpectancy - retireAge)
+    : 1;
+  const longevityPoints = clamp(longevityRatio, 0, 1) * 30;
+
+  const avgEffectiveTaxRate = retirementRows.length
+    ? retirementRows.reduce((sum, r) => sum + (r.effectiveTaxRate || 0), 0) / retirementRows.length
+    : 0;
+  const taxEfficiencyPoints = clamp(1 - (avgEffectiveTaxRate / 0.45), 0, 1) * 20;
+
+  const oasTotal = retirementRows.reduce((sum, r) => sum + (r.oas || 0) + (r.spouseOas || 0), 0);
+  const clawbackTotal = retirementRows.reduce((sum, r) => sum + (r.oasClawback || 0), 0);
+  const clawbackRatio = oasTotal > 0 ? clawbackTotal / oasTotal : 0;
+  const clawbackPoints = plan.strategy.oasClawbackModeling
+    ? clamp(1 - (clawbackRatio / 0.5), 0, 1) * 10
+    : 10;
+
+  const total = Math.round(coveragePoints + longevityPoints + taxEfficiencyPoints + clawbackPoints);
+
+  let band = "On track";
+  if (total < 60) band = "Significant gap";
+  else if (total < 80) band = "Moderate gap";
+
+  return {
+    total,
+    band,
+    subs: {
+      coverage: Math.round(coveragePoints),
+      longevity: Math.round(longevityPoints),
+      taxEfficiency: Math.round(taxEfficiencyPoints),
+      clawback: Math.round(clawbackPoints),
+    },
+    metrics: {
+      coverageRatio,
+      depletionAge: depletionAge || null,
+      avgEffectiveTaxRate,
+      clawbackRatio,
+    },
+  };
+}
+
+
+/* FILE: src/model/timingSim.js */
+function rowAt(rows, age) {
+  return rows.find((r) => r.age === age) || rows[0] || null;
+}
+
+function cumulativeBenefit(rows, keyA, keyB = null) {
+  return rows.reduce((sum, row) => {
+    const a = Number(row[keyA] || 0);
+    const b = keyB ? Number(row[keyB] || 0) : 0;
+    return sum + a + b;
+  }, 0);
+}
+
+function buildTimingPreview({ plan, sim, buildModel }) {
+  const baseModel = buildModel(plan);
+  const previewPlan = (typeof structuredClone === "function")
+    ? structuredClone(plan)
+    : JSON.parse(JSON.stringify(plan));
+
+  previewPlan.income.cpp.startAge = Number(sim.cppStartAge);
+  previewPlan.income.oas.startAge = Number(sim.oasStartAge);
+  if (sim.linkTiming) {
+    const delta = Number(sim.cppStartAge) - 60;
+    previewPlan.income.oas.startAge = Math.min(70, Math.max(65, 65 + delta));
+  }
+
+  const previewModel = buildModel(previewPlan);
+  const retireAge = Number(plan.profile.retirementAge || 65);
+  const baseRow = rowAt(baseModel.base.rows, retireAge);
+  const previewRow = rowAt(previewModel.base.rows, retireAge);
+
+  const baseRows = baseModel.base.rows.filter((r) => r.age >= retireAge);
+  const previewRows = previewModel.base.rows.filter((r) => r.age >= retireAge);
+
+  const baseLifetimeBenefits = cumulativeBenefit(baseRows, "cpp", "oas");
+  const previewLifetimeBenefits = cumulativeBenefit(previewRows, "cpp", "oas");
+
+  return {
+    plan: previewPlan,
+    model: previewModel,
+    deltas: {
+      lifetimeBenefits: previewLifetimeBenefits - baseLifetimeBenefits,
+      effectiveTaxAtRetire: (previewRow?.effectiveTaxRate || 0) - (baseRow?.effectiveTaxRate || 0),
+      clawbackAtRetire: (previewRow?.oasClawback || 0) - (baseRow?.oasClawback || 0),
+      grossWithdrawalAtRetire: (previewRow?.withdrawal || 0) - (baseRow?.withdrawal || 0),
+    },
+    baseRow,
+    previewRow,
+  };
+}
+
+
+/* FILE: src/model/meltdown.js */
+function rowAt(rows, age) {
+  return rows.find((r) => r.age === age) || null;
+}
+
+function buildMeltdownComparison(model, plan) {
+  const withRows = model?.base?.rows || [];
+  const baseRows = model?.baseNoMeltdown?.rows || withRows;
+  const startAge = Number(plan.profile.retirementAge || 65);
+  const age71With = rowAt(withRows, 71);
+  const age71Base = rowAt(baseRows, 71);
+
+  const withRetirementRows = withRows.filter((r) => r.age >= startAge);
+  const baseRetirementRows = baseRows.filter((r) => r.age >= startAge);
+
+  const sum = (rows, key) => rows.reduce((acc, r) => acc + Number(r[key] || 0), 0);
+  const maxRate = (rows) => rows.reduce((m, r) => Math.max(m, Number(r.effectiveTaxRate || 0)), 0);
+
+  const baseClawback = sum(baseRetirementRows, "oasClawback");
+  const withClawback = sum(withRetirementRows, "oasClawback");
+  const baseTax = sum(baseRetirementRows, "tax");
+  const withTax = sum(withRetirementRows, "tax");
+
+  return {
+    enabled: Boolean(plan.strategy.meltdownEnabled),
+    before: {
+      peakEffectiveTax: maxRate(baseRetirementRows),
+      totalClawback: baseClawback,
+      totalTax: baseTax,
+      rrifShockAt71: age71Base ? age71Base.rrifMinimum : 0,
+      depletionAge: model?.baseNoMeltdown?.kpis?.depletionAge ?? model?.kpis?.depletionAge ?? null,
+    },
+    after: {
+      peakEffectiveTax: maxRate(withRetirementRows),
+      totalClawback: withClawback,
+      totalTax: withTax,
+      rrifShockAt71: age71With ? age71With.rrifMinimum : 0,
+      depletionAge: model?.kpis?.depletionAge ?? null,
+    },
+  };
+}
+
+
 /* FILE: src/model/planStore.js */
 function loadPlanFromStorage(storageKey, normalizePlan, createDefaultPlan) {
   try {
@@ -864,6 +1045,11 @@ function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       oasClawbackModeling: true,
       rrifConversionAge: 71,
       applyRrifMinimums: true,
+      meltdownEnabled: false,
+      meltdownAmount: 0,
+      meltdownStartAge: 60,
+      meltdownEndAge: 65,
+      meltdownIncomeCeiling: 0,
     },
     uiState: {
       firstRun: true,
@@ -881,6 +1067,12 @@ function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       },
       lastSharedScenarioBannerDismissed: false,
       justCompletedWizard: false,
+      showGrossWithdrawals: true,
+      timingSim: {
+        cppStartAge: 65,
+        oasStartAge: 65,
+        linkTiming: false,
+      },
       learn: createDefaultLearnState(),
       learningProgress: createDefaultLearningProgress(learnProgressItems),
       unlocked: {
@@ -966,6 +1158,10 @@ function normalizePlan(input, { app, provinces, riskReturns, learnProgressItems 
         ...base.uiState.supportShownEvents,
         ...(migrated.uiState?.supportShownEvents || {}),
       },
+      timingSim: {
+        ...base.uiState.timingSim,
+        ...(migrated.uiState?.timingSim || {}),
+      },
       learn: normalizeLearnState(migrated.uiState?.learn || base.uiState.learn),
       learningProgress: {
         ...createDefaultLearningProgress(learnProgressItems),
@@ -1007,6 +1203,11 @@ function ensureValidState(state, { app, provinces, learnProgressItems }) {
   state.income.spouse.oasAmountAt65 = Math.max(0, Number(state.income.spouse.oasAmountAt65));
   state.strategy.rrifConversionAge = clamp(Number(state.strategy.rrifConversionAge || 71), 65, 75);
   state.strategy.applyRrifMinimums = Boolean(state.strategy.applyRrifMinimums ?? true);
+  state.strategy.meltdownEnabled = Boolean(state.strategy.meltdownEnabled);
+  state.strategy.meltdownAmount = Math.max(0, Number(state.strategy.meltdownAmount || 0));
+  state.strategy.meltdownStartAge = clamp(Number(state.strategy.meltdownStartAge || state.profile.retirementAge), 50, 75);
+  state.strategy.meltdownEndAge = clamp(Number(state.strategy.meltdownEndAge || 65), state.strategy.meltdownStartAge, 80);
+  state.strategy.meltdownIncomeCeiling = Math.max(0, Number(state.strategy.meltdownIncomeCeiling || 0));
   state.uiState.learn = normalizeLearnState(state.uiState.learn);
   state.uiState.showAdvancedControls = Boolean(state.uiState.showAdvancedControls);
   state.uiState.advancedSearch = String(state.uiState.advancedSearch || "");
@@ -1018,6 +1219,12 @@ function ensureValidState(state, { app, provinces, learnProgressItems }) {
   };
   state.uiState.lastSharedScenarioBannerDismissed = Boolean(state.uiState.lastSharedScenarioBannerDismissed);
   state.uiState.justCompletedWizard = Boolean(state.uiState.justCompletedWizard);
+  state.uiState.showGrossWithdrawals = Boolean(state.uiState.showGrossWithdrawals ?? true);
+  state.uiState.timingSim = {
+    cppStartAge: clamp(Number(state.uiState.timingSim?.cppStartAge ?? state.income.cpp.startAge), 60, 70),
+    oasStartAge: clamp(Number(state.uiState.timingSim?.oasStartAge ?? state.income.oas.startAge), 65, 70),
+    linkTiming: Boolean(state.uiState.timingSim?.linkTiming),
+  };
   const defaultProgress = createDefaultLearningProgress(learnProgressItems);
   state.uiState.learningProgress = {
     ...defaultProgress,
@@ -1057,6 +1264,12 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
   };
   plan.uiState.lastSharedScenarioBannerDismissed = Boolean(plan.uiState.lastSharedScenarioBannerDismissed);
   plan.uiState.justCompletedWizard = Boolean(plan.uiState.justCompletedWizard);
+  plan.uiState.showGrossWithdrawals = Boolean(plan.uiState.showGrossWithdrawals ?? true);
+  plan.uiState.timingSim = {
+    cppStartAge: clamp(Number(plan.uiState.timingSim?.cppStartAge ?? plan.income.cpp.startAge), 60, 70),
+    oasStartAge: clamp(Number(plan.uiState.timingSim?.oasStartAge ?? plan.income.oas.startAge), 65, 70),
+    linkTiming: Boolean(plan.uiState.timingSim?.linkTiming),
+  };
   if (!plan.version) plan.version = app.version;
 }
 
@@ -1066,12 +1279,17 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   if (next.version < 2) {
     next.version = 2;
   }
+  if (next.version < 3) {
+    next.version = 3;
+  }
   if (!next.uiState) next.uiState = createDefaultPlan({ app, riskReturns, learnProgressItems }).uiState;
   if (!next.uiState.learn) next.uiState.learn = createDefaultLearnState();
   if (!next.uiState.supportShownEvents) next.uiState.supportShownEvents = { wizardComplete: false, firstGrossUp: false, firstClawback: false };
   if (next.uiState.supportDismissedUntil == null) next.uiState.supportDismissedUntil = 0;
   if (next.uiState.lastSharedScenarioBannerDismissed == null) next.uiState.lastSharedScenarioBannerDismissed = false;
   if (next.uiState.justCompletedWizard == null) next.uiState.justCompletedWizard = false;
+  if (next.uiState.showGrossWithdrawals == null) next.uiState.showGrossWithdrawals = true;
+  if (!next.uiState.timingSim) next.uiState.timingSim = { cppStartAge: 65, oasStartAge: 65, linkTiming: false };
   if (!next.savings) next.savings = createDefaultPlan({ app, riskReturns, learnProgressItems }).savings;
   if (!Array.isArray(next.savings.capitalInjects)) next.savings.capitalInjects = [];
   if (!next.accounts) next.accounts = createDefaultPlan({ app, riskReturns, learnProgressItems }).accounts;
@@ -1476,6 +1694,27 @@ const TOOLTIPS = {
     range: "Higher is generally better under current assumptions.",
     example: "A low depletion sub-score indicates longevity risk.",
   },
+  coverageScoreWeights: {
+    term: "Coverage score weights",
+    plain: "The score blends coverage ratio, depletion risk, tax efficiency, and clawback exposure.",
+    why: "It keeps the score transparent and easy to audit.",
+    range: "Coverage 40 points, longevity 30, tax efficiency 20, clawback 10.",
+    example: "If your coverage ratio improves, your score usually rises first.",
+  },
+  cppOasTimingSim: {
+    term: "CPP/OAS timing simulator",
+    plain: "Previews start-age changes for CPP and OAS without immediately overwriting your plan.",
+    why: "Timing affects withdrawals, tax drag, and clawback in different years.",
+    range: "CPP ages 60-70 and OAS ages 65-70.",
+    example: "Delaying CPP can reduce early cash flow but increase later guaranteed income.",
+  },
+  rrspMeltdown: {
+    term: "RRSP meltdown strategy",
+    plain: "A planned early-withdrawal approach from RRSP/RRIF to smooth later taxes.",
+    why: "It can reduce future RRIF pressure and potential OAS clawback exposure.",
+    range: "Strategy setting only; personal suitability varies.",
+    example: "Extra withdrawals before age 71 can reduce forced minimum pressure later.",
+  },
 };
 
 const OFFICIAL_REFERENCES = [
@@ -1841,6 +2080,7 @@ function drawIncomeCoverageChart({
   rows,
   selectedAge,
   showTodaysDollars,
+  showGrossWithdrawals,
   currentYear,
   inflationRate,
   formatCurrency,
@@ -1906,14 +2146,32 @@ function drawIncomeCoverageChart({
       [cpp, "#16a34a"],
       [oas, "#0ea5a8"],
       [netW, "#0f6abf"],
-      [taxW, "#d9485f"],
+      [showGrossWithdrawals ? taxW : Math.min(taxW, maxY * 0.01), "#d9485f"],
     ];
-    segments.forEach(([value, color]) => {
+    segments.forEach(([value, color], segIdx) => {
       if (value <= 0) return;
       const yTop = y(stack + value);
       const yBottom = y(stack);
       ctx.fillStyle = color;
       ctx.fillRect(cx, yTop, barW, Math.max(1, yBottom - yTop));
+      if (segIdx === 4) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.45)";
+        ctx.lineWidth = 1;
+        const hSeg = Math.max(1, yBottom - yTop);
+        for (let yy = yTop - barW; yy < yTop + hSeg + barW; yy += 5) {
+          ctx.beginPath();
+          ctx.moveTo(cx, yy);
+          ctx.lineTo(cx + barW, yy + barW);
+          ctx.stroke();
+        }
+        ctx.restore();
+        if (hSeg > 14) {
+          ctx.fillStyle = "#fff";
+          ctx.font = "10px Avenir Next";
+          ctx.fillText("Tax wedge", cx + 2, yTop + Math.min(12, hSeg - 2));
+        }
+      }
       stack += value;
     });
   });
@@ -2330,6 +2588,212 @@ function buildNextActions(model, advancedUnlocked) {
 
   if (!advancedUnlocked) actions.push("Finish guided setup to unlock tax and withdrawal strategy comparisons.");
   return actions;
+}
+
+/* FILE: src/ui/retirementGapHeadline.js */
+function renderRetirementGapHeadline(ctx) {
+  const {
+    mountEl,
+    row,
+    model,
+    selectedAge,
+    minAge,
+    maxAge,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+  } = ctx;
+  if (!mountEl || !row) return;
+
+  const spending = Math.max(0, Number(row.spending || 0));
+  const guaranteed = Math.max(0, Number(row.guaranteedGross || 0));
+  const netGap = Math.max(0, Number(row.netGap || 0));
+  const gross = Math.max(0, Number(row.withdrawal || 0));
+  const taxWedge = Math.max(0, Number((row.taxOnWithdrawal || 0) + (row.oasClawback || 0)));
+  const coverage = spending > 0 ? guaranteed / spending : 1;
+  const surplus = guaranteed >= spending;
+  const depletionAge = model?.kpis?.depletionAge;
+  const highTaxDrag = gross > 0 ? (taxWedge / gross) > 0.25 : false;
+
+  mountEl.innerHTML = `
+    <article class="subsection gap-headline">
+      <div class="results-strip-head">
+        <h3>Retirement Gap ${tooltipButton("kpiNetGap")}</h3>
+        <div class="results-strip-controls">
+          <label for="gapAgePicker" class="small-copy">Pick age</label>
+          <input id="gapAgePicker" type="range" min="${minAge}" max="${maxAge}" step="1" value="${selectedAge}" aria-label="Retirement gap age selector" />
+          <strong>Age ${selectedAge}</strong>
+        </div>
+      </div>
+      <p><strong>Your guaranteed income covers ${formatPct(coverage)}</strong> of your retirement spending.</p>
+      ${surplus
+        ? `<p class="status-good">You are covered. Surplus: <strong>${formatCurrency(guaranteed - spending)}</strong>.</p>`
+        : `<p>You need <strong>${formatCurrency(netGap)}/yr</strong> from savings (after tax). Because withdrawals are taxable, you must withdraw about <strong>${formatCurrency(gross)}/yr</strong>.</p>`
+      }
+      <p class="small-copy muted">
+        Spend ${tooltipButton("kpiSpendingTarget")} ${formatCurrency(spending)} |
+        Guaranteed ${tooltipButton("kpiGuaranteedIncome")} ${formatCurrency(guaranteed)} |
+        Net gap ${tooltipButton("kpiNetGap")} ${formatCurrency(netGap)} |
+        Gross draw ${tooltipButton("kpiGrossWithdrawal")} ${formatCurrency(gross)} |
+        Tax wedge ${tooltipButton("learnTaxGrossUp")} ${formatCurrency(taxWedge)}
+      </p>
+      ${highTaxDrag ? `<span class="status-pill borderline">High tax drag this year</span>` : ""}
+      ${depletionAge ? `<span class="status-pill off-track">Savings run out at age ${depletionAge}</span>` : ""}
+    </article>
+  `;
+}
+
+
+/* FILE: src/ui/taxWedgeMini.js */
+function renderTaxWedgeMini(ctx) {
+  const { mountEl, row, tooltipButton, formatCurrency } = ctx;
+  if (!mountEl || !row) return;
+  const gross = Math.max(0, Number(row.withdrawal || 0));
+  const tax = Math.max(0, Number((row.taxOnWithdrawal || 0) + (row.oasClawback || 0)));
+  const net = Math.max(0, gross - tax);
+  const total = Math.max(1, gross);
+  const netPct = (net / total) * 100;
+  const taxPct = (tax / total) * 100;
+  const netLabel = netPct < 26 ? "Net" : `Net cash ${formatCurrency(net)}`;
+  const taxLabel = taxPct < 26 ? "Tax" : `Tax wedge ${formatCurrency(tax)}`;
+  const highTaxDrag = gross > 0 ? (tax / gross) > 0.25 : false;
+
+  mountEl.innerHTML = `
+    <article class="subsection">
+      <h3>Why gross withdrawal &gt; what you spend ${tooltipButton("kpiGrossWithdrawal")}</h3>
+      <div class="mini-split-bar" role="img" aria-label="Gross vs net withdrawal split">
+        <span class="seg netdraw" style="width:${netPct.toFixed(1)}%">${netLabel}</span>
+        <span class="seg tax hatch" style="width:${taxPct.toFixed(1)}%">${taxLabel}</span>
+      </div>
+      <p class="mini-split-meta">
+        <strong>Net cash you keep:</strong> ${formatCurrency(net)}
+        <span aria-hidden="true"> | </span>
+        <strong>Tax sent to CRA:</strong> ${formatCurrency(tax)}
+      </p>
+      ${highTaxDrag ? `<span class="status-pill borderline">High tax drag this year</span>` : ""}
+      <label class="inline-check small-copy">
+        <input type="checkbox" data-bind="uiState.showGrossWithdrawals" checked />
+        Show gross withdrawals
+      </label>
+    </article>
+  `;
+}
+
+/* FILE: src/ui/coverageScore.js */
+function renderCoverageScore(ctx) {
+  const { mountEl, score, tooltipButton, formatPct } = ctx;
+  if (!mountEl || !score) return;
+  mountEl.innerHTML = `
+    <article class="subsection">
+      <h3>Retirement Coverage Score ${tooltipButton("retirementScore")}</h3>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Total</strong><span>${score.total}/100</span></div>
+        <div class="preview-kpi-item"><strong>Status</strong><span>${score.band}</span></div>
+        <div class="preview-kpi-item"><strong>Coverage</strong><span>${score.subs.coverage}/40</span></div>
+        <div class="preview-kpi-item"><strong>Longevity</strong><span>${score.subs.longevity}/30</span></div>
+        <div class="preview-kpi-item"><strong>Tax</strong><span>${score.subs.taxEfficiency}/20</span></div>
+        <div class="preview-kpi-item"><strong>Clawback</strong><span>${score.subs.clawback}/10</span></div>
+      </div>
+      <details>
+        <summary>How this score is calculated ${tooltipButton("coverageScoreWeights")}</summary>
+        <ul class="plain-list small-copy muted">
+          <li>Coverage ratio (0-40): guaranteed income vs spending in early retirement.</li>
+          <li>Longevity risk (0-30): depletion age vs life expectancy.</li>
+          <li>Tax efficiency (0-20): average effective tax rate in retirement years.</li>
+          <li>Clawback exposure (0-10): estimated OAS clawback as a share of OAS.</li>
+        </ul>
+      </details>
+      <p class="small-copy muted">Planning estimate only. Not advice.</p>
+      <p class="small-copy muted">Average effective tax in retirement: ${formatPct(score.metrics.avgEffectiveTaxRate)}</p>
+    </article>
+  `;
+}
+
+/* FILE: src/ui/cppOasTimingSimulator.js */
+function renderCppOasTimingSimulator(ctx) {
+  const {
+    mountEl,
+    sim,
+    preview,
+    tooltipButton,
+    numberField,
+    formatCurrency,
+    formatPct,
+  } = ctx;
+  if (!mountEl || !preview) return;
+  mountEl.innerHTML = `
+    <article class="subsection">
+      <h3>CPP & OAS Start Age Simulator ${tooltipButton("cppOasTimingSim")}</h3>
+      <p class="small-copy muted">Preview only. Compare timing tradeoffs, then apply if you want.</p>
+      <div class="form-grid compact-mobile-two">
+        ${numberField("CPP start age", "uiState.timingSim.cppStartAge", sim.cppStartAge, { min: 60, max: 70, step: 1 }, "cppStartAge", false, false, true)}
+        ${numberField("OAS start age", "uiState.timingSim.oasStartAge", sim.oasStartAge, { min: 65, max: 70, step: 1 }, "oasStartAge", false, false, true)}
+        <label class="inline-check form-span-full"><input type="checkbox" data-bind="uiState.timingSim.linkTiming" ${sim.linkTiming ? "checked" : ""} />Link timing</label>
+      </div>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Lifetime CPP+OAS</strong><span>${formatCurrency(preview.deltas.lifetimeBenefits)}</span><small class="muted">Delta vs current</small></div>
+        <div class="preview-kpi-item"><strong>Retirement gross draw</strong><span>${formatCurrency(preview.deltas.grossWithdrawalAtRetire)}</span><small class="muted">Delta at retirement start</small></div>
+        <div class="preview-kpi-item"><strong>Tax rate</strong><span>${formatPct(preview.deltas.effectiveTaxAtRetire)}</span><small class="muted">Delta at retirement start</small></div>
+        <div class="preview-kpi-item"><strong>OAS clawback</strong><span>${formatCurrency(preview.deltas.clawbackAtRetire)}</span><small class="muted">Delta at retirement start</small></div>
+      </div>
+      <div class="landing-actions">
+        <button class="btn btn-primary" type="button" data-action="apply-timing-preview">Apply timing</button>
+        <button class="btn btn-secondary" type="button" data-action="reset-timing-preview">Reset preview</button>
+      </div>
+      <p class="small-copy muted">Tradeoff: starting earlier gives more years of smaller payments. Starting later gives fewer years of larger payments and can raise taxable income later.</p>
+      <p class="small-copy muted">Guaranteed income ${tooltipButton("kpiGuaranteedIncome")} | Tax wedge ${tooltipButton("learnTaxGrossUp")} | OAS clawback ${tooltipButton("oasClawback")}</p>
+    </article>
+  `;
+}
+
+/* FILE: src/ui/rrspMeltdownSimulator.js */
+function renderRrspMeltdownSimulator(ctx) {
+  const {
+    mountEl,
+    plan,
+    comparison,
+    numberField,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+  } = ctx;
+  if (!mountEl || !comparison) return;
+
+  const before = comparison.before;
+  const after = comparison.after;
+  const d = {
+    peakTax: after.peakEffectiveTax - before.peakEffectiveTax,
+    clawback: after.totalClawback - before.totalClawback,
+    rrifShock: after.rrifShockAt71 - before.rrifShockAt71,
+    depletion: (after.depletionAge || 0) - (before.depletionAge || 0),
+    totalTax: after.totalTax - before.totalTax,
+  };
+
+  mountEl.innerHTML = `
+    <article class="subsection">
+      <h3>RRSP Meltdown Strategy (Optional) ${tooltipButton("rrspMeltdown")}</h3>
+      <p class="small-copy muted">Illustration only. Planned early RRSP withdrawals can reduce later RRIF pressure and clawback exposure.</p>
+      <div class="form-grid compact-mobile-two">
+        <label class="inline-check form-span-full">
+          <input type="checkbox" data-bind="strategy.meltdownEnabled" ${plan.strategy.meltdownEnabled ? "checked" : ""} />
+          Enable planned early RRSP withdrawals
+        </label>
+        ${numberField("Extra RRSP withdrawal / year", "strategy.meltdownAmount", plan.strategy.meltdownAmount, { min: 0, max: 50000, step: 500 }, "rrsp", false, !plan.strategy.meltdownEnabled, true)}
+        ${numberField("Start age", "strategy.meltdownStartAge", plan.strategy.meltdownStartAge, { min: 50, max: 71, step: 1 }, "retirementAge", false, !plan.strategy.meltdownEnabled, true)}
+        ${numberField("End age", "strategy.meltdownEndAge", plan.strategy.meltdownEndAge, { min: 55, max: 75, step: 1 }, "rrifConversionAge", false, !plan.strategy.meltdownEnabled, true)}
+        ${numberField("Income ceiling (optional)", "strategy.meltdownIncomeCeiling", plan.strategy.meltdownIncomeCeiling, { min: 0, max: 250000, step: 1000 }, "learnTaxGrossUp", false, !plan.strategy.meltdownEnabled, true)}
+      </div>
+      <div class="preview-kpi">
+        <div class="preview-kpi-item"><strong>Peak effective tax</strong><span>${formatPct(d.peakTax)}</span></div>
+        <div class="preview-kpi-item"><strong>Total OAS clawback</strong><span>${formatCurrency(d.clawback)}</span></div>
+        <div class="preview-kpi-item"><strong>RRIF shock at 71</strong><span>${formatCurrency(d.rrifShock)}</span></div>
+        <div class="preview-kpi-item"><strong>Total tax estimate</strong><span>${formatCurrency(d.totalTax)}</span></div>
+        <div class="preview-kpi-item"><strong>Depletion age change</strong><span>${before.depletionAge && after.depletionAge ? `${d.depletion >= 0 ? "+" : ""}${d.depletion} years` : "No depletion change"}</span></div>
+      </div>
+      <p class="small-copy muted">This is a strategy illustration. Real planning requires personal details.</p>
+      <p class="small-copy muted">Tax wedge ${tooltipButton("learnTaxGrossUp")} | RRIF minimums ${tooltipButton("rrifMinimums")} | OAS clawback ${tooltipButton("oasClawback")}</p>
+    </article>
+  `;
 }
 
 /* FILE: src/ui/resultsStrip.js */
@@ -2965,6 +3429,8 @@ function buildLearnHtml(ctx) {
           <a href="#learn-life">8. Life Expectancy and Planning Horizon</a>
           <a href="#learn-phases">9. Go-Go / Slow-Go / No-Go Retirement Years</a>
           <a href="#learn-together">10. Bringing It All Together</a>
+          <a href="#learn-grossnet">11. Gross vs Net Withdrawals (Tax Wedge)</a>
+          <a href="#learn-meltdown">12. RRSP Meltdown Strategy</a>
         </nav>
       </aside>
       <div class="learn-content">
@@ -3133,6 +3599,28 @@ function buildLearnHtml(ctx) {
           <div class="landing-actions">
             <button class="btn btn-primary" type="button" data-action="launch-planner">Go to Guided setup</button>
           </div>
+        </section>
+
+        <section class="learn-section" id="learn-grossnet">
+          <h3>11) Gross vs Net Withdrawals (Tax Wedge)</h3>
+          <p class="muted">If you need a net spending amount, you often need a larger gross RRSP/RRIF withdrawal because some goes to tax.</p>
+          <ul class="plain-list">
+            <li><strong>Net spending need:</strong> what you keep to live on.</li>
+            <li><strong>Gross withdrawal:</strong> total amount taken from RRSP/RRIF.</li>
+            <li><strong>Tax wedge:</strong> the part of gross sent to tax.</li>
+          </ul>
+          <p class="small-copy muted">This is why the planner shows both net gap and gross withdrawal.</p>
+        </section>
+
+        <section class="learn-section" id="learn-meltdown">
+          <h3>12) RRSP Meltdown: Why earlier withdrawals can help</h3>
+          <p class="muted">A planned early withdrawal strategy can reduce large forced RRIF withdrawals later, potentially lowering peak tax and clawback pressure.</p>
+          <ul class="plain-list">
+            <li>Withdraw moderately in lower-tax years.</li>
+            <li>Reduce RRSP size before RRIF minimums rise.</li>
+            <li>Potentially reduce OAS clawback in high-income years.</li>
+          </ul>
+          <p class="small-copy muted">This is a planning illustration, not advice.</p>
         </section>
       </div>
     </div>
@@ -4098,7 +4586,12 @@ const el = {
 
   kpiGrid: document.getElementById("kpiGrid"),
   kpiContext: document.getElementById("kpiContext"),
+  retirementGapHeadline: document.getElementById("retirementGapHeadline"),
   resultsStrip: document.getElementById("resultsStrip"),
+  taxWedgeMini: document.getElementById("taxWedgeMini"),
+  coverageScoreModule: document.getElementById("coverageScoreModule"),
+  timingSimulator: document.getElementById("timingSimulator"),
+  meltdownSimulator: document.getElementById("meltdownSimulator"),
   sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
   supportMomentMount: document.getElementById("supportMomentMount"),
   mainChart: document.getElementById("mainChart"),
@@ -4178,6 +4671,7 @@ let ui = {
   selectedAge: null,
   showStressBand: true,
   showTodaysDollars: false,
+  showGrossWithdrawals: Boolean(state.uiState.showGrossWithdrawals ?? true),
   showCoverageTable: false,
   advancedOpen: {
     basics: true,
@@ -4449,6 +4943,24 @@ function handleDocumentClick(event) {
       closeTooltip();
       return;
     }
+    if (action === "apply-timing-preview") {
+      const sim = state.uiState.timingSim;
+      state.income.cpp.startAge = Number(sim.cppStartAge);
+      state.income.oas.startAge = Number(sim.oasStartAge);
+      savePlan();
+      renderAll();
+      toast("Timing preview applied.");
+      return;
+    }
+    if (action === "reset-timing-preview") {
+      state.uiState.timingSim.cppStartAge = state.income.cpp.startAge;
+      state.uiState.timingSim.oasStartAge = state.income.oas.startAge;
+      state.uiState.timingSim.linkTiming = false;
+      savePlan();
+      renderAll();
+      toast("Timing preview reset.");
+      return;
+    }
     if (action === "open-learn") {
       setActiveNav("learn");
       return;
@@ -4615,6 +5127,17 @@ function handleBoundInput(event) {
   if (path === "profile.retirementAge") {
     state.income.pension.startAge = Math.max(state.income.pension.startAge, 40);
   }
+  if (path === "uiState.showGrossWithdrawals") {
+    ui.showGrossWithdrawals = Boolean(value);
+  }
+  if (path === "uiState.timingSim.linkTiming" && value) {
+    const cppAge = Number(state.uiState.timingSim.cppStartAge);
+    state.uiState.timingSim.oasStartAge = Math.min(70, Math.max(65, 65 + (cppAge - 60)));
+  }
+  if (path === "uiState.timingSim.cppStartAge" && state.uiState.timingSim.linkTiming) {
+    const cppAge = Number(state.uiState.timingSim.cppStartAge);
+    state.uiState.timingSim.oasStartAge = Math.min(70, Math.max(65, 65 + (cppAge - 60)));
+  }
 
   // Avoid re-rendering while the user is actively editing.
   // Full recalculation runs on committed change events.
@@ -4660,17 +5183,22 @@ function handleLearnBoundInput(event) {
 function handleDashboardInput(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
-  if (target.id !== "resultsAgePicker") return;
+  if (target.id !== "resultsAgePicker" && target.id !== "gapAgePicker") return;
   const nextAge = Number(target.value);
   if (!Number.isFinite(nextAge)) return;
   ui.selectedAge = nextAge;
   if (el.yearScrubber) el.yearScrubber.value = String(nextAge);
   if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${nextAge}`;
+  const rs = document.getElementById("resultsAgePicker");
+  if (rs) rs.value = String(nextAge);
+  const gp = document.getElementById("gapAgePicker");
+  if (gp) gp.value = String(nextAge);
   renderDashboard();
 }
 
 function renderAll() {
   ensureValidStateLocal();
+  ui.showGrossWithdrawals = Boolean(state.uiState.showGrossWithdrawals ?? true);
   ui.activeNav = normalizeNavTargetUi(ui.activeNav || state.uiState.activeNav || "dashboard");
   state.uiState.activeNav = ui.activeNav;
   ui.lastModel = buildPlanModel(state);
@@ -4741,12 +5269,27 @@ function renderDashboard() {
     buildNextActions: buildNextActionsLocal,
   });
   renderDashboardResultsStrip();
+  renderRetirementGapModule();
+  renderTaxWedgeMiniModule();
+  renderCoverageScoreModule();
+  renderTimingSimulatorModule();
+  renderMeltdownSimulatorModule();
   renderDashboardSharedScenarioBanner();
   renderDashboardSupportMoment();
 }
 
+function dashboardRetirementRows() {
+  return (ui.lastModel?.base?.rows || []).filter((row) => row.age >= state.profile.retirementAge);
+}
+
+function selectedDashboardAgeBounds() {
+  const rows = dashboardRetirementRows();
+  if (!rows.length) return { minAge: state.profile.retirementAge, maxAge: state.profile.lifeExpectancy };
+  return { minAge: rows[0].age, maxAge: rows[rows.length - 1].age };
+}
+
 function getDashboardSelectedRow() {
-  const rows = ui.lastModel?.base?.rows || [];
+  const rows = dashboardRetirementRows().length ? dashboardRetirementRows() : (ui.lastModel?.base?.rows || []);
   return findRowByAgeLocal(rows, ui.selectedAge || state.profile.retirementAge)
     || findRowByAgeLocal(rows, state.profile.retirementAge)
     || rows[0]
@@ -4755,7 +5298,7 @@ function getDashboardSelectedRow() {
 
 function renderDashboardResultsStrip() {
   if (!el.resultsStrip || !ui.lastModel) return;
-  const rows = ui.lastModel.base.rows.filter((row) => row.age >= state.profile.retirementAge);
+  const rows = dashboardRetirementRows();
   if (!rows.length) {
     el.resultsStrip.innerHTML = "";
     return;
@@ -4777,6 +5320,95 @@ function renderDashboardResultsStrip() {
     clamp,
   });
   bindInlineTooltipTriggers(el.resultsStrip);
+}
+
+function renderRetirementGapModule() {
+  if (!el.retirementGapHeadline || !ui.lastModel) return;
+  const rows = dashboardRetirementRows();
+  if (!rows.length) {
+    el.retirementGapHeadline.innerHTML = "";
+    return;
+  }
+  const { minAge, maxAge } = selectedDashboardAgeBounds();
+  const selected = clamp(ui.selectedAge ?? minAge, minAge, maxAge);
+  const row = findRowByAgeLocal(rows, selected) || rows[0];
+  renderRetirementGapHeadline({
+    mountEl: el.retirementGapHeadline,
+    row,
+    model: ui.lastModel,
+    selectedAge: selected,
+    minAge,
+    maxAge,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.retirementGapHeadline);
+}
+
+function renderTaxWedgeMiniModule() {
+  if (!el.taxWedgeMini) return;
+  const row = getDashboardSelectedRow();
+  if (!row) {
+    el.taxWedgeMini.innerHTML = "";
+    return;
+  }
+  renderTaxWedgeMini({
+    mountEl: el.taxWedgeMini,
+    row,
+    tooltipButton,
+    formatCurrency,
+  });
+  const checkbox = el.taxWedgeMini.querySelector("input[data-bind='uiState.showGrossWithdrawals']");
+  if (checkbox) checkbox.checked = ui.showGrossWithdrawals;
+  bindInlineTooltipTriggers(el.taxWedgeMini);
+}
+
+function renderCoverageScoreModule() {
+  if (!el.coverageScoreModule || !ui.lastModel) return;
+  const score = computeCoverageScore(state, ui.lastModel);
+  renderCoverageScore({
+    mountEl: el.coverageScoreModule,
+    score,
+    tooltipButton,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.coverageScoreModule);
+}
+
+function renderTimingSimulatorModule() {
+  if (!el.timingSimulator || !ui.lastModel) return;
+  const sim = state.uiState.timingSim;
+  const preview = buildTimingPreview({
+    plan: state,
+    sim,
+    buildModel: buildPlanModel,
+  });
+  renderCppOasTimingSimulator({
+    mountEl: el.timingSimulator,
+    sim,
+    preview,
+    tooltipButton,
+    numberField,
+    formatCurrency,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.timingSimulator);
+}
+
+function renderMeltdownSimulatorModule() {
+  if (!el.meltdownSimulator || !ui.lastModel) return;
+  const comparison = buildMeltdownComparison(ui.lastModel, state);
+  renderRrspMeltdownSimulator({
+    mountEl: el.meltdownSimulator,
+    plan: state,
+    comparison,
+    numberField,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.meltdownSimulator);
 }
 
 function renderDashboardSharedScenarioBanner() {
@@ -4855,6 +5487,7 @@ function drawCoverageChart(model, selectedAge) {
     rows,
     selectedAge,
     showTodaysDollars: ui.showTodaysDollars,
+    showGrossWithdrawals: ui.showGrossWithdrawals,
     currentYear: APP.currentYear,
     inflationRate: state.assumptions.inflation,
     formatCurrency,

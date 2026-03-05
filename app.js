@@ -8,6 +8,9 @@ import {
   estimateTotalTax,
 } from "./src/model/calculations.js";
 import { buildPlanModel } from "./src/model/projection.js";
+import { computeCoverageScore } from "./src/model/score.js";
+import { buildTimingPreview } from "./src/model/timingSim.js";
+import { buildMeltdownComparison } from "./src/model/meltdown.js";
 import { loadPlanFromStorage, savePlanToStorage } from "./src/model/planStore.js";
 import {
   createLocalId,
@@ -47,6 +50,11 @@ import {
   applySharedScenarioToPlan,
 } from "./src/ui/share.js";
 import { renderMethodologyHtml } from "./src/content/methodology.js";
+import { renderRetirementGapHeadline } from "./src/ui/retirementGapHeadline.js";
+import { renderTaxWedgeMini } from "./src/ui/taxWedgeMini.js";
+import { renderCoverageScore } from "./src/ui/coverageScore.js";
+import { renderCppOasTimingSimulator } from "./src/ui/cppOasTimingSimulator.js";
+import { renderRrspMeltdownSimulator } from "./src/ui/rrspMeltdownSimulator.js";
 import {
   learnCallouts as buildLearnCallouts,
   calculatePhaseWeightedSpending as calculatePhaseWeightedSpendingUi,
@@ -107,7 +115,12 @@ const el = {
 
   kpiGrid: document.getElementById("kpiGrid"),
   kpiContext: document.getElementById("kpiContext"),
+  retirementGapHeadline: document.getElementById("retirementGapHeadline"),
   resultsStrip: document.getElementById("resultsStrip"),
+  taxWedgeMini: document.getElementById("taxWedgeMini"),
+  coverageScoreModule: document.getElementById("coverageScoreModule"),
+  timingSimulator: document.getElementById("timingSimulator"),
+  meltdownSimulator: document.getElementById("meltdownSimulator"),
   sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
   supportMomentMount: document.getElementById("supportMomentMount"),
   mainChart: document.getElementById("mainChart"),
@@ -187,6 +200,7 @@ let ui = {
   selectedAge: null,
   showStressBand: true,
   showTodaysDollars: false,
+  showGrossWithdrawals: Boolean(state.uiState.showGrossWithdrawals ?? true),
   showCoverageTable: false,
   advancedOpen: {
     basics: true,
@@ -458,6 +472,24 @@ function handleDocumentClick(event) {
       closeTooltip();
       return;
     }
+    if (action === "apply-timing-preview") {
+      const sim = state.uiState.timingSim;
+      state.income.cpp.startAge = Number(sim.cppStartAge);
+      state.income.oas.startAge = Number(sim.oasStartAge);
+      savePlan();
+      renderAll();
+      toast("Timing preview applied.");
+      return;
+    }
+    if (action === "reset-timing-preview") {
+      state.uiState.timingSim.cppStartAge = state.income.cpp.startAge;
+      state.uiState.timingSim.oasStartAge = state.income.oas.startAge;
+      state.uiState.timingSim.linkTiming = false;
+      savePlan();
+      renderAll();
+      toast("Timing preview reset.");
+      return;
+    }
     if (action === "open-learn") {
       setActiveNav("learn");
       return;
@@ -624,6 +656,17 @@ function handleBoundInput(event) {
   if (path === "profile.retirementAge") {
     state.income.pension.startAge = Math.max(state.income.pension.startAge, 40);
   }
+  if (path === "uiState.showGrossWithdrawals") {
+    ui.showGrossWithdrawals = Boolean(value);
+  }
+  if (path === "uiState.timingSim.linkTiming" && value) {
+    const cppAge = Number(state.uiState.timingSim.cppStartAge);
+    state.uiState.timingSim.oasStartAge = Math.min(70, Math.max(65, 65 + (cppAge - 60)));
+  }
+  if (path === "uiState.timingSim.cppStartAge" && state.uiState.timingSim.linkTiming) {
+    const cppAge = Number(state.uiState.timingSim.cppStartAge);
+    state.uiState.timingSim.oasStartAge = Math.min(70, Math.max(65, 65 + (cppAge - 60)));
+  }
 
   // Avoid re-rendering while the user is actively editing.
   // Full recalculation runs on committed change events.
@@ -669,17 +712,22 @@ function handleLearnBoundInput(event) {
 function handleDashboardInput(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
-  if (target.id !== "resultsAgePicker") return;
+  if (target.id !== "resultsAgePicker" && target.id !== "gapAgePicker") return;
   const nextAge = Number(target.value);
   if (!Number.isFinite(nextAge)) return;
   ui.selectedAge = nextAge;
   if (el.yearScrubber) el.yearScrubber.value = String(nextAge);
   if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${nextAge}`;
+  const rs = document.getElementById("resultsAgePicker");
+  if (rs) rs.value = String(nextAge);
+  const gp = document.getElementById("gapAgePicker");
+  if (gp) gp.value = String(nextAge);
   renderDashboard();
 }
 
 function renderAll() {
   ensureValidStateLocal();
+  ui.showGrossWithdrawals = Boolean(state.uiState.showGrossWithdrawals ?? true);
   ui.activeNav = normalizeNavTargetUi(ui.activeNav || state.uiState.activeNav || "dashboard");
   state.uiState.activeNav = ui.activeNav;
   ui.lastModel = buildPlanModel(state);
@@ -750,12 +798,27 @@ function renderDashboard() {
     buildNextActions: buildNextActionsLocal,
   });
   renderDashboardResultsStrip();
+  renderRetirementGapModule();
+  renderTaxWedgeMiniModule();
+  renderCoverageScoreModule();
+  renderTimingSimulatorModule();
+  renderMeltdownSimulatorModule();
   renderDashboardSharedScenarioBanner();
   renderDashboardSupportMoment();
 }
 
+function dashboardRetirementRows() {
+  return (ui.lastModel?.base?.rows || []).filter((row) => row.age >= state.profile.retirementAge);
+}
+
+function selectedDashboardAgeBounds() {
+  const rows = dashboardRetirementRows();
+  if (!rows.length) return { minAge: state.profile.retirementAge, maxAge: state.profile.lifeExpectancy };
+  return { minAge: rows[0].age, maxAge: rows[rows.length - 1].age };
+}
+
 function getDashboardSelectedRow() {
-  const rows = ui.lastModel?.base?.rows || [];
+  const rows = dashboardRetirementRows().length ? dashboardRetirementRows() : (ui.lastModel?.base?.rows || []);
   return findRowByAgeLocal(rows, ui.selectedAge || state.profile.retirementAge)
     || findRowByAgeLocal(rows, state.profile.retirementAge)
     || rows[0]
@@ -764,7 +827,7 @@ function getDashboardSelectedRow() {
 
 function renderDashboardResultsStrip() {
   if (!el.resultsStrip || !ui.lastModel) return;
-  const rows = ui.lastModel.base.rows.filter((row) => row.age >= state.profile.retirementAge);
+  const rows = dashboardRetirementRows();
   if (!rows.length) {
     el.resultsStrip.innerHTML = "";
     return;
@@ -786,6 +849,95 @@ function renderDashboardResultsStrip() {
     clamp,
   });
   bindInlineTooltipTriggers(el.resultsStrip);
+}
+
+function renderRetirementGapModule() {
+  if (!el.retirementGapHeadline || !ui.lastModel) return;
+  const rows = dashboardRetirementRows();
+  if (!rows.length) {
+    el.retirementGapHeadline.innerHTML = "";
+    return;
+  }
+  const { minAge, maxAge } = selectedDashboardAgeBounds();
+  const selected = clamp(ui.selectedAge ?? minAge, minAge, maxAge);
+  const row = findRowByAgeLocal(rows, selected) || rows[0];
+  renderRetirementGapHeadline({
+    mountEl: el.retirementGapHeadline,
+    row,
+    model: ui.lastModel,
+    selectedAge: selected,
+    minAge,
+    maxAge,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.retirementGapHeadline);
+}
+
+function renderTaxWedgeMiniModule() {
+  if (!el.taxWedgeMini) return;
+  const row = getDashboardSelectedRow();
+  if (!row) {
+    el.taxWedgeMini.innerHTML = "";
+    return;
+  }
+  renderTaxWedgeMini({
+    mountEl: el.taxWedgeMini,
+    row,
+    tooltipButton,
+    formatCurrency,
+  });
+  const checkbox = el.taxWedgeMini.querySelector("input[data-bind='uiState.showGrossWithdrawals']");
+  if (checkbox) checkbox.checked = ui.showGrossWithdrawals;
+  bindInlineTooltipTriggers(el.taxWedgeMini);
+}
+
+function renderCoverageScoreModule() {
+  if (!el.coverageScoreModule || !ui.lastModel) return;
+  const score = computeCoverageScore(state, ui.lastModel);
+  renderCoverageScore({
+    mountEl: el.coverageScoreModule,
+    score,
+    tooltipButton,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.coverageScoreModule);
+}
+
+function renderTimingSimulatorModule() {
+  if (!el.timingSimulator || !ui.lastModel) return;
+  const sim = state.uiState.timingSim;
+  const preview = buildTimingPreview({
+    plan: state,
+    sim,
+    buildModel: buildPlanModel,
+  });
+  renderCppOasTimingSimulator({
+    mountEl: el.timingSimulator,
+    sim,
+    preview,
+    tooltipButton,
+    numberField,
+    formatCurrency,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.timingSimulator);
+}
+
+function renderMeltdownSimulatorModule() {
+  if (!el.meltdownSimulator || !ui.lastModel) return;
+  const comparison = buildMeltdownComparison(ui.lastModel, state);
+  renderRrspMeltdownSimulator({
+    mountEl: el.meltdownSimulator,
+    plan: state,
+    comparison,
+    numberField,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.meltdownSimulator);
 }
 
 function renderDashboardSharedScenarioBanner() {
@@ -864,6 +1016,7 @@ function drawCoverageChart(model, selectedAge) {
     rows,
     selectedAge,
     showTodaysDollars: ui.showTodaysDollars,
+    showGrossWithdrawals: ui.showGrossWithdrawals,
     currentYear: APP.currentYear,
     inflationRate: state.assumptions.inflation,
     formatCurrency,

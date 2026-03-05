@@ -372,6 +372,27 @@ export const TOOLTIPS = {
     range: "Higher is generally better under current assumptions.",
     example: "A low depletion sub-score indicates longevity risk.",
   },
+  coverageScoreWeights: {
+    term: "Coverage score weights",
+    plain: "The score blends coverage ratio, depletion risk, tax efficiency, and clawback exposure.",
+    why: "It keeps the score transparent and easy to audit.",
+    range: "Coverage 40 points, longevity 30, tax efficiency 20, clawback 10.",
+    example: "If your coverage ratio improves, your score usually rises first.",
+  },
+  cppOasTimingSim: {
+    term: "CPP/OAS timing simulator",
+    plain: "Previews start-age changes for CPP and OAS without immediately overwriting your plan.",
+    why: "Timing affects withdrawals, tax drag, and clawback in different years.",
+    range: "CPP ages 60-70 and OAS ages 65-70.",
+    example: "Delaying CPP can reduce early cash flow but increase later guaranteed income.",
+  },
+  rrspMeltdown: {
+    term: "RRSP meltdown strategy",
+    plain: "A planned early-withdrawal approach from RRSP/RRIF to smooth later taxes.",
+    why: "It can reduce future RRIF pressure and potential OAS clawback exposure.",
+    range: "Strategy setting only; personal suitability varies.",
+    example: "Extra withdrawals before age 71 can reduce forced minimum pressure later.",
+  },
 };
 
 export const OFFICIAL_REFERENCES = [

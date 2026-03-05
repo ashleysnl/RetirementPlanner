@@ -174,6 +174,11 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       oasClawbackModeling: true,
       rrifConversionAge: 71,
       applyRrifMinimums: true,
+      meltdownEnabled: false,
+      meltdownAmount: 0,
+      meltdownStartAge: 60,
+      meltdownEndAge: 65,
+      meltdownIncomeCeiling: 0,
     },
     uiState: {
       firstRun: true,
@@ -191,6 +196,12 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       },
       lastSharedScenarioBannerDismissed: false,
       justCompletedWizard: false,
+      showGrossWithdrawals: true,
+      timingSim: {
+        cppStartAge: 65,
+        oasStartAge: 65,
+        linkTiming: false,
+      },
       learn: createDefaultLearnState(),
       learningProgress: createDefaultLearningProgress(learnProgressItems),
       unlocked: {
@@ -276,6 +287,10 @@ export function normalizePlan(input, { app, provinces, riskReturns, learnProgres
         ...base.uiState.supportShownEvents,
         ...(migrated.uiState?.supportShownEvents || {}),
       },
+      timingSim: {
+        ...base.uiState.timingSim,
+        ...(migrated.uiState?.timingSim || {}),
+      },
       learn: normalizeLearnState(migrated.uiState?.learn || base.uiState.learn),
       learningProgress: {
         ...createDefaultLearningProgress(learnProgressItems),
@@ -317,6 +332,11 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   state.income.spouse.oasAmountAt65 = Math.max(0, Number(state.income.spouse.oasAmountAt65));
   state.strategy.rrifConversionAge = clamp(Number(state.strategy.rrifConversionAge || 71), 65, 75);
   state.strategy.applyRrifMinimums = Boolean(state.strategy.applyRrifMinimums ?? true);
+  state.strategy.meltdownEnabled = Boolean(state.strategy.meltdownEnabled);
+  state.strategy.meltdownAmount = Math.max(0, Number(state.strategy.meltdownAmount || 0));
+  state.strategy.meltdownStartAge = clamp(Number(state.strategy.meltdownStartAge || state.profile.retirementAge), 50, 75);
+  state.strategy.meltdownEndAge = clamp(Number(state.strategy.meltdownEndAge || 65), state.strategy.meltdownStartAge, 80);
+  state.strategy.meltdownIncomeCeiling = Math.max(0, Number(state.strategy.meltdownIncomeCeiling || 0));
   state.uiState.learn = normalizeLearnState(state.uiState.learn);
   state.uiState.showAdvancedControls = Boolean(state.uiState.showAdvancedControls);
   state.uiState.advancedSearch = String(state.uiState.advancedSearch || "");
@@ -328,6 +348,12 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   };
   state.uiState.lastSharedScenarioBannerDismissed = Boolean(state.uiState.lastSharedScenarioBannerDismissed);
   state.uiState.justCompletedWizard = Boolean(state.uiState.justCompletedWizard);
+  state.uiState.showGrossWithdrawals = Boolean(state.uiState.showGrossWithdrawals ?? true);
+  state.uiState.timingSim = {
+    cppStartAge: clamp(Number(state.uiState.timingSim?.cppStartAge ?? state.income.cpp.startAge), 60, 70),
+    oasStartAge: clamp(Number(state.uiState.timingSim?.oasStartAge ?? state.income.oas.startAge), 65, 70),
+    linkTiming: Boolean(state.uiState.timingSim?.linkTiming),
+  };
   const defaultProgress = createDefaultLearningProgress(learnProgressItems);
   state.uiState.learningProgress = {
     ...defaultProgress,
@@ -367,6 +393,12 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
   };
   plan.uiState.lastSharedScenarioBannerDismissed = Boolean(plan.uiState.lastSharedScenarioBannerDismissed);
   plan.uiState.justCompletedWizard = Boolean(plan.uiState.justCompletedWizard);
+  plan.uiState.showGrossWithdrawals = Boolean(plan.uiState.showGrossWithdrawals ?? true);
+  plan.uiState.timingSim = {
+    cppStartAge: clamp(Number(plan.uiState.timingSim?.cppStartAge ?? plan.income.cpp.startAge), 60, 70),
+    oasStartAge: clamp(Number(plan.uiState.timingSim?.oasStartAge ?? plan.income.oas.startAge), 65, 70),
+    linkTiming: Boolean(plan.uiState.timingSim?.linkTiming),
+  };
   if (!plan.version) plan.version = app.version;
 }
 
@@ -376,12 +408,17 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   if (next.version < 2) {
     next.version = 2;
   }
+  if (next.version < 3) {
+    next.version = 3;
+  }
   if (!next.uiState) next.uiState = createDefaultPlan({ app, riskReturns, learnProgressItems }).uiState;
   if (!next.uiState.learn) next.uiState.learn = createDefaultLearnState();
   if (!next.uiState.supportShownEvents) next.uiState.supportShownEvents = { wizardComplete: false, firstGrossUp: false, firstClawback: false };
   if (next.uiState.supportDismissedUntil == null) next.uiState.supportDismissedUntil = 0;
   if (next.uiState.lastSharedScenarioBannerDismissed == null) next.uiState.lastSharedScenarioBannerDismissed = false;
   if (next.uiState.justCompletedWizard == null) next.uiState.justCompletedWizard = false;
+  if (next.uiState.showGrossWithdrawals == null) next.uiState.showGrossWithdrawals = true;
+  if (!next.uiState.timingSim) next.uiState.timingSim = { cppStartAge: 65, oasStartAge: 65, linkTiming: false };
   if (!next.savings) next.savings = createDefaultPlan({ app, riskReturns, learnProgressItems }).savings;
   if (!Array.isArray(next.savings.capitalInjects)) next.savings.capitalInjects = [];
   if (!next.accounts) next.accounts = createDefaultPlan({ app, riskReturns, learnProgressItems }).accounts;

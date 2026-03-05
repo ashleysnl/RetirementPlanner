@@ -17,6 +17,12 @@ export function buildPlanModel(plan) {
     inflationRate: plan.assumptions.inflation,
     currentAge,
   });
+  const baseNoMeltdown = runSimpleProjection(plan, {
+    returnRate: baseReturn,
+    inflationRate: plan.assumptions.inflation,
+    currentAge,
+    disableMeltdown: true,
+  });
 
   const spread = plan.assumptions.scenarioSpread;
   const scenarioDefs = [
@@ -90,6 +96,7 @@ export function buildPlanModel(plan) {
 
   return {
     base,
+    baseNoMeltdown,
     best,
     worst,
     scenarioRows,
@@ -120,10 +127,12 @@ function runSimpleProjection(plan, options) {
   const returnRate = options.returnRate;
   const inflationRate = options.inflationRate;
   const contributionIncrease = plan.savings.contributionIncrease;
+  const disableMeltdown = Boolean(options.disableMeltdown);
 
   let balance = plan.savings.currentTotal;
   let depletionAge = null;
   let balanceAtRetirement = plan.savings.currentTotal;
+  let totalRetirementTax = 0;
 
   const rows = [];
 
@@ -169,6 +178,7 @@ function runSimpleProjection(plan, options) {
     let netGap = 0;
     let oasClawback = 0;
     let rrifMinimum = 0;
+    let plannedMeltdownWithdrawal = 0;
     let gap = 0;
 
     if (retired) {
@@ -186,7 +196,9 @@ function runSimpleProjection(plan, options) {
       const requiredWithdrawal = solveGrossWithdrawal(plan, guaranteedGross, netGap, yearOffset);
       const availableForWithdrawal = Math.max(0, balance + capitalInject);
       rrifMinimum = getRrifMinimumRequired(plan, age, availableForWithdrawal);
-      withdrawal = Math.min(Math.max(requiredWithdrawal, rrifMinimum), availableForWithdrawal);
+      plannedMeltdownWithdrawal = disableMeltdown ? 0 : getPlannedMeltdownWithdrawal(plan, age, guaranteedGross, availableForWithdrawal);
+      const baseNeed = Math.max(requiredWithdrawal, rrifMinimum);
+      withdrawal = Math.min(baseNeed + plannedMeltdownWithdrawal, availableForWithdrawal);
       taxableIncome = guaranteedGross + withdrawal;
       tax = estimateTotalTax(plan, taxableIncome, yearOffset);
       taxOnWithdrawal = Math.max(0, tax - guaranteedTax);
@@ -194,6 +206,7 @@ function runSimpleProjection(plan, options) {
       netFromWithdrawal = Math.max(0, withdrawal - taxOnWithdrawal - oasClawback);
       const netIncome = guaranteedNet + netFromWithdrawal;
       gap = netIncome - targetAfterTax;
+      totalRetirementTax += tax + oasClawback;
     } else {
       tax = estimateTotalTax(plan, guaranteedGross, Math.max(0, year - startYear));
       guaranteedTax = tax;
@@ -247,6 +260,7 @@ function runSimpleProjection(plan, options) {
       taxOnWithdrawal,
       oasClawback,
       rrifMinimum,
+      plannedMeltdownWithdrawal,
       gap,
     });
   }
@@ -265,6 +279,7 @@ function runSimpleProjection(plan, options) {
     firstYearTaxWedge: firstRet ? firstRet.taxOnWithdrawal : 0,
     firstYearOasClawback: firstRet ? firstRet.oasClawback : 0,
     firstYearRrifMinimum: firstRet ? firstRet.rrifMinimum : 0,
+    totalRetirementTax,
     firstRetirementBreakdown: {
       pension: firstRet ? firstRet.pension : 0,
       cpp: firstRet ? firstRet.cpp : 0,
@@ -275,6 +290,19 @@ function runSimpleProjection(plan, options) {
   };
 
   return { rows, kpis, returnRate };
+}
+
+function getPlannedMeltdownWithdrawal(plan, age, guaranteedGross, availableForWithdrawal) {
+  if (!plan.strategy?.meltdownEnabled) return 0;
+  const start = Number(plan.strategy.meltdownStartAge || plan.profile.retirementAge || 60);
+  const end = Number(plan.strategy.meltdownEndAge || 65);
+  if (age < start || age > end) return 0;
+  let amount = Math.max(0, Number(plan.strategy.meltdownAmount || 0));
+  const ceiling = Math.max(0, Number(plan.strategy.meltdownIncomeCeiling || 0));
+  if (ceiling > 0) {
+    amount = Math.max(0, Math.min(amount, ceiling - guaranteedGross));
+  }
+  return Math.min(amount, Math.max(0, availableForWithdrawal));
 }
 
 function runStrategyProjection(plan, strategyKey, currentAge) {

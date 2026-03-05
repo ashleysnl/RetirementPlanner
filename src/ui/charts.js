@@ -100,6 +100,7 @@ export function drawIncomeCoverageChart({
   rows,
   selectedAge,
   showTodaysDollars,
+  showGrossWithdrawals,
   currentYear,
   inflationRate,
   formatCurrency,
@@ -165,14 +166,32 @@ export function drawIncomeCoverageChart({
       [cpp, "#16a34a"],
       [oas, "#0ea5a8"],
       [netW, "#0f6abf"],
-      [taxW, "#d9485f"],
+      [showGrossWithdrawals ? taxW : Math.min(taxW, maxY * 0.01), "#d9485f"],
     ];
-    segments.forEach(([value, color]) => {
+    segments.forEach(([value, color], segIdx) => {
       if (value <= 0) return;
       const yTop = y(stack + value);
       const yBottom = y(stack);
       ctx.fillStyle = color;
       ctx.fillRect(cx, yTop, barW, Math.max(1, yBottom - yTop));
+      if (segIdx === 4) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.45)";
+        ctx.lineWidth = 1;
+        const hSeg = Math.max(1, yBottom - yTop);
+        for (let yy = yTop - barW; yy < yTop + hSeg + barW; yy += 5) {
+          ctx.beginPath();
+          ctx.moveTo(cx, yy);
+          ctx.lineTo(cx + barW, yy + barW);
+          ctx.stroke();
+        }
+        ctx.restore();
+        if (hSeg > 14) {
+          ctx.fillStyle = "#fff";
+          ctx.font = "10px Avenir Next";
+          ctx.fillText("Tax wedge", cx + 2, yTop + Math.min(12, hSeg - 2));
+        }
+      }
       stack += value;
     });
   });
