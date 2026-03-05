@@ -462,14 +462,6 @@
         }
         return;
       }
-      if (window.__RETIREMENT_APP_SCRIPT_EXECUTED !== true) {
-        showBootError("App script did not execute. This is usually a script parse/runtime error before initialization.");
-        return;
-      }
-      if (window.__RETIREMENT_APP_INIT_ERROR) {
-        showBootError("Initialization error: " + window.__RETIREMENT_APP_INIT_ERROR);
-        return;
-      }
       var elapsed = Date.now() - bootStartedAt;
       if (!bootClassicFallbackTriggered && bootTriedModule && !bootTriedClassic && elapsed > 2400) {
         bootClassicFallbackTriggered = true;
@@ -479,8 +471,22 @@
         setTimeout(checkBootReady, 220);
         return;
       }
+      // Keep the startup error panel hidden during warm-up to avoid a false flash
+      // on slower mobile/webapp boots.
       if (elapsed < bootDeadlineMs) {
+        if (window.__RETIREMENT_APP_INIT_ERROR) {
+          // still wait for fallback or recovery path until deadline
+          bootLog("init-error-warmup", window.__RETIREMENT_APP_INIT_ERROR);
+        }
         setTimeout(checkBootReady, 200);
+        return;
+      }
+      if (window.__RETIREMENT_APP_SCRIPT_EXECUTED !== true) {
+        showBootError("App script did not execute. This is usually a script parse/runtime error before initialization.");
+        return;
+      }
+      if (window.__RETIREMENT_APP_INIT_ERROR) {
+        showBootError("Initialization error: " + window.__RETIREMENT_APP_INIT_ERROR);
         return;
       }
       if (!bootErrored) {
