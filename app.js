@@ -161,6 +161,7 @@ const el = {
   scenarioSummary: document.getElementById("scenarioSummary"),
   stressTable: document.getElementById("stressTable"),
   openGlossaryBtnTools: document.getElementById("openGlossaryBtnTools"),
+  resetCacheBtnTools: document.getElementById("resetCacheBtnTools"),
   methodologyPanel: document.getElementById("methodologyPanel"),
 
   notesInput: document.getElementById("notesInput"),
@@ -423,6 +424,7 @@ function bindEvents() {
   el.copyShareLinkBtn?.addEventListener("click", () => copyShare(false));
   el.copyMinimalLinkBtn?.addEventListener("click", () => copyShare(true));
   el.copySummaryBtn?.addEventListener("click", copySummary);
+  el.resetCacheBtnTools?.addEventListener("click", resetCachedAppData);
   el.closePlanEditorBtn?.addEventListener("click", closePlanEditor);
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
@@ -1295,10 +1297,10 @@ function shareBaseUrl() {
 
 async function copyShare(minimal = false) {
   const url = buildShareUrl(shareBaseUrl(), state, minimal);
-  try {
-    await navigator.clipboard.writeText(url);
+  const copied = await writeClipboardText(url);
+  if (copied) {
     toast(minimal ? "Minimal share link copied." : "Share link copied.");
-  } catch {
+  } else {
     toast(url);
   }
 }
@@ -1313,11 +1315,57 @@ async function copySummary() {
     formatPct,
     link,
   });
-  try {
-    await navigator.clipboard.writeText(summary);
+  const copied = await writeClipboardText(summary);
+  if (copied) {
     toast("Summary copied.");
-  } catch {
+  } else {
     toast("Could not copy summary.");
+  }
+}
+
+async function writeClipboardText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // continue to fallback
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = String(text || "");
+    ta.setAttribute("readonly", "readonly");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return !!ok;
+  } catch {
+    return false;
+  }
+}
+
+async function resetCachedAppData() {
+  const ok = confirm("Clear cached app files and reload? This is a DEV recovery action.");
+  if (!ok) return;
+  try {
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((reg) => reg.unregister()));
+    }
+    toast("Cached app reset. Reloading...");
+    setTimeout(() => location.reload(), 350);
+  } catch {
+    toast("Could not reset cached app.");
   }
 }
 
@@ -1325,6 +1373,9 @@ function clearSharedScenarioQuery() {
   const url = new URL(window.location.href);
   url.searchParams.delete("share");
   url.searchParams.delete("shareMin");
+  if (url.hash.startsWith("#share=") || url.hash.startsWith("#shareMin=")) {
+    url.hash = "";
+  }
   window.history.replaceState({}, "", url.toString());
 }
 

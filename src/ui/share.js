@@ -36,14 +36,20 @@ export function buildShareUrl(baseUrl, state, minimal = false) {
   const payload = buildSharePayload(state, minimal);
   const encoded = encodeURIComponent(JSON.stringify(payload));
   const url = new URL(baseUrl);
-  url.searchParams.set(minimal ? "shareMin" : "share", encoded);
+  const key = minimal ? "shareMin" : "share";
+  url.hash = `${key}=${encoded}`;
   return url.toString();
 }
 
 export function parseSharedScenarioFromUrl(locationObj) {
   try {
     const url = new URL(locationObj.href);
-    const raw = url.searchParams.get("share") || url.searchParams.get("shareMin");
+    let raw = url.searchParams.get("share") || url.searchParams.get("shareMin");
+    if (!raw && url.hash) {
+      const hash = String(url.hash).replace(/^#/, "");
+      const [k, v] = hash.split("=");
+      if (k === "share" || k === "shareMin") raw = v || "";
+    }
     if (!raw) return null;
     const parsed = JSON.parse(decodeURIComponent(raw));
     if (!parsed || typeof parsed !== "object") return null;
@@ -92,13 +98,15 @@ export function buildShareSummary({ state, row, formatCurrency, formatPct, link 
   const tax = safeNumber((row?.taxOnWithdrawal || 0) + (row?.oasClawback || 0), 0);
   const age = safeNumber(row?.age, state.profile.retirementAge);
   return [
+    "Canadian Retirement Tax Simulator - Summary",
+    `Age: ${age}`,
     `Retirement age: ${state.profile.retirementAge}`,
-    `After-tax spending target at age ${age}: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
+    `After-tax spending target: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
     `Guaranteed income: ${formatCurrency(guaranteed)} (Pension ${formatCurrency(pension)} / CPP ${formatCurrency(cpp)} / OAS ${formatCurrency(oas)})`,
-    `Net gap: ${formatCurrency(netGap)}`,
-    `Gross withdrawal required: ${formatCurrency(gross)} (tax ${formatCurrency(tax)}; effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
+    `Net gap from savings: ${formatCurrency(netGap)}`,
+    `Gross RRSP/RRIF withdrawal required: ${formatCurrency(gross)}`,
+    `Tax wedge: ${formatCurrency(tax)} (effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
     `OAS clawback: ${formatCurrency(row?.oasClawback || 0)}${state.strategy.oasClawbackModeling ? "" : " (modeling off)"}`,
-    "",
     `Link: ${link}`,
   ].join("\n");
 }

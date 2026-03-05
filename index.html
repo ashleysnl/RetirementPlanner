@@ -28,8 +28,13 @@
 <body>
   <div id="bootErrorNotice" class="panel" style="display:none;">
     <h2>App Startup Error</h2>
-    <p class="muted">The app failed to load JavaScript modules.</p>
+    <p class="muted">The app failed to load JavaScript.</p>
     <pre id="bootErrorText" class="small-copy" style="white-space:pre-wrap;"></pre>
+    <div class="landing-actions no-print">
+      <button id="bootHardRefreshBtn" class="btn btn-secondary" type="button">Hard refresh instructions</button>
+      <button id="bootClearSiteDataBtn" class="btn btn-secondary" type="button">Clear site data</button>
+      <button id="bootCopyDiagBtn" class="btn btn-primary" type="button">Copy diagnostics</button>
+    </div>
   </div>
   <div class="page-shell">
     <header class="hero" aria-label="Planner header">
@@ -294,6 +299,7 @@
               <button id="loadDemoBtnSecondary" class="btn btn-secondary" type="button">Load demo</button>
               <button id="resetBtnSecondary" class="btn btn-secondary" type="button">Reset</button>
               <button id="openGlossaryBtnTools" class="btn btn-secondary" type="button">Glossary</button>
+              <button id="resetCacheBtnTools" class="btn btn-secondary" type="button">Reset cached app (DEV)</button>
             </div>
           </div>
         </section>
@@ -396,15 +402,43 @@
   <script>
     var bootErrorNotice = document.getElementById("bootErrorNotice");
     var bootErrorText = document.getElementById("bootErrorText");
+    var bootHardRefreshBtn = document.getElementById("bootHardRefreshBtn");
+    var bootClearSiteDataBtn = document.getElementById("bootClearSiteDataBtn");
+    var bootCopyDiagBtn = document.getElementById("bootCopyDiagBtn");
     var bootErrored = false;
     var bootDone = false;
     var bootDeadlineMs = 8000;
     var bootStartedAt = Date.now();
+    var bootTriedModule = false;
+    var bootTriedClassic = false;
+    var bootLastError = "";
+    var bootFailingResources = [];
+    var bootDiagLog = [];
+    var bootBaseUrl = (function () {
+      var p = location.pathname || "/";
+      return p.slice(0, p.lastIndexOf("/") + 1) || "/";
+    })();
+    var bootIsDev = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+
+    function bootLog(label, value) {
+      bootDiagLog.push(label + ": " + String(value));
+      if (bootIsDev && console && console.log) console.log("[boot]", label, value);
+    }
 
     function showBootError(message) {
       bootErrored = true;
-      if (bootErrorText) bootErrorText.textContent = String(message || "Unknown startup error.");
+      bootLastError = String(message || "Unknown startup error.");
+      if (bootErrorText) bootErrorText.textContent = bootLastError;
       if (bootErrorNotice) bootErrorNotice.style.display = "block";
+      if (bootIsDev && console && console.groupCollapsed) {
+        console.groupCollapsed("[Retirement Planner] Startup error summary");
+        console.log("URL:", location.href);
+        console.log("Base URL:", bootBaseUrl);
+        console.log("Last error:", bootLastError);
+        console.log("Failing resources:", bootFailingResources);
+        console.log("Diag log:", bootDiagLog);
+        console.groupEnd();
+      }
     }
 
     function hideBootError() {
@@ -415,6 +449,16 @@
       if (window.__RETIREMENT_APP_READY === true) {
         bootDone = true;
         hideBootError();
+        if (bootIsDev && console && console.groupCollapsed) {
+          console.groupCollapsed("[Retirement Planner] Startup health check");
+          console.log("URL:", location.href);
+          console.log("Base URL:", bootBaseUrl);
+          console.log("Tried module:", bootTriedModule);
+          console.log("Tried classic:", bootTriedClassic);
+          console.log("Stage:", window.__RETIREMENT_APP_STAGE || "n/a");
+          console.log("Failures:", bootFailingResources);
+          console.groupEnd();
+        }
         return;
       }
       if (window.__RETIREMENT_APP_SCRIPT_EXECUTED !== true) {
@@ -436,29 +480,100 @@
       }
     }
 
-    function appendScript(src, type) {
+    function appendScript(src, type, onError) {
       var script = document.createElement("script");
       script.src = src;
       if (type) script.type = type;
       script.defer = true;
       script.onerror = function () {
+        bootFailingResources.push(src);
+        bootLog("script-error", src);
+        if (typeof onError === "function") {
+          onError();
+          return;
+        }
         showBootError("Failed to load " + src);
       };
       script.onload = function () {
+        bootLog("script-loaded", src);
         setTimeout(checkBootReady, 120);
       };
       document.body.appendChild(script);
     }
 
+    function resolvePath(relPath) {
+      if (!relPath) return relPath;
+      if (relPath.indexOf("http://") === 0 || relPath.indexOf("https://") === 0 || relPath.indexOf("/") === 0) return relPath;
+      return bootBaseUrl + relPath;
+    }
+
+    function copyDiagnostics() {
+      var payload = [
+        "Retirement Planner Diagnostics",
+        "URL: " + location.href,
+        "UA: " + navigator.userAgent,
+        "Boot stage: " + (window.__RETIREMENT_APP_STAGE || "n/a"),
+        "Tried module: " + bootTriedModule,
+        "Tried classic: " + bootTriedClassic,
+        "Last error: " + (bootLastError || "n/a"),
+        "Failing resources: " + (bootFailingResources.length ? bootFailingResources.join(", ") : "none"),
+        "Diag log:",
+        bootDiagLog.join("\n"),
+      ].join("\n");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(payload).catch(function () {});
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = payload;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        ta.remove();
+      }
+      alert("Diagnostics copied.");
+    }
+
+    async function clearSiteData() {
+      try { localStorage.clear(); } catch (e) {}
+      try { sessionStorage.clear(); } catch (e) {}
+      if ("caches" in window) {
+        try {
+          var keys = await caches.keys();
+          await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        } catch (e) {}
+      }
+      if ("serviceWorker" in navigator) {
+        try {
+          var regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(function (r) { return r.unregister(); }));
+        } catch (e) {}
+      }
+      alert("Site data cleared. Please reload.");
+    }
+
+    if (bootHardRefreshBtn) {
+      bootHardRefreshBtn.addEventListener("click", function () {
+        alert("Hard refresh:\n- Mac: Cmd + Shift + R\n- Windows: Ctrl + F5\nIf installed to iOS home screen, close and reopen the app.");
+      });
+    }
+    if (bootCopyDiagBtn) bootCopyDiagBtn.addEventListener("click", copyDiagnostics);
+    if (bootClearSiteDataBtn) bootClearSiteDataBtn.addEventListener("click", function () { clearSiteData(); });
+
     hideBootError();
-    // Use classic bundle for maximum compatibility (iOS homescreen, file://, and static hosts).
-    appendScript("app.classic.js", "");
+    // Try module entry first, fallback to classic bundle for legacy/cached environments.
+    bootTriedModule = true;
+    appendScript(resolvePath("src/main.js"), "module", function () {
+      bootTriedClassic = true;
+      appendScript(resolvePath("app.classic.js"), "");
+    });
     setTimeout(checkBootReady, 180);
 
     window.addEventListener("error", function (event) {
       if (bootDone) return;
       var msg = event && event.message ? String(event.message) : "";
       var src = event && event.filename ? String(event.filename) : "";
+      if (src) bootFailingResources.push(src);
+      if (msg) bootLog("window-error", msg + (src ? " @ " + src : ""));
       // Ignore noisy cross-origin third-party script errors (e.g., analytics) during boot.
       if (src.includes("googletagmanager")) return;
       if (msg === "Script error." && !src) return;
@@ -476,6 +591,7 @@
     window.addEventListener("unhandledrejection", function (event) {
       if (bootDone) return;
       var reason = event && event.reason ? String(event.reason) : "Unhandled promise rejection";
+      bootLog("unhandled-rejection", reason);
       showBootError(reason);
     });
   </script>

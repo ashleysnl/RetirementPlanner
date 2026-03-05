@@ -1,4 +1,5 @@
 import { OFFICIAL_REFERENCES } from "./constants.js";
+import { SOURCES_LAST_VERIFIED } from "./sources.js";
 
 export const METHODOLOGY_LAST_UPDATED = "2026";
 
@@ -70,10 +71,11 @@ export function renderMethodologyHtml(escapeHtml) {
       `).join("")}
       <article class="subsection">
         <h3>References</h3>
+        <p class="small-copy muted">Last verified: ${escapeHtml(SOURCES_LAST_VERIFIED)}</p>
         <ul class="plain-list resource-list">
           ${OFFICIAL_REFERENCES.map((item) => `
             <li>
-              <a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}</a>
+              <a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)} ↗</a>
               <span class="muted small-copy"> (${escapeHtml(item.source)})</span>
             </li>
           `).join("")}

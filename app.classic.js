@@ -1319,7 +1319,60 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+/* FILE: src/content/sources.js */
+const SOURCES_LAST_VERIFIED = "2026-03-05";
+
+const OFFICIAL_SOURCES = [
+  {
+    label: "CPP retirement pension (overview)",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp.html",
+    source: "Canada.ca (Service Canada)",
+  },
+  {
+    label: "CPP start-age timing (60-70)",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/when-start.html",
+    source: "Canada.ca (Service Canada)",
+  },
+  {
+    label: "Old Age Security (OAS) overview",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/old-age-security.html",
+    source: "Canada.ca (Service Canada)",
+  },
+  {
+    label: "OAS start-age timing (65-70)",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/old-age-security/when-start.html",
+    source: "Canada.ca (Service Canada)",
+  },
+  {
+    label: "OAS recovery tax (clawback)",
+    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/old-age-security/recovery-tax.html",
+    source: "Canada.ca",
+  },
+  {
+    label: "RRSPs and other registered plans (T4040)",
+    href: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4040/rrsps-other-registered-plans-retirement.html",
+    source: "CRA",
+  },
+  {
+    label: "Registered Retirement Income Fund (RRIF)",
+    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/registered-retirement-income-fund-rrif.html",
+    source: "CRA",
+  },
+  {
+    label: "RRIF minimum withdrawals",
+    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/registered-retirement-income-fund-rrif/receiving-income-a-rrif.html",
+    source: "CRA",
+  },
+  {
+    label: "Personal tax rates and brackets hub",
+    href: "https://www.canada.ca/en/revenue-agency/services/tax/rates.html",
+    source: "CRA",
+  },
+];
+
+
 /* FILE: src/content/constants.js */
+
 const SUPPORT_URL = "https://buymeacoffee.com/ashleysnl";
 
 const TOOLTIPS = {
@@ -1717,68 +1770,7 @@ const TOOLTIPS = {
   },
 };
 
-const OFFICIAL_REFERENCES = [
-  {
-    label: "CPP retirement pension (overview)",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp.html",
-    source: "Canada.ca (Service Canada)",
-  },
-  {
-    label: "CPP start-age timing (60-70)",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/when-start.html",
-    source: "Canada.ca (Service Canada)",
-  },
-  {
-    label: "Old Age Security (OAS) overview",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/old-age-security.html",
-    source: "Canada.ca (Service Canada)",
-  },
-  {
-    label: "OAS start-age timing (65-70)",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/old-age-security/when-start.html",
-    source: "Canada.ca (Service Canada)",
-  },
-  {
-    label: "OAS recovery tax (clawback)",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/old-age-security/recovery-tax.html",
-    source: "Canada.ca",
-  },
-  {
-    label: "RRSPs and other registered plans (T4040)",
-    href: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4040/rrsps-other-registered-plans-retirement.html",
-    source: "CRA",
-  },
-  {
-    label: "RRSP deduction limit rules",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/rrsps-related-plans/contributing-a-rrsp-prpp/contributions-affect-your-rrsp-prpp-deduction-limit.html",
-    source: "CRA",
-  },
-  {
-    label: "Registered Retirement Income Fund (RRIF)",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/registered-retirement-income-fund-rrif.html",
-    source: "CRA",
-  },
-  {
-    label: "Personal tax rates and brackets hub",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/rates.html",
-    source: "CRA",
-  },
-  {
-    label: "Federal/provincial tax thresholds and rates",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/income-tax/reducing-remuneration-subject-income-tax.html",
-    source: "CRA",
-  },
-  {
-    label: "Tax-Free Savings Account (TFSA): opening and eligibility",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/tax-free-savings-account/opening.html",
-    source: "CRA",
-  },
-  {
-    label: "Capital gains guide (non-registered investing context)",
-    href: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4037/capital-gains.html",
-    source: "CRA",
-  },
-];
+const OFFICIAL_REFERENCES = OFFICIAL_SOURCES;
 
 const PLAN_SUMMARY_ROWS = [
   { key: "province", label: "Province", tooltip: "province" },
@@ -2978,14 +2970,20 @@ function buildShareUrl(baseUrl, state, minimal = false) {
   const payload = buildSharePayload(state, minimal);
   const encoded = encodeURIComponent(JSON.stringify(payload));
   const url = new URL(baseUrl);
-  url.searchParams.set(minimal ? "shareMin" : "share", encoded);
+  const key = minimal ? "shareMin" : "share";
+  url.hash = `${key}=${encoded}`;
   return url.toString();
 }
 
 function parseSharedScenarioFromUrl(locationObj) {
   try {
     const url = new URL(locationObj.href);
-    const raw = url.searchParams.get("share") || url.searchParams.get("shareMin");
+    let raw = url.searchParams.get("share") || url.searchParams.get("shareMin");
+    if (!raw && url.hash) {
+      const hash = String(url.hash).replace(/^#/, "");
+      const [k, v] = hash.split("=");
+      if (k === "share" || k === "shareMin") raw = v || "";
+    }
     if (!raw) return null;
     const parsed = JSON.parse(decodeURIComponent(raw));
     if (!parsed || typeof parsed !== "object") return null;
@@ -3034,13 +3032,15 @@ function buildShareSummary({ state, row, formatCurrency, formatPct, link }) {
   const tax = safeNumber((row?.taxOnWithdrawal || 0) + (row?.oasClawback || 0), 0);
   const age = safeNumber(row?.age, state.profile.retirementAge);
   return [
+    "Canadian Retirement Tax Simulator - Summary",
+    `Age: ${age}`,
     `Retirement age: ${state.profile.retirementAge}`,
-    `After-tax spending target at age ${age}: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
+    `After-tax spending target: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
     `Guaranteed income: ${formatCurrency(guaranteed)} (Pension ${formatCurrency(pension)} / CPP ${formatCurrency(cpp)} / OAS ${formatCurrency(oas)})`,
-    `Net gap: ${formatCurrency(netGap)}`,
-    `Gross withdrawal required: ${formatCurrency(gross)} (tax ${formatCurrency(tax)}; effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
+    `Net gap from savings: ${formatCurrency(netGap)}`,
+    `Gross RRSP/RRIF withdrawal required: ${formatCurrency(gross)}`,
+    `Tax wedge: ${formatCurrency(tax)} (effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
     `OAS clawback: ${formatCurrency(row?.oasClawback || 0)}${state.strategy.oasClawbackModeling ? "" : " (modeling off)"}`,
-    "",
     `Link: ${link}`,
   ].join("\n");
 }
@@ -3143,10 +3143,11 @@ function renderMethodologyHtml(escapeHtml) {
       `).join("")}
       <article class="subsection">
         <h3>References</h3>
+        <p class="small-copy muted">Last verified: ${escapeHtml(SOURCES_LAST_VERIFIED)}</p>
         <ul class="plain-list resource-list">
           ${OFFICIAL_REFERENCES.map((item) => `
             <li>
-              <a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}</a>
+              <a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)} ↗</a>
               <span class="muted small-copy"> (${escapeHtml(item.source)})</span>
             </li>
           `).join("")}
@@ -4632,6 +4633,7 @@ const el = {
   scenarioSummary: document.getElementById("scenarioSummary"),
   stressTable: document.getElementById("stressTable"),
   openGlossaryBtnTools: document.getElementById("openGlossaryBtnTools"),
+  resetCacheBtnTools: document.getElementById("resetCacheBtnTools"),
   methodologyPanel: document.getElementById("methodologyPanel"),
 
   notesInput: document.getElementById("notesInput"),
@@ -4894,6 +4896,7 @@ function bindEvents() {
   el.copyShareLinkBtn?.addEventListener("click", () => copyShare(false));
   el.copyMinimalLinkBtn?.addEventListener("click", () => copyShare(true));
   el.copySummaryBtn?.addEventListener("click", copySummary);
+  el.resetCacheBtnTools?.addEventListener("click", resetCachedAppData);
   el.closePlanEditorBtn?.addEventListener("click", closePlanEditor);
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
@@ -5766,10 +5769,10 @@ function shareBaseUrl() {
 
 async function copyShare(minimal = false) {
   const url = buildShareUrl(shareBaseUrl(), state, minimal);
-  try {
-    await navigator.clipboard.writeText(url);
+  const copied = await writeClipboardText(url);
+  if (copied) {
     toast(minimal ? "Minimal share link copied." : "Share link copied.");
-  } catch {
+  } else {
     toast(url);
   }
 }
@@ -5784,11 +5787,57 @@ async function copySummary() {
     formatPct,
     link,
   });
-  try {
-    await navigator.clipboard.writeText(summary);
+  const copied = await writeClipboardText(summary);
+  if (copied) {
     toast("Summary copied.");
-  } catch {
+  } else {
     toast("Could not copy summary.");
+  }
+}
+
+async function writeClipboardText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // continue to fallback
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = String(text || "");
+    ta.setAttribute("readonly", "readonly");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return !!ok;
+  } catch {
+    return false;
+  }
+}
+
+async function resetCachedAppData() {
+  const ok = confirm("Clear cached app files and reload? This is a DEV recovery action.");
+  if (!ok) return;
+  try {
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((reg) => reg.unregister()));
+    }
+    toast("Cached app reset. Reloading...");
+    setTimeout(() => location.reload(), 350);
+  } catch {
+    toast("Could not reset cached app.");
   }
 }
 
@@ -5796,6 +5845,9 @@ function clearSharedScenarioQuery() {
   const url = new URL(window.location.href);
   url.searchParams.delete("share");
   url.searchParams.delete("shareMin");
+  if (url.hash.startsWith("#share=") || url.hash.startsWith("#shareMin=")) {
+    url.hash = "";
+  }
   window.history.replaceState({}, "", url.toString());
 }
 

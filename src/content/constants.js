@@ -1,3 +1,5 @@
+import { OFFICIAL_SOURCES } from "./sources.js";
+
 export const SUPPORT_URL = "https://buymeacoffee.com/ashleysnl";
 
 export const TOOLTIPS = {
@@ -395,68 +397,7 @@ export const TOOLTIPS = {
   },
 };
 
-export const OFFICIAL_REFERENCES = [
-  {
-    label: "CPP retirement pension (overview)",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp.html",
-    source: "Canada.ca (Service Canada)",
-  },
-  {
-    label: "CPP start-age timing (60-70)",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/when-start.html",
-    source: "Canada.ca (Service Canada)",
-  },
-  {
-    label: "Old Age Security (OAS) overview",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/old-age-security.html",
-    source: "Canada.ca (Service Canada)",
-  },
-  {
-    label: "OAS start-age timing (65-70)",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/old-age-security/when-start.html",
-    source: "Canada.ca (Service Canada)",
-  },
-  {
-    label: "OAS recovery tax (clawback)",
-    href: "https://www.canada.ca/en/services/benefits/publicpensions/cpp/old-age-security/recovery-tax.html",
-    source: "Canada.ca",
-  },
-  {
-    label: "RRSPs and other registered plans (T4040)",
-    href: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4040/rrsps-other-registered-plans-retirement.html",
-    source: "CRA",
-  },
-  {
-    label: "RRSP deduction limit rules",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/rrsps-related-plans/contributing-a-rrsp-prpp/contributions-affect-your-rrsp-prpp-deduction-limit.html",
-    source: "CRA",
-  },
-  {
-    label: "Registered Retirement Income Fund (RRIF)",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/registered-retirement-income-fund-rrif.html",
-    source: "CRA",
-  },
-  {
-    label: "Personal tax rates and brackets hub",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/rates.html",
-    source: "CRA",
-  },
-  {
-    label: "Federal/provincial tax thresholds and rates",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/income-tax/reducing-remuneration-subject-income-tax.html",
-    source: "CRA",
-  },
-  {
-    label: "Tax-Free Savings Account (TFSA): opening and eligibility",
-    href: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/tax-free-savings-account/opening.html",
-    source: "CRA",
-  },
-  {
-    label: "Capital gains guide (non-registered investing context)",
-    href: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4037/capital-gains.html",
-    source: "CRA",
-  },
-];
+export const OFFICIAL_REFERENCES = OFFICIAL_SOURCES;
 
 export const PLAN_SUMMARY_ROWS = [
   { key: "province", label: "Province", tooltip: "province" },

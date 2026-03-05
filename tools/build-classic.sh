@@ -14,6 +14,7 @@ MODULES=(
   "src/model/meltdown.js"
   "src/model/planStore.js"
   "src/model/planSchema.js"
+  "src/content/sources.js"
   "src/content/constants.js"
   "src/ui/formatters.js"
   "src/ui/actions/planActions.js"

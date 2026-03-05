@@ -1,8 +1,10 @@
-const CACHE_NAME = "retirement-planner-v3";
+const CACHE_NAME = "retirement-planner-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./404.html",
   "./styles.css",
+  "./src/main.js",
   "./app.js",
   "./app.classic.js",
   "./manifest.webmanifest",
@@ -25,18 +27,26 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
+  const request = event.request;
+  const destination = request.destination || "";
+  const isNavigation = request.mode === "navigate";
+
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(request);
+      if (response && response.ok && request.url.startsWith(self.location.origin)) {
         const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      })
-      .catch(() =>
-        caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          return caches.match("./index.html");
-        })
-      )
-  );
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+      }
+      return response;
+    } catch {
+      const cached = await caches.match(request);
+      if (cached) return cached;
+      if (isNavigation || destination === "document") {
+        const shell = await caches.match("./index.html");
+        if (shell) return shell;
+      }
+      return new Response("Offline", { status: 503, statusText: "Offline" });
+    }
+  })());
 });
