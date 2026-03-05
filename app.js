@@ -31,6 +31,22 @@ import { drawLearnLineChart as drawLearnLineChartUi, drawLearnMultiLineChart as 
 import { bindTooltipTriggers, renderCoverageHover, renderBalanceHover } from "./src/ui/interactions.js";
 import { exportPlanJson, importPlanFromFileInput } from "./src/ui/actions/planActions.js";
 import { navFromHash as navFromHashUi, syncNavHash as syncNavHashUi, normalizeNavTarget as normalizeNavTargetUi } from "./src/ui/navigation.js";
+import { renderResultsStrip } from "./src/ui/resultsStrip.js";
+import {
+  ensureSupportMomentState,
+  maybeTriggerSupportMoment,
+  markSupportMomentShown,
+  dismissSupportMoment,
+  buildSupportMomentCard,
+  isSupportDismissed,
+} from "./src/ui/supportMoments.js";
+import {
+  buildShareUrl,
+  buildShareSummary,
+  parseSharedScenarioFromUrl,
+  applySharedScenarioToPlan,
+} from "./src/ui/share.js";
+import { renderMethodologyHtml } from "./src/content/methodology.js";
 import {
   learnCallouts as buildLearnCallouts,
   calculatePhaseWeightedSpending as calculatePhaseWeightedSpendingUi,
@@ -91,6 +107,9 @@ const el = {
 
   kpiGrid: document.getElementById("kpiGrid"),
   kpiContext: document.getElementById("kpiContext"),
+  resultsStrip: document.getElementById("resultsStrip"),
+  sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
+  supportMomentMount: document.getElementById("supportMomentMount"),
   mainChart: document.getElementById("mainChart"),
   balanceHover: document.getElementById("balanceHover"),
   chartLegend: document.getElementById("chartLegend"),
@@ -115,6 +134,8 @@ const el = {
   dashboardStatus: document.getElementById("dashboardStatus"),
   retirementScoreCard: document.getElementById("retirementScoreCard"),
   copyShareLinkBtn: document.getElementById("copyShareLinkBtn"),
+  copyMinimalLinkBtn: document.getElementById("copyMinimalLinkBtn"),
+  copySummaryBtn: document.getElementById("copySummaryBtn"),
 
   wizardProgressBar: document.getElementById("wizardProgressBar"),
   wizardStepLabel: document.getElementById("wizardStepLabel"),
@@ -127,6 +148,7 @@ const el = {
   scenarioSummary: document.getElementById("scenarioSummary"),
   stressTable: document.getElementById("stressTable"),
   openGlossaryBtnTools: document.getElementById("openGlossaryBtnTools"),
+  methodologyPanel: document.getElementById("methodologyPanel"),
 
   notesInput: document.getElementById("notesInput"),
   tooltipLayer: document.getElementById("tooltipLayer"),
@@ -156,6 +178,7 @@ globalThis.__RETIREMENT_APP_STAGE = "schema-ready";
 
 let state = loadPlan();
 globalThis.__RETIREMENT_APP_STAGE = "state-loaded";
+let sharedScenarioPayload = null;
 let ui = {
   activeNav: state.uiState.activeNav || "dashboard",
   tooltipKey: "",
@@ -185,6 +208,7 @@ let ui = {
   planEditorKey: "",
   isMobileLayout: false,
   eventsBound: false,
+  activeSupportMoment: "",
 };
 globalThis.__RETIREMENT_APP_STAGE = "ui-created";
 
@@ -200,6 +224,8 @@ init();
 function init() {
   globalThis.__RETIREMENT_APP_STAGE = "init-enter";
   try {
+    sharedScenarioPayload = parseSharedScenarioFromUrl(window.location);
+    if (sharedScenarioPayload) state.uiState.lastSharedScenarioBannerDismissed = false;
     const hashNav = navFromHashUi(location.hash, normalizeNavTargetUi);
     if (hashNav) {
       ui.activeNav = hashNav;
@@ -304,6 +330,7 @@ function bindEvents() {
     if (state.uiState.wizardStep >= 7) {
       state.uiState.wizardStep = 7;
       state.uiState.unlocked.advanced = true;
+      state.uiState.justCompletedWizard = true;
       state.uiState.activeNav = "dashboard";
       ui.activeNav = "dashboard";
       savePlan();
@@ -362,6 +389,8 @@ function bindEvents() {
   document.addEventListener("change", handleBoundInput);
   document.addEventListener("input", handleLearnBoundInput);
   document.addEventListener("change", handleLearnBoundInput);
+  document.addEventListener("input", handleDashboardInput);
+  document.addEventListener("change", handleDashboardInput);
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("toggle", handleDetailsToggle, true);
 
@@ -377,15 +406,9 @@ function bindEvents() {
   el.glossaryModal?.addEventListener("click", (event) => {
     if (event.target === el.glossaryModal) el.glossaryModal.close();
   });
-  el.copyShareLinkBtn?.addEventListener("click", async () => {
-    const url = "https://retirement.simplekit.app";
-    try {
-      await navigator.clipboard.writeText(url);
-      toast("Link copied.");
-    } catch {
-      toast(url);
-    }
-  });
+  el.copyShareLinkBtn?.addEventListener("click", () => copyShare(false));
+  el.copyMinimalLinkBtn?.addEventListener("click", () => copyShare(true));
+  el.copySummaryBtn?.addEventListener("click", copySummary);
   el.closePlanEditorBtn?.addEventListener("click", closePlanEditor);
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
@@ -430,6 +453,11 @@ function handleDocumentClick(event) {
   const actionBtn = target.closest("[data-action]");
   if (actionBtn) {
     const action = actionBtn.getAttribute("data-action");
+    if (action === "open-methodology") {
+      setActiveNav("methodology");
+      closeTooltip();
+      return;
+    }
     if (action === "open-learn") {
       setActiveNav("learn");
       return;
@@ -506,6 +534,35 @@ function handleDocumentClick(event) {
       const body = actionBtn.closest(".tooltip-popover")?.querySelector(".tooltip-example");
       const tip = TOOLTIPS[key];
       if (tip && body) body.textContent = tip.example || "No example available.";
+      return;
+    }
+    if (action === "dismiss-support-moment") {
+      dismissSupportMoment(state.uiState);
+      ui.activeSupportMoment = "";
+      savePlan();
+      renderDashboardSupportMoment();
+      return;
+    }
+    if (action === "apply-shared-scenario") {
+      if (!sharedScenarioPayload) return;
+      state = applySharedScenarioToPlan(state, sharedScenarioPayload);
+      state.uiState.firstRun = false;
+      state.uiState.hasStarted = true;
+      state.uiState.lastSharedScenarioBannerDismissed = true;
+      sharedScenarioPayload = null;
+      clearSharedScenarioQuery();
+      ensureValidStateLocal();
+      savePlan();
+      renderAll();
+      toast("Shared scenario applied to your local plan.");
+      return;
+    }
+    if (action === "dismiss-shared-scenario") {
+      state.uiState.lastSharedScenarioBannerDismissed = true;
+      sharedScenarioPayload = null;
+      clearSharedScenarioQuery();
+      savePlan();
+      renderDashboardSharedScenarioBanner();
       return;
     }
     if (action === "learn-send-spending") {
@@ -609,6 +666,18 @@ function handleLearnBoundInput(event) {
   updateLearnOutputs();
 }
 
+function handleDashboardInput(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.id !== "resultsAgePicker") return;
+  const nextAge = Number(target.value);
+  if (!Number.isFinite(nextAge)) return;
+  ui.selectedAge = nextAge;
+  if (el.yearScrubber) el.yearScrubber.value = String(nextAge);
+  if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${nextAge}`;
+  renderDashboard();
+}
+
 function renderAll() {
   ensureValidStateLocal();
   ui.activeNav = normalizeNavTargetUi(ui.activeNav || state.uiState.activeNav || "dashboard");
@@ -627,6 +696,7 @@ function renderAll() {
   renderPlanInputs();
   renderAdvanced();
   renderStress();
+  renderMethodology();
   renderNotes();
   bindInlineTooltipTriggers(document.body);
 }
@@ -679,6 +749,88 @@ function renderDashboard() {
     getOasRiskLevel: getOasRiskLevelLocal,
     buildNextActions: buildNextActionsLocal,
   });
+  renderDashboardResultsStrip();
+  renderDashboardSharedScenarioBanner();
+  renderDashboardSupportMoment();
+}
+
+function getDashboardSelectedRow() {
+  const rows = ui.lastModel?.base?.rows || [];
+  return findRowByAgeLocal(rows, ui.selectedAge || state.profile.retirementAge)
+    || findRowByAgeLocal(rows, state.profile.retirementAge)
+    || rows[0]
+    || null;
+}
+
+function renderDashboardResultsStrip() {
+  if (!el.resultsStrip || !ui.lastModel) return;
+  const rows = ui.lastModel.base.rows.filter((row) => row.age >= state.profile.retirementAge);
+  if (!rows.length) {
+    el.resultsStrip.innerHTML = "";
+    return;
+  }
+  const minAge = rows[0].age;
+  const maxAge = rows[rows.length - 1].age;
+  const selected = clamp(ui.selectedAge ?? minAge, minAge, maxAge);
+  ui.selectedAge = selected;
+  const row = findRowByAgeLocal(rows, selected) || rows[0];
+  renderResultsStrip({
+    mountEl: el.resultsStrip,
+    row,
+    selectedAge: selected,
+    minAge,
+    maxAge,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+    clamp,
+  });
+  bindInlineTooltipTriggers(el.resultsStrip);
+}
+
+function renderDashboardSharedScenarioBanner() {
+  if (!el.sharedScenarioBanner) return;
+  const show = Boolean(sharedScenarioPayload) && !state.uiState.lastSharedScenarioBannerDismissed;
+  el.sharedScenarioBanner.hidden = !show;
+  if (!show) {
+    el.sharedScenarioBanner.innerHTML = "";
+    return;
+  }
+  el.sharedScenarioBanner.innerHTML = `
+    <div class="banner-row">
+      <div>
+        <strong>Loaded shared scenario</strong>
+        <p class="small-copy muted">Preview loaded from link. Apply only if you want to replace current assumptions.</p>
+      </div>
+      <div class="landing-actions">
+        <button class="btn btn-primary" type="button" data-action="apply-shared-scenario">Apply to my plan</button>
+        <button class="btn btn-secondary" type="button" data-action="dismiss-shared-scenario">Dismiss</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderDashboardSupportMoment() {
+  if (!el.supportMomentMount || !ui.lastModel) return;
+  ensureSupportMomentState(state.uiState);
+  const row = getDashboardSelectedRow();
+  let trigger = "";
+  if (state.uiState.justCompletedWizard) {
+    trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "wizardComplete" });
+    state.uiState.justCompletedWizard = false;
+  }
+  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstGrossUp" });
+  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstClawback" });
+  if (trigger) {
+    ui.activeSupportMoment = trigger;
+    markSupportMomentShown(state.uiState, trigger);
+    savePlan();
+  }
+  if (!ui.activeSupportMoment || isSupportDismissed(state.uiState)) {
+    el.supportMomentMount.innerHTML = "";
+    return;
+  }
+  el.supportMomentMount.innerHTML = buildSupportMomentCard(ui.activeSupportMoment);
 }
 
 function getOasRiskLevelLocal(amount) {
@@ -884,6 +1036,11 @@ function renderStress() {
   });
 }
 
+function renderMethodology() {
+  if (!el.methodologyPanel) return;
+  el.methodologyPanel.innerHTML = renderMethodologyHtml(escapeHtml);
+}
+
 function renderNotes() {
   el.notesInput.value = state.notes || "";
 }
@@ -937,7 +1094,12 @@ function openGlossary() {
 }
 
 function exportJson() {
-  exportPlanJson(state, toast);
+  exportPlanJson(state, (msg) => {
+    toast(msg);
+    setTimeout(() => {
+      toast("Saved your plan. If this saved you time, you can support the project.");
+    }, 900);
+  });
 }
 
 async function importJsonFromFile() {
@@ -969,6 +1131,48 @@ function savePlan() {
   } catch {
     toast("Could not save to local storage.");
   }
+}
+
+function shareBaseUrl() {
+  const origin = window.location.origin && window.location.origin !== "null"
+    ? window.location.origin
+    : "https://retirement.simplekit.app";
+  return `${origin}${window.location.pathname || "/"}`;
+}
+
+async function copyShare(minimal = false) {
+  const url = buildShareUrl(shareBaseUrl(), state, minimal);
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(minimal ? "Minimal share link copied." : "Share link copied.");
+  } catch {
+    toast(url);
+  }
+}
+
+async function copySummary() {
+  const row = getDashboardSelectedRow();
+  const link = buildShareUrl(shareBaseUrl(), state, false);
+  const summary = buildShareSummary({
+    state,
+    row,
+    formatCurrency,
+    formatPct,
+    link,
+  });
+  try {
+    await navigator.clipboard.writeText(summary);
+    toast("Summary copied.");
+  } catch {
+    toast("Could not copy summary.");
+  }
+}
+
+function clearSharedScenarioQuery() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("share");
+  url.searchParams.delete("shareMin");
+  window.history.replaceState({}, "", url.toString());
 }
 
 function normalizePlanLocal(input) {

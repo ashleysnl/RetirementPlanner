@@ -15,6 +15,7 @@ export function normalizeNavTarget(value) {
   if (key === "guided") return "start";
   if (key === "inputs") return "plan";
   if (key === "stress" || key === "notes" || key === "export") return "tools";
-  const allowed = new Set(["home", "start", "dashboard", "plan", "learn", "tools", "advanced", "about", "support"]);
+  if (key === "method") return "methodology";
+  const allowed = new Set(["home", "start", "dashboard", "plan", "learn", "tools", "advanced", "about", "support", "methodology"]);
   return allowed.has(key) ? key : "";
 }

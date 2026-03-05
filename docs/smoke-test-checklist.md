@@ -47,3 +47,13 @@ Run this after any JavaScript or view-layer change.
 - Confirm desktop sidebar/tabs do not overlay content.
 - Confirm support button is clickable.
 - Confirm tooltip popovers are visible and centered on mobile.
+
+## 9) Iteration 2 (Holy Quartet / Share / Methodology)
+- Confirm `Holy Quartet` results strip is visible above charts on Dashboard.
+- Move `Pick age` in the strip and confirm scrubber/chart context updates to same age.
+- Confirm mini-bar shows Guaranteed | Net withdrawal | Tax wedge.
+- Confirm support moment card appears at first aha event and `Not now` hides it.
+- Confirm `Copy share link`, `Copy minimal link`, and `Copy summary` work.
+- Open a `?share=` link and confirm `Loaded shared scenario` banner appears without auto-overwrite.
+- Click `Apply to my plan` and confirm plan updates and banner clears.
+- Open `Methodology` tab and confirm sections + reference links render.

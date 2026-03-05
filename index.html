@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Canadian Retirement Tax Simulator for CPP, OAS, pensions, RRSP/RRIF withdrawals, OAS clawback, and tax-aware retirement income planning." />
+  <meta name="description" content="Canadian Retirement Tax Simulator for OAS clawback, RRIF minimums, and gross vs net withdrawals with CPP, OAS, pensions, and RRSP/RRIF planning." />
   <meta name="theme-color" content="#0f6abf" />
-  <title>Canadian Retirement Tax Simulator | OAS Clawback + RRIF Planner</title>
+  <title>Canadian Retirement Tax Simulator - OAS Clawback + RRIF Planner</title>
   <meta property="og:title" content="Canadian Retirement Tax Simulator" />
   <meta property="og:description" content="See how CPP, OAS, pensions, and RRSP/RRIF withdrawals interact — including tax drag, RRIF minimums, and OAS clawback." />
   <meta property="og:type" content="website" />
@@ -54,6 +54,7 @@
       <section id="landingPanel" class="panel landing-panel" aria-labelledby="landingTitle">
         <h2 id="landingTitle">Canadian Retirement Tax Simulator</h2>
         <p class="muted">See how CPP, OAS, pensions, and RRSP/RRIF withdrawals interact — including taxes, RRIF minimums, and OAS clawback.</p>
+        <p class="small-copy muted">Built for Canadians planning RRSP/RRIF withdrawals, pensions, CPP, and OAS.</p>
         <div class="landing-actions no-print">
           <button id="startSimpleBtn" class="btn btn-primary" type="button">Start Simple Plan (60 seconds)</button>
           <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics first</button>
@@ -77,6 +78,7 @@
           <button type="button" class="tab-btn" data-nav-target="learn">Learn the Basics</button>
           <button type="button" class="tab-btn" data-nav-target="tools">Tools</button>
           <button type="button" class="tab-btn desktop-only-tab" data-nav-target="advanced">Advanced Settings</button>
+          <button type="button" class="tab-btn desktop-only-tab" data-nav-target="methodology">Methodology</button>
           <button type="button" class="tab-btn desktop-only-tab" data-nav-target="about">About</button>
           <button type="button" class="tab-btn desktop-only-tab" data-nav-target="support">Support</button>
         </nav>
@@ -102,15 +104,15 @@
           </div>
           <details class="subsection">
             <summary>What is the OAS clawback?</summary>
-            <p class="muted">If taxable income rises above the annual threshold, part of OAS is repaid as recovery tax.</p>
+            <p class="muted">If taxable income rises above the annual threshold, part of OAS is repaid as recovery tax. <button class="text-link-btn" type="button" data-nav-target="learn">Learn OAS basics</button> <button class="text-link-btn" type="button" data-nav-target="methodology">Methodology</button></p>
           </details>
           <details class="subsection">
             <summary>How do RRIF minimum withdrawals work?</summary>
-            <p class="muted">After RRSP conversion to RRIF, minimum withdrawals are required each year and generally increase with age.</p>
+            <p class="muted">After RRSP conversion to RRIF, minimum withdrawals are required each year and generally increase with age. <button class="text-link-btn" type="button" data-nav-target="learn">Learn RRIF rules</button> <button class="text-link-btn" type="button" data-nav-target="methodology">Methodology</button></p>
           </details>
           <details class="subsection">
             <summary>Why do I need to withdraw more than I spend?</summary>
-            <p class="muted">Because RRSP/RRIF withdrawals are taxable. You need gross income to net your spending target after tax.</p>
+            <p class="muted">Because RRSP/RRIF withdrawals are taxable. You need gross income to net your spending target after tax. <button class="text-link-btn" type="button" data-nav-target="learn">Learn gross vs net</button></p>
           </details>
         </section>
 
@@ -122,8 +124,12 @@
             <div id="dashboardStatus" class="status-pill"></div>
           </div>
 
+          <div id="sharedScenarioBanner" class="subsection" hidden></div>
+          <div id="resultsStrip" class="subsection"></div>
+          <div id="supportMomentMount"></div>
+
           <div class="subsection">
-            <h3>At a glance</h3>
+            <h3>At a glance (retirement start)</h3>
             <p id="kpiContext" class="small-copy muted"></p>
             <div id="kpiGrid" class="metric-grid metric-grid-wide"></div>
             <div class="support-inline-callout">
@@ -136,7 +142,7 @@
 
           <div class="chart-wrap">
             <div class="chart-head-row">
-              <h3>Your retirement savings projection</h3>
+              <h3>Projection</h3>
               <label class="inline-check small-copy no-print">
                 <input id="dashboardStressToggle" type="checkbox" checked />
                 Show stress band
@@ -151,7 +157,7 @@
 
           <div class="chart-wrap">
             <div class="chart-head-row">
-              <h3>Income vs Spending Coverage</h3>
+              <h3>Coverage</h3>
               <label class="inline-check small-copy no-print">
                 <input id="dollarModeToggle" type="checkbox" />
                 Show in today's dollars
@@ -179,17 +185,17 @@
           </div>
 
           <div class="subsection">
-            <h3 id="walkthroughHeading">Income vs Spending Explained for Age 65</h3>
+            <h3 id="walkthroughHeading">Explain for Age 65</h3>
             <div id="walkthroughStrip" class="walkthrough-strip" aria-live="polite"></div>
           </div>
 
           <div class="subsection">
-            <h3>Year breakdown cards</h3>
+            <h3>Key years</h3>
             <div id="yearCards" class="withdrawal-explain" aria-live="polite"></div>
           </div>
 
           <div class="subsection">
-            <h3>Next best action</h3>
+            <h3>Next step</h3>
             <ul id="nextActions" class="plain-list"></ul>
           </div>
 
@@ -197,7 +203,9 @@
             <h3>Share this tool</h3>
             <p class="small-copy muted">Share this tool with a friend who is planning retirement income.</p>
             <div class="landing-actions">
-              <button id="copyShareLinkBtn" class="btn btn-secondary" type="button">Copy link</button>
+              <button id="copyShareLinkBtn" class="btn btn-secondary" type="button">Copy share link</button>
+              <button id="copyMinimalLinkBtn" class="btn btn-secondary" type="button">Copy minimal link</button>
+              <button id="copySummaryBtn" class="btn btn-secondary" type="button">Copy summary</button>
             </div>
           </div>
 
@@ -293,7 +301,16 @@
           <div class="subsection">
             <p class="muted">This app provides planning-level estimates only. It is not tax, legal, or financial advice.</p>
             <p class="muted">Assumptions and tax rules can change by year. Validate important decisions with a licensed advisor.</p>
+            <p class="small-copy"><button class="text-link-btn" type="button" data-nav-target="methodology">Read Methodology & Sources</button></p>
           </div>
+        </section>
+
+        <section class="panel nav-panel" data-nav-panel="methodology" aria-labelledby="methodologyHeading" hidden>
+          <div class="panel-header">
+            <h2 id="methodologyHeading">Methodology & Sources</h2>
+            <p>How the simulator estimates taxes, withdrawals, RRIF minimums, and OAS clawback.</p>
+          </div>
+          <div id="methodologyPanel"></div>
         </section>
 
         <section class="panel nav-panel" data-nav-panel="support" aria-labelledby="supportHeading" hidden>
@@ -331,6 +348,7 @@
     <footer class="app-footer no-print" aria-label="Footer">
       <strong>Planning-level estimate only.</strong>
       <span class="muted">Not tax, legal, or financial advice.</span>
+      <button class="text-link-btn" type="button" data-nav-target="methodology">Methodology & Sources</button>
       <div class="associate-links" aria-label="Associate links">
         <span class="muted small-copy">Associate links:</span>
         <a href="https://amzn.to/4aXpF60" target="_blank" rel="noopener noreferrer nofollow sponsored">Die With Zero</a>

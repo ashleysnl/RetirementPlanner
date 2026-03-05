@@ -304,9 +304,9 @@ body.mobile-layout .bottom-tabs {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
+  white-space: normal;
   line-height: 1.1;
-  min-height: 1.1em;
+  min-height: 2.2em;
 }
 
 .metric-card .label .tooltip-trigger {
@@ -324,6 +324,96 @@ body.mobile-layout .bottom-tabs {
   margin-top: 4px;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.metric-card.metric-good {
+  border-color: rgba(22, 163, 74, 0.4);
+  background: rgba(22, 163, 74, 0.06);
+}
+
+.results-strip-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.results-strip-head h3 {
+  margin: 0;
+}
+
+.results-strip-controls {
+  display: grid;
+  grid-template-columns: auto minmax(140px, 240px) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.results-strip-kpis {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.results-strip-meta {
+  margin-top: 10px;
+}
+
+.coverage-badge {
+  display: inline-flex;
+  border: 1px solid rgba(15, 106, 191, 0.35);
+  color: #0b4f8f;
+  background: rgba(15, 106, 191, 0.08);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.coverage-badge.coverage-good {
+  border-color: rgba(22, 163, 74, 0.45);
+  color: #0f7a38;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.results-mini-bar {
+  margin-top: 8px;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #eff5fd;
+  border: 1px solid #deebfa;
+  display: flex;
+}
+
+.results-mini-bar .seg {
+  height: 100%;
+}
+
+.results-mini-bar .seg.guaranteed {
+  background: #16a34a;
+}
+
+.results-mini-bar .seg.netdraw {
+  background: #0f6abf;
+}
+
+.results-mini-bar .seg.tax {
+  background: #d9485f;
+}
+
+.support-moment-card h3 {
+  margin: 0 0 6px;
+}
+
+.banner-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .chart-wrap {
@@ -1028,6 +1118,12 @@ textarea {
   margin-top: 6px;
 }
 
+.tooltip-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .modal {
   border: none;
   border-radius: 16px;
@@ -1226,6 +1322,15 @@ textarea {
   .preview-kpi,
   .walkthrough-strip {
     grid-template-columns: 1fr;
+  }
+
+  .results-strip-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .results-strip-controls {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .withdrawal-explain {

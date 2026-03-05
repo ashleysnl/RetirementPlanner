@@ -873,6 +873,14 @@ function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       showScenarioCompare: false,
       showAdvancedControls: false,
       advancedSearch: "",
+      supportDismissedUntil: 0,
+      supportShownEvents: {
+        wizardComplete: false,
+        firstGrossUp: false,
+        firstClawback: false,
+      },
+      lastSharedScenarioBannerDismissed: false,
+      justCompletedWizard: false,
       learn: createDefaultLearnState(),
       learningProgress: createDefaultLearningProgress(learnProgressItems),
       unlocked: {
@@ -954,6 +962,10 @@ function normalizePlan(input, { app, provinces, riskReturns, learnProgressItems 
       ...base.uiState,
       ...(migrated.uiState || {}),
       unlocked: { ...base.uiState.unlocked, ...(migrated.uiState?.unlocked || {}) },
+      supportShownEvents: {
+        ...base.uiState.supportShownEvents,
+        ...(migrated.uiState?.supportShownEvents || {}),
+      },
       learn: normalizeLearnState(migrated.uiState?.learn || base.uiState.learn),
       learningProgress: {
         ...createDefaultLearningProgress(learnProgressItems),
@@ -998,6 +1010,14 @@ function ensureValidState(state, { app, provinces, learnProgressItems }) {
   state.uiState.learn = normalizeLearnState(state.uiState.learn);
   state.uiState.showAdvancedControls = Boolean(state.uiState.showAdvancedControls);
   state.uiState.advancedSearch = String(state.uiState.advancedSearch || "");
+  state.uiState.supportDismissedUntil = Math.max(0, Number(state.uiState.supportDismissedUntil || 0));
+  state.uiState.supportShownEvents = {
+    wizardComplete: Boolean(state.uiState.supportShownEvents?.wizardComplete),
+    firstGrossUp: Boolean(state.uiState.supportShownEvents?.firstGrossUp),
+    firstClawback: Boolean(state.uiState.supportShownEvents?.firstClawback),
+  };
+  state.uiState.lastSharedScenarioBannerDismissed = Boolean(state.uiState.lastSharedScenarioBannerDismissed);
+  state.uiState.justCompletedWizard = Boolean(state.uiState.justCompletedWizard);
   const defaultProgress = createDefaultLearningProgress(learnProgressItems);
   state.uiState.learningProgress = {
     ...defaultProgress,
@@ -1029,6 +1049,14 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
     ...createDefaultLearningProgress(learnProgressItems),
     ...(plan.uiState.learningProgress || {}),
   };
+  plan.uiState.supportDismissedUntil = Math.max(0, Number(plan.uiState.supportDismissedUntil || 0));
+  plan.uiState.supportShownEvents = {
+    wizardComplete: Boolean(plan.uiState.supportShownEvents?.wizardComplete),
+    firstGrossUp: Boolean(plan.uiState.supportShownEvents?.firstGrossUp),
+    firstClawback: Boolean(plan.uiState.supportShownEvents?.firstClawback),
+  };
+  plan.uiState.lastSharedScenarioBannerDismissed = Boolean(plan.uiState.lastSharedScenarioBannerDismissed);
+  plan.uiState.justCompletedWizard = Boolean(plan.uiState.justCompletedWizard);
   if (!plan.version) plan.version = app.version;
 }
 
@@ -1040,6 +1068,10 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   }
   if (!next.uiState) next.uiState = createDefaultPlan({ app, riskReturns, learnProgressItems }).uiState;
   if (!next.uiState.learn) next.uiState.learn = createDefaultLearnState();
+  if (!next.uiState.supportShownEvents) next.uiState.supportShownEvents = { wizardComplete: false, firstGrossUp: false, firstClawback: false };
+  if (next.uiState.supportDismissedUntil == null) next.uiState.supportDismissedUntil = 0;
+  if (next.uiState.lastSharedScenarioBannerDismissed == null) next.uiState.lastSharedScenarioBannerDismissed = false;
+  if (next.uiState.justCompletedWizard == null) next.uiState.justCompletedWizard = false;
   if (!next.savings) next.savings = createDefaultPlan({ app, riskReturns, learnProgressItems }).savings;
   if (!Array.isArray(next.savings.capitalInjects)) next.savings.capitalInjects = [];
   if (!next.accounts) next.accounts = createDefaultPlan({ app, riskReturns, learnProgressItems }).accounts;
@@ -1965,7 +1997,10 @@ function renderTooltipPopover({ key, anchor, tooltipMap, layerEl, escapeHtml }) 
     <p><strong>Plain language:</strong> ${escapeHtml(tip.plain)}</p>
     <p><strong>Why it matters:</strong> ${escapeHtml(tip.why)}</p>
     <p><strong>Typical range:</strong> ${escapeHtml(tip.range)}</p>
-    <button class="btn btn-primary" type="button" data-action="tooltip-example" data-value="${escapeHtml(key)}">Show example</button>
+    <div class="tooltip-actions">
+      <button class="btn btn-primary" type="button" data-action="tooltip-example" data-value="${escapeHtml(key)}">Show example</button>
+      <button class="btn btn-secondary" type="button" data-action="open-methodology">Learn more</button>
+    </div>
     <p class="tooltip-example muted"></p>
   `;
 
@@ -2222,7 +2257,8 @@ function normalizeNavTarget(value) {
   if (key === "guided") return "start";
   if (key === "inputs") return "plan";
   if (key === "stress" || key === "notes" || key === "export") return "tools";
-  const allowed = new Set(["home", "start", "dashboard", "plan", "learn", "tools", "advanced", "about", "support"]);
+  if (key === "method") return "methodology";
+  const allowed = new Set(["home", "start", "dashboard", "plan", "learn", "tools", "advanced", "about", "support", "methodology"]);
   return allowed.has(key) ? key : "";
 }
 
@@ -2296,6 +2332,255 @@ function buildNextActions(model, advancedUnlocked) {
   return actions;
 }
 
+/* FILE: src/ui/resultsStrip.js */
+function renderResultsStrip(ctx) {
+  const {
+    mountEl,
+    row,
+    selectedAge,
+    minAge,
+    maxAge,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+    clamp,
+  } = ctx;
+  if (!mountEl || !row) return;
+
+  const spending = Math.max(0, Number(row.spending || 0));
+  const guaranteed = Math.max(0, Number(row.guaranteedGross || 0));
+  const netGap = Math.max(0, Number(row.netGap || 0));
+  const gross = Math.max(0, Number(row.withdrawal || 0));
+  const taxWedge = Math.max(0, Number((row.taxOnWithdrawal || 0) + (row.oasClawback || 0)));
+  const coverageRatio = spending > 0 ? guaranteed / spending : 1;
+  const coveragePct = clamp(coverageRatio * 100, 0, 300);
+  const surplus = guaranteed > spending;
+  const barTotal = Math.max(1, guaranteed + Math.max(0, gross - taxWedge) + taxWedge);
+  const guaranteedW = (guaranteed / barTotal) * 100;
+  const netW = (Math.max(0, gross - taxWedge) / barTotal) * 100;
+  const taxW = (taxWedge / barTotal) * 100;
+
+  mountEl.innerHTML = `
+    <div class="results-strip-head">
+      <h3>5-Second Cash Flow ${tooltipButton("kpiNetGap")}</h3>
+      <div class="results-strip-controls">
+        <label for="resultsAgePicker" class="small-copy">Pick age</label>
+        <input id="resultsAgePicker" type="range" min="${minAge}" max="${maxAge}" step="1" value="${selectedAge}" aria-label="Results strip age selector" />
+        <strong id="resultsAgeLabel">Age ${selectedAge}</strong>
+      </div>
+    </div>
+    <div class="results-strip-kpis">
+      <article class="metric-card">
+        <span class="label">After-tax Spend ${tooltipButton("kpiSpendingTarget")}</span>
+        <span class="value">${formatCurrency(spending)}</span>
+        <span class="sub">Target cash needed</span>
+      </article>
+      <article class="metric-card">
+        <span class="label">Guaranteed ${tooltipButton("kpiGuaranteedIncome")}</span>
+        <span class="value">${formatCurrency(guaranteed)}</span>
+        <span class="sub">Pension + CPP + OAS</span>
+      </article>
+      <article class="metric-card ${surplus ? "metric-good" : ""}">
+        <span class="label">Net Gap ${tooltipButton("kpiNetGap")}</span>
+        <span class="value">${surplus ? "Surplus" : formatCurrency(netGap)}</span>
+        <span class="sub">${surplus ? "Guaranteed exceeds target" : "From savings (after-tax)"}</span>
+      </article>
+      <article class="metric-card">
+        <span class="label">Gross Draw ${tooltipButton("kpiGrossWithdrawal")}</span>
+        <span class="value">${formatCurrency(gross)}</span>
+        <span class="sub">Tax wedge ${formatCurrency(taxWedge)}</span>
+      </article>
+    </div>
+    <div class="results-strip-meta">
+      <span class="coverage-badge ${surplus ? "coverage-good" : ""}">
+        Income covers ${formatPct(Math.min(2.99, coverageRatio))}
+      </span>
+      <div class="results-mini-bar" role="img" aria-label="Income coverage mini bar">
+        <span class="seg guaranteed" style="width:${guaranteedW.toFixed(1)}%"></span>
+        <span class="seg netdraw" style="width:${netW.toFixed(1)}%"></span>
+        <span class="seg tax" style="width:${taxW.toFixed(1)}%"></span>
+      </div>
+      <p class="small-copy muted">Spending = Guaranteed + Net from savings. Gross draw = Net + Tax wedge.</p>
+    </div>
+  `;
+}
+
+/* FILE: src/ui/supportMoments.js */
+const SUPPORT_COOLDOWN_DAYS = 14;
+
+function ensureSupportMomentState(uiState) {
+  if (!uiState.supportShownEvents || typeof uiState.supportShownEvents !== "object") {
+    uiState.supportShownEvents = {};
+  }
+  uiState.supportShownEvents = {
+    wizardComplete: Boolean(uiState.supportShownEvents.wizardComplete),
+    firstGrossUp: Boolean(uiState.supportShownEvents.firstGrossUp),
+    firstClawback: Boolean(uiState.supportShownEvents.firstClawback),
+  };
+  uiState.supportDismissedUntil = Number(uiState.supportDismissedUntil || 0);
+}
+
+function isSupportDismissed(uiState, now = Date.now()) {
+  ensureSupportMomentState(uiState);
+  return uiState.supportDismissedUntil > now;
+}
+
+function markSupportMomentShown(uiState, key) {
+  ensureSupportMomentState(uiState);
+  uiState.supportShownEvents[key] = true;
+}
+
+function dismissSupportMoment(uiState, now = Date.now()) {
+  ensureSupportMomentState(uiState);
+  uiState.supportDismissedUntil = now + (SUPPORT_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+}
+
+function maybeTriggerSupportMoment({ state, model, row, trigger }) {
+  ensureSupportMomentState(state.uiState);
+  if (isSupportDismissed(state.uiState)) return "";
+  if (trigger === "wizardComplete" && !state.uiState.supportShownEvents.wizardComplete) return "wizardComplete";
+  if (trigger === "firstGrossUp" && !state.uiState.supportShownEvents.firstGrossUp) {
+    if ((row?.withdrawal || 0) > (row?.netFromWithdrawal || 0) && (row?.taxOnWithdrawal || 0) > 0) return "firstGrossUp";
+  }
+  if (trigger === "firstClawback" && !state.uiState.supportShownEvents.firstClawback) {
+    if (state.strategy.oasClawbackModeling && (row?.oasClawback || 0) > 0) return "firstClawback";
+  }
+  if (!model || !row) return "";
+  return "";
+}
+
+function supportMomentCopy(eventKey) {
+  if (eventKey === "wizardComplete") {
+    return "If this clarified your retirement withdrawals and taxes, consider supporting development.";
+  }
+  if (eventKey === "firstClawback") {
+    return "If this helped you understand OAS clawback risk, consider supporting development.";
+  }
+  return "If this clarified your retirement withdrawals and taxes, consider supporting development.";
+}
+
+function buildSupportMomentCard(eventKey) {
+  if (!eventKey) return "";
+  return `
+    <article class="subsection support-moment-card" aria-live="polite">
+      <h3>☕ Support this project</h3>
+      <p class="muted">${supportMomentCopy(eventKey)}</p>
+      <p class="small-copy muted">No paywall. Your support keeps it updated.</p>
+      <div class="landing-actions">
+        <a class="btn btn-primary" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a>
+        <a class="btn btn-secondary" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Become monthly supporter</a>
+        <button class="btn btn-secondary" type="button" data-action="dismiss-support-moment">Not now</button>
+      </div>
+    </article>
+  `;
+}
+
+/* FILE: src/ui/share.js */
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function buildSharePayload(state, minimal = false) {
+  const payload = {
+    by: state.profile.birthYear,
+    p: state.profile.province,
+    ra: state.profile.retirementAge,
+    le: state.profile.lifeExpectancy,
+    sp: state.profile.desiredSpending,
+    inf: state.assumptions.inflation,
+    rr: state.assumptions.riskProfile,
+    bal: state.savings.currentTotal,
+    con: state.savings.annualContribution,
+    pEn: state.income.pension.enabled ? 1 : 0,
+    pAmt: state.income.pension.amount,
+    pAge: state.income.pension.startAge,
+    cpp: state.income.cpp.amountAt65,
+    cppAge: state.income.cpp.startAge,
+    oas: state.income.oas.amountAt65,
+    oasAge: state.income.oas.startAge,
+    claw: state.strategy.oasClawbackModeling ? 1 : 0,
+    rrif: state.strategy.applyRrifMinimums ? 1 : 0,
+  };
+  if (!minimal) {
+    payload.spouse = state.profile.hasSpouse ? 1 : 0;
+    payload.cInc = state.savings.contributionIncrease;
+    payload.scn = state.assumptions.scenarioSpread;
+  }
+  return payload;
+}
+
+function buildShareUrl(baseUrl, state, minimal = false) {
+  const payload = buildSharePayload(state, minimal);
+  const encoded = encodeURIComponent(JSON.stringify(payload));
+  const url = new URL(baseUrl);
+  url.searchParams.set(minimal ? "shareMin" : "share", encoded);
+  return url.toString();
+}
+
+function parseSharedScenarioFromUrl(locationObj) {
+  try {
+    const url = new URL(locationObj.href);
+    const raw = url.searchParams.get("share") || url.searchParams.get("shareMin");
+    if (!raw) return null;
+    const parsed = JSON.parse(decodeURIComponent(raw));
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function applySharedScenarioToPlan(state, payload) {
+  if (!payload || typeof payload !== "object") return state;
+  const next = (typeof structuredClone === "function")
+    ? structuredClone(state)
+    : JSON.parse(JSON.stringify(state));
+  next.profile.birthYear = safeNumber(payload.by, next.profile.birthYear);
+  next.profile.province = String(payload.p || next.profile.province);
+  next.profile.retirementAge = safeNumber(payload.ra, next.profile.retirementAge);
+  next.profile.lifeExpectancy = safeNumber(payload.le, next.profile.lifeExpectancy);
+  next.profile.desiredSpending = safeNumber(payload.sp, next.profile.desiredSpending);
+  next.assumptions.inflation = safeNumber(payload.inf, next.assumptions.inflation);
+  next.assumptions.riskProfile = String(payload.rr || next.assumptions.riskProfile);
+  next.savings.currentTotal = safeNumber(payload.bal, next.savings.currentTotal);
+  next.savings.annualContribution = safeNumber(payload.con, next.savings.annualContribution);
+  next.income.pension.enabled = Boolean(payload.pEn);
+  next.income.pension.amount = safeNumber(payload.pAmt, next.income.pension.amount);
+  next.income.pension.startAge = safeNumber(payload.pAge, next.income.pension.startAge);
+  next.income.cpp.amountAt65 = safeNumber(payload.cpp, next.income.cpp.amountAt65);
+  next.income.cpp.startAge = safeNumber(payload.cppAge, next.income.cpp.startAge);
+  next.income.oas.amountAt65 = safeNumber(payload.oas, next.income.oas.amountAt65);
+  next.income.oas.startAge = safeNumber(payload.oasAge, next.income.oas.startAge);
+  next.strategy.oasClawbackModeling = Boolean(payload.claw);
+  next.strategy.applyRrifMinimums = Boolean(payload.rrif);
+  if (payload.spouse != null) next.profile.hasSpouse = Boolean(payload.spouse);
+  if (payload.cInc != null) next.savings.contributionIncrease = safeNumber(payload.cInc, next.savings.contributionIncrease);
+  if (payload.scn != null) next.assumptions.scenarioSpread = safeNumber(payload.scn, next.assumptions.scenarioSpread);
+  return next;
+}
+
+function buildShareSummary({ state, row, formatCurrency, formatPct, link }) {
+  const pension = safeNumber(row?.pensionGross || state.income.pension.amount, 0);
+  const cpp = safeNumber(row?.cppGross || state.income.cpp.amountAt65, 0);
+  const oas = safeNumber(row?.oasGross || state.income.oas.amountAt65, 0);
+  const guaranteed = safeNumber(row?.guaranteedGross, pension + cpp + oas);
+  const netGap = safeNumber(row?.netGap, 0);
+  const gross = safeNumber(row?.withdrawal, 0);
+  const tax = safeNumber((row?.taxOnWithdrawal || 0) + (row?.oasClawback || 0), 0);
+  const age = safeNumber(row?.age, state.profile.retirementAge);
+  return [
+    `Retirement age: ${state.profile.retirementAge}`,
+    `After-tax spending target at age ${age}: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
+    `Guaranteed income: ${formatCurrency(guaranteed)} (Pension ${formatCurrency(pension)} / CPP ${formatCurrency(cpp)} / OAS ${formatCurrency(oas)})`,
+    `Net gap: ${formatCurrency(netGap)}`,
+    `Gross withdrawal required: ${formatCurrency(gross)} (tax ${formatCurrency(tax)}; effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
+    `OAS clawback: ${formatCurrency(row?.oasClawback || 0)}${state.strategy.oasClawbackModeling ? "" : " (modeling off)"}`,
+    "",
+    `Link: ${link}`,
+  ].join("\n");
+}
+
 /* FILE: src/ui/learnUtils.js */
 function learnCallouts(titleA, bodyA, titleB, bodyB, escapeHtml) {
   return `
@@ -2320,6 +2605,91 @@ function calculatePhaseWeightedSpending(phases) {
     + Number(phases.noYears) * Number(phases.noPct)
   );
   return totalAmount / totalYears;
+}
+
+/* FILE: src/content/methodology.js */
+
+const METHODOLOGY_LAST_UPDATED = "2026";
+
+const METHODOLOGY_SECTIONS = [
+  {
+    id: "method-scope",
+    title: "What this simulator is / is not",
+    body: [
+      "This is a planning-level simulator to help you understand retirement cash flow and tax interactions.",
+      "It is not financial, legal, or tax advice, and it does not replace licensed professional advice.",
+      "Outputs are scenario estimates based on your assumptions.",
+    ],
+  },
+  {
+    id: "method-tax",
+    title: "How taxes are estimated",
+    body: [
+      "The model uses a simplified progressive federal + provincial bracket approach.",
+      "It reports planning-level effective tax rates and estimated tax drag in withdrawal years.",
+      `Tax assumptions and brackets are hardcoded planning tables. Last updated: ${METHODOLOGY_LAST_UPDATED}.`,
+    ],
+  },
+  {
+    id: "method-oas",
+    title: "OAS clawback",
+    body: [
+      "OAS clawback is estimated as a recovery tax when taxable income exceeds the threshold for a given year.",
+      "Estimated clawback is shown as part of the tax wedge and year cards when enabled.",
+    ],
+  },
+  {
+    id: "method-rrif",
+    title: "RRIF minimum withdrawals",
+    body: [
+      "RRSP to RRIF conversion is modeled at your selected conversion age (default age 71).",
+      "Minimum RRIF withdrawal rates by age are applied when RRIF minimum modeling is enabled.",
+    ],
+  },
+  {
+    id: "method-benefits",
+    title: "CPP and OAS handling",
+    body: [
+      "CPP and OAS are modeled from user-entered age-65 estimates and selected start ages.",
+      "Start-age adjustments are applied for earlier/later starts as planning approximations.",
+      "Indexation and timing impacts are handled at planning level, not benefit-statement precision.",
+    ],
+  },
+  {
+    id: "method-limits",
+    title: "Limitations",
+    body: [
+      "Future tax rules and benefit formulas can change.",
+      "The simulator does not model every personal tax credit, deduction, or pension detail.",
+      "Use results directionally and validate key decisions with an advisor.",
+    ],
+  },
+];
+
+function renderMethodologyHtml(escapeHtml) {
+  return `
+    <section class="subsection">
+      ${METHODOLOGY_SECTIONS.map((section) => `
+        <article id="${escapeHtml(section.id)}" class="subsection">
+          <h3>${escapeHtml(section.title)}</h3>
+          <ul class="plain-list">
+            ${section.body.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+          </ul>
+        </article>
+      `).join("")}
+      <article class="subsection">
+        <h3>References</h3>
+        <ul class="plain-list resource-list">
+          ${OFFICIAL_REFERENCES.map((item) => `
+            <li>
+              <a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}</a>
+              <span class="muted small-copy"> (${escapeHtml(item.source)})</span>
+            </li>
+          `).join("")}
+        </ul>
+      </article>
+    </section>
+  `;
 }
 
 /* FILE: src/ui/views/wizardView.js */
@@ -3231,15 +3601,15 @@ function renderDashboardView(ctx) {
     const row = retirementRow || findRowByAge(model.base.rows, ui.selectedAge);
     if (!row) return;
     if (el.kpiContext) {
-      el.kpiContext.textContent = `All values shown at retirement start (Age ${state.profile.retirementAge}).`;
+      el.kpiContext.textContent = `Dashboard KPIs use retirement start (Age ${state.profile.retirementAge}). Use Pick age for year-by-year detail.`;
     }
     const kpis = [
-      { label: "Retire Balance", value: formatCurrency(model.kpis.balanceAtRetirement), sub: `Age ${state.profile.retirementAge}`, tip: "kpiBalanceRetirement" },
-      { label: "Spend Target", value: formatCurrency(row.spending), sub: `Age ${state.profile.retirementAge}`, tip: "kpiSpendingTarget" },
-      { label: "Income Total", value: formatCurrency(row.guaranteedGross), sub: `Age ${state.profile.retirementAge}`, tip: "kpiGuaranteedIncome" },
-      { label: "Net Gap", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "Needs funding" : "Covered", tip: "kpiNetGap" },
-      { label: "Gross Draw", value: formatCurrency(row.withdrawal), sub: `Tax drag ${formatCurrency(row.taxOnWithdrawal + row.oasClawback)}`, tip: "kpiGrossWithdrawal" },
-      { label: "Tax Load", value: formatCurrency(row.tax + row.oasClawback), sub: `${formatPct(row.effectiveTaxRate)} at start`, tip: "oasClawback" },
+      { label: "Retire Bal", value: formatCurrency(model.kpis.balanceAtRetirement), sub: `Age ${state.profile.retirementAge}`, tip: "kpiBalanceRetirement" },
+      { label: "Spend", value: formatCurrency(row.spending), sub: `After-tax goal`, tip: "kpiSpendingTarget" },
+      { label: "Guaranteed", value: formatCurrency(row.guaranteedGross), sub: `Pension + CPP + OAS`, tip: "kpiGuaranteedIncome" },
+      { label: "Net Gap", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "From savings" : "No gap", tip: "kpiNetGap" },
+      { label: "Gross Draw", value: formatCurrency(row.withdrawal), sub: `Tax wedge ${formatCurrency(row.taxOnWithdrawal + row.oasClawback)}`, tip: "kpiGrossWithdrawal" },
+      { label: "Tax Est.", value: formatCurrency(row.tax + row.oasClawback), sub: `${formatPct(row.effectiveTaxRate)} effective`, tip: "oasClawback" },
       { label: "OAS Risk", value: state.strategy.oasClawbackModeling ? getOasRiskLevel(row.oasClawback).label : "Off", sub: state.strategy.oasClawbackModeling ? formatCurrency(row.oasClawback) : "Modeling off", tip: "oasRiskMeter" },
     ];
     if (el.kpiGrid) {
@@ -3317,7 +3687,7 @@ function renderDashboardView(ctx) {
     const current = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge);
     if (!current) return;
     if (el.walkthroughHeading) {
-      el.walkthroughHeading.textContent = `Income Vs Spending Explained for Age ${current.age}`;
+      el.walkthroughHeading.textContent = `Explain for Age ${current.age}`;
     }
     const coveragePct = current.spending > 0 ? (current.guaranteedNet / current.spending) * 100 : 0;
     const rrifThresholdAge = state.strategy.rrifConversionAge || 71;
@@ -3728,6 +4098,9 @@ const el = {
 
   kpiGrid: document.getElementById("kpiGrid"),
   kpiContext: document.getElementById("kpiContext"),
+  resultsStrip: document.getElementById("resultsStrip"),
+  sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
+  supportMomentMount: document.getElementById("supportMomentMount"),
   mainChart: document.getElementById("mainChart"),
   balanceHover: document.getElementById("balanceHover"),
   chartLegend: document.getElementById("chartLegend"),
@@ -3752,6 +4125,8 @@ const el = {
   dashboardStatus: document.getElementById("dashboardStatus"),
   retirementScoreCard: document.getElementById("retirementScoreCard"),
   copyShareLinkBtn: document.getElementById("copyShareLinkBtn"),
+  copyMinimalLinkBtn: document.getElementById("copyMinimalLinkBtn"),
+  copySummaryBtn: document.getElementById("copySummaryBtn"),
 
   wizardProgressBar: document.getElementById("wizardProgressBar"),
   wizardStepLabel: document.getElementById("wizardStepLabel"),
@@ -3764,6 +4139,7 @@ const el = {
   scenarioSummary: document.getElementById("scenarioSummary"),
   stressTable: document.getElementById("stressTable"),
   openGlossaryBtnTools: document.getElementById("openGlossaryBtnTools"),
+  methodologyPanel: document.getElementById("methodologyPanel"),
 
   notesInput: document.getElementById("notesInput"),
   tooltipLayer: document.getElementById("tooltipLayer"),
@@ -3793,6 +4169,7 @@ globalThis.__RETIREMENT_APP_STAGE = "schema-ready";
 
 let state = loadPlan();
 globalThis.__RETIREMENT_APP_STAGE = "state-loaded";
+let sharedScenarioPayload = null;
 let ui = {
   activeNav: state.uiState.activeNav || "dashboard",
   tooltipKey: "",
@@ -3822,6 +4199,7 @@ let ui = {
   planEditorKey: "",
   isMobileLayout: false,
   eventsBound: false,
+  activeSupportMoment: "",
 };
 globalThis.__RETIREMENT_APP_STAGE = "ui-created";
 
@@ -3837,6 +4215,8 @@ init();
 function init() {
   globalThis.__RETIREMENT_APP_STAGE = "init-enter";
   try {
+    sharedScenarioPayload = parseSharedScenarioFromUrl(window.location);
+    if (sharedScenarioPayload) state.uiState.lastSharedScenarioBannerDismissed = false;
     const hashNav = navFromHashUi(location.hash, normalizeNavTargetUi);
     if (hashNav) {
       ui.activeNav = hashNav;
@@ -3941,6 +4321,7 @@ function bindEvents() {
     if (state.uiState.wizardStep >= 7) {
       state.uiState.wizardStep = 7;
       state.uiState.unlocked.advanced = true;
+      state.uiState.justCompletedWizard = true;
       state.uiState.activeNav = "dashboard";
       ui.activeNav = "dashboard";
       savePlan();
@@ -3999,6 +4380,8 @@ function bindEvents() {
   document.addEventListener("change", handleBoundInput);
   document.addEventListener("input", handleLearnBoundInput);
   document.addEventListener("change", handleLearnBoundInput);
+  document.addEventListener("input", handleDashboardInput);
+  document.addEventListener("change", handleDashboardInput);
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("toggle", handleDetailsToggle, true);
 
@@ -4014,15 +4397,9 @@ function bindEvents() {
   el.glossaryModal?.addEventListener("click", (event) => {
     if (event.target === el.glossaryModal) el.glossaryModal.close();
   });
-  el.copyShareLinkBtn?.addEventListener("click", async () => {
-    const url = "https://retirement.simplekit.app";
-    try {
-      await navigator.clipboard.writeText(url);
-      toast("Link copied.");
-    } catch {
-      toast(url);
-    }
-  });
+  el.copyShareLinkBtn?.addEventListener("click", () => copyShare(false));
+  el.copyMinimalLinkBtn?.addEventListener("click", () => copyShare(true));
+  el.copySummaryBtn?.addEventListener("click", copySummary);
   el.closePlanEditorBtn?.addEventListener("click", closePlanEditor);
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
@@ -4067,6 +4444,11 @@ function handleDocumentClick(event) {
   const actionBtn = target.closest("[data-action]");
   if (actionBtn) {
     const action = actionBtn.getAttribute("data-action");
+    if (action === "open-methodology") {
+      setActiveNav("methodology");
+      closeTooltip();
+      return;
+    }
     if (action === "open-learn") {
       setActiveNav("learn");
       return;
@@ -4143,6 +4525,35 @@ function handleDocumentClick(event) {
       const body = actionBtn.closest(".tooltip-popover")?.querySelector(".tooltip-example");
       const tip = TOOLTIPS[key];
       if (tip && body) body.textContent = tip.example || "No example available.";
+      return;
+    }
+    if (action === "dismiss-support-moment") {
+      dismissSupportMoment(state.uiState);
+      ui.activeSupportMoment = "";
+      savePlan();
+      renderDashboardSupportMoment();
+      return;
+    }
+    if (action === "apply-shared-scenario") {
+      if (!sharedScenarioPayload) return;
+      state = applySharedScenarioToPlan(state, sharedScenarioPayload);
+      state.uiState.firstRun = false;
+      state.uiState.hasStarted = true;
+      state.uiState.lastSharedScenarioBannerDismissed = true;
+      sharedScenarioPayload = null;
+      clearSharedScenarioQuery();
+      ensureValidStateLocal();
+      savePlan();
+      renderAll();
+      toast("Shared scenario applied to your local plan.");
+      return;
+    }
+    if (action === "dismiss-shared-scenario") {
+      state.uiState.lastSharedScenarioBannerDismissed = true;
+      sharedScenarioPayload = null;
+      clearSharedScenarioQuery();
+      savePlan();
+      renderDashboardSharedScenarioBanner();
       return;
     }
     if (action === "learn-send-spending") {
@@ -4246,6 +4657,18 @@ function handleLearnBoundInput(event) {
   updateLearnOutputs();
 }
 
+function handleDashboardInput(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.id !== "resultsAgePicker") return;
+  const nextAge = Number(target.value);
+  if (!Number.isFinite(nextAge)) return;
+  ui.selectedAge = nextAge;
+  if (el.yearScrubber) el.yearScrubber.value = String(nextAge);
+  if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${nextAge}`;
+  renderDashboard();
+}
+
 function renderAll() {
   ensureValidStateLocal();
   ui.activeNav = normalizeNavTargetUi(ui.activeNav || state.uiState.activeNav || "dashboard");
@@ -4264,6 +4687,7 @@ function renderAll() {
   renderPlanInputs();
   renderAdvanced();
   renderStress();
+  renderMethodology();
   renderNotes();
   bindInlineTooltipTriggers(document.body);
 }
@@ -4316,6 +4740,88 @@ function renderDashboard() {
     getOasRiskLevel: getOasRiskLevelLocal,
     buildNextActions: buildNextActionsLocal,
   });
+  renderDashboardResultsStrip();
+  renderDashboardSharedScenarioBanner();
+  renderDashboardSupportMoment();
+}
+
+function getDashboardSelectedRow() {
+  const rows = ui.lastModel?.base?.rows || [];
+  return findRowByAgeLocal(rows, ui.selectedAge || state.profile.retirementAge)
+    || findRowByAgeLocal(rows, state.profile.retirementAge)
+    || rows[0]
+    || null;
+}
+
+function renderDashboardResultsStrip() {
+  if (!el.resultsStrip || !ui.lastModel) return;
+  const rows = ui.lastModel.base.rows.filter((row) => row.age >= state.profile.retirementAge);
+  if (!rows.length) {
+    el.resultsStrip.innerHTML = "";
+    return;
+  }
+  const minAge = rows[0].age;
+  const maxAge = rows[rows.length - 1].age;
+  const selected = clamp(ui.selectedAge ?? minAge, minAge, maxAge);
+  ui.selectedAge = selected;
+  const row = findRowByAgeLocal(rows, selected) || rows[0];
+  renderResultsStrip({
+    mountEl: el.resultsStrip,
+    row,
+    selectedAge: selected,
+    minAge,
+    maxAge,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+    clamp,
+  });
+  bindInlineTooltipTriggers(el.resultsStrip);
+}
+
+function renderDashboardSharedScenarioBanner() {
+  if (!el.sharedScenarioBanner) return;
+  const show = Boolean(sharedScenarioPayload) && !state.uiState.lastSharedScenarioBannerDismissed;
+  el.sharedScenarioBanner.hidden = !show;
+  if (!show) {
+    el.sharedScenarioBanner.innerHTML = "";
+    return;
+  }
+  el.sharedScenarioBanner.innerHTML = `
+    <div class="banner-row">
+      <div>
+        <strong>Loaded shared scenario</strong>
+        <p class="small-copy muted">Preview loaded from link. Apply only if you want to replace current assumptions.</p>
+      </div>
+      <div class="landing-actions">
+        <button class="btn btn-primary" type="button" data-action="apply-shared-scenario">Apply to my plan</button>
+        <button class="btn btn-secondary" type="button" data-action="dismiss-shared-scenario">Dismiss</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderDashboardSupportMoment() {
+  if (!el.supportMomentMount || !ui.lastModel) return;
+  ensureSupportMomentState(state.uiState);
+  const row = getDashboardSelectedRow();
+  let trigger = "";
+  if (state.uiState.justCompletedWizard) {
+    trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "wizardComplete" });
+    state.uiState.justCompletedWizard = false;
+  }
+  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstGrossUp" });
+  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstClawback" });
+  if (trigger) {
+    ui.activeSupportMoment = trigger;
+    markSupportMomentShown(state.uiState, trigger);
+    savePlan();
+  }
+  if (!ui.activeSupportMoment || isSupportDismissed(state.uiState)) {
+    el.supportMomentMount.innerHTML = "";
+    return;
+  }
+  el.supportMomentMount.innerHTML = buildSupportMomentCard(ui.activeSupportMoment);
 }
 
 function getOasRiskLevelLocal(amount) {
@@ -4521,6 +5027,11 @@ function renderStress() {
   });
 }
 
+function renderMethodology() {
+  if (!el.methodologyPanel) return;
+  el.methodologyPanel.innerHTML = renderMethodologyHtml(escapeHtml);
+}
+
 function renderNotes() {
   el.notesInput.value = state.notes || "";
 }
@@ -4574,7 +5085,12 @@ function openGlossary() {
 }
 
 function exportJson() {
-  exportPlanJson(state, toast);
+  exportPlanJson(state, (msg) => {
+    toast(msg);
+    setTimeout(() => {
+      toast("Saved your plan. If this saved you time, you can support the project.");
+    }, 900);
+  });
 }
 
 async function importJsonFromFile() {
@@ -4606,6 +5122,48 @@ function savePlan() {
   } catch {
     toast("Could not save to local storage.");
   }
+}
+
+function shareBaseUrl() {
+  const origin = window.location.origin && window.location.origin !== "null"
+    ? window.location.origin
+    : "https://retirement.simplekit.app";
+  return `${origin}${window.location.pathname || "/"}`;
+}
+
+async function copyShare(minimal = false) {
+  const url = buildShareUrl(shareBaseUrl(), state, minimal);
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(minimal ? "Minimal share link copied." : "Share link copied.");
+  } catch {
+    toast(url);
+  }
+}
+
+async function copySummary() {
+  const row = getDashboardSelectedRow();
+  const link = buildShareUrl(shareBaseUrl(), state, false);
+  const summary = buildShareSummary({
+    state,
+    row,
+    formatCurrency,
+    formatPct,
+    link,
+  });
+  try {
+    await navigator.clipboard.writeText(summary);
+    toast("Summary copied.");
+  } catch {
+    toast("Could not copy summary.");
+  }
+}
+
+function clearSharedScenarioQuery() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("share");
+  url.searchParams.delete("shareMin");
+  window.history.replaceState({}, "", url.toString());
 }
 
 function normalizePlanLocal(input) {

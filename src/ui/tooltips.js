@@ -14,7 +14,10 @@ export function renderTooltipPopover({ key, anchor, tooltipMap, layerEl, escapeH
     <p><strong>Plain language:</strong> ${escapeHtml(tip.plain)}</p>
     <p><strong>Why it matters:</strong> ${escapeHtml(tip.why)}</p>
     <p><strong>Typical range:</strong> ${escapeHtml(tip.range)}</p>
-    <button class="btn btn-primary" type="button" data-action="tooltip-example" data-value="${escapeHtml(key)}">Show example</button>
+    <div class="tooltip-actions">
+      <button class="btn btn-primary" type="button" data-action="tooltip-example" data-value="${escapeHtml(key)}">Show example</button>
+      <button class="btn btn-secondary" type="button" data-action="open-methodology">Learn more</button>
+    </div>
     <p class="tooltip-example muted"></p>
   `;
 

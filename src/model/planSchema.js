@@ -183,6 +183,14 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       showScenarioCompare: false,
       showAdvancedControls: false,
       advancedSearch: "",
+      supportDismissedUntil: 0,
+      supportShownEvents: {
+        wizardComplete: false,
+        firstGrossUp: false,
+        firstClawback: false,
+      },
+      lastSharedScenarioBannerDismissed: false,
+      justCompletedWizard: false,
       learn: createDefaultLearnState(),
       learningProgress: createDefaultLearningProgress(learnProgressItems),
       unlocked: {
@@ -264,6 +272,10 @@ export function normalizePlan(input, { app, provinces, riskReturns, learnProgres
       ...base.uiState,
       ...(migrated.uiState || {}),
       unlocked: { ...base.uiState.unlocked, ...(migrated.uiState?.unlocked || {}) },
+      supportShownEvents: {
+        ...base.uiState.supportShownEvents,
+        ...(migrated.uiState?.supportShownEvents || {}),
+      },
       learn: normalizeLearnState(migrated.uiState?.learn || base.uiState.learn),
       learningProgress: {
         ...createDefaultLearningProgress(learnProgressItems),
@@ -308,6 +320,14 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   state.uiState.learn = normalizeLearnState(state.uiState.learn);
   state.uiState.showAdvancedControls = Boolean(state.uiState.showAdvancedControls);
   state.uiState.advancedSearch = String(state.uiState.advancedSearch || "");
+  state.uiState.supportDismissedUntil = Math.max(0, Number(state.uiState.supportDismissedUntil || 0));
+  state.uiState.supportShownEvents = {
+    wizardComplete: Boolean(state.uiState.supportShownEvents?.wizardComplete),
+    firstGrossUp: Boolean(state.uiState.supportShownEvents?.firstGrossUp),
+    firstClawback: Boolean(state.uiState.supportShownEvents?.firstClawback),
+  };
+  state.uiState.lastSharedScenarioBannerDismissed = Boolean(state.uiState.lastSharedScenarioBannerDismissed);
+  state.uiState.justCompletedWizard = Boolean(state.uiState.justCompletedWizard);
   const defaultProgress = createDefaultLearningProgress(learnProgressItems);
   state.uiState.learningProgress = {
     ...defaultProgress,
@@ -339,6 +359,14 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
     ...createDefaultLearningProgress(learnProgressItems),
     ...(plan.uiState.learningProgress || {}),
   };
+  plan.uiState.supportDismissedUntil = Math.max(0, Number(plan.uiState.supportDismissedUntil || 0));
+  plan.uiState.supportShownEvents = {
+    wizardComplete: Boolean(plan.uiState.supportShownEvents?.wizardComplete),
+    firstGrossUp: Boolean(plan.uiState.supportShownEvents?.firstGrossUp),
+    firstClawback: Boolean(plan.uiState.supportShownEvents?.firstClawback),
+  };
+  plan.uiState.lastSharedScenarioBannerDismissed = Boolean(plan.uiState.lastSharedScenarioBannerDismissed);
+  plan.uiState.justCompletedWizard = Boolean(plan.uiState.justCompletedWizard);
   if (!plan.version) plan.version = app.version;
 }
 
@@ -350,6 +378,10 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   }
   if (!next.uiState) next.uiState = createDefaultPlan({ app, riskReturns, learnProgressItems }).uiState;
   if (!next.uiState.learn) next.uiState.learn = createDefaultLearnState();
+  if (!next.uiState.supportShownEvents) next.uiState.supportShownEvents = { wizardComplete: false, firstGrossUp: false, firstClawback: false };
+  if (next.uiState.supportDismissedUntil == null) next.uiState.supportDismissedUntil = 0;
+  if (next.uiState.lastSharedScenarioBannerDismissed == null) next.uiState.lastSharedScenarioBannerDismissed = false;
+  if (next.uiState.justCompletedWizard == null) next.uiState.justCompletedWizard = false;
   if (!next.savings) next.savings = createDefaultPlan({ app, riskReturns, learnProgressItems }).savings;
   if (!Array.isArray(next.savings.capitalInjects)) next.savings.capitalInjects = [];
   if (!next.accounts) next.accounts = createDefaultPlan({ app, riskReturns, learnProgressItems }).accounts;

@@ -102,15 +102,15 @@ export function renderDashboardView(ctx) {
     const row = retirementRow || findRowByAge(model.base.rows, ui.selectedAge);
     if (!row) return;
     if (el.kpiContext) {
-      el.kpiContext.textContent = `All values shown at retirement start (Age ${state.profile.retirementAge}).`;
+      el.kpiContext.textContent = `Dashboard KPIs use retirement start (Age ${state.profile.retirementAge}). Use Pick age for year-by-year detail.`;
     }
     const kpis = [
-      { label: "Retire Balance", value: formatCurrency(model.kpis.balanceAtRetirement), sub: `Age ${state.profile.retirementAge}`, tip: "kpiBalanceRetirement" },
-      { label: "Spend Target", value: formatCurrency(row.spending), sub: `Age ${state.profile.retirementAge}`, tip: "kpiSpendingTarget" },
-      { label: "Income Total", value: formatCurrency(row.guaranteedGross), sub: `Age ${state.profile.retirementAge}`, tip: "kpiGuaranteedIncome" },
-      { label: "Net Gap", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "Needs funding" : "Covered", tip: "kpiNetGap" },
-      { label: "Gross Draw", value: formatCurrency(row.withdrawal), sub: `Tax drag ${formatCurrency(row.taxOnWithdrawal + row.oasClawback)}`, tip: "kpiGrossWithdrawal" },
-      { label: "Tax Load", value: formatCurrency(row.tax + row.oasClawback), sub: `${formatPct(row.effectiveTaxRate)} at start`, tip: "oasClawback" },
+      { label: "Retire Bal", value: formatCurrency(model.kpis.balanceAtRetirement), sub: `Age ${state.profile.retirementAge}`, tip: "kpiBalanceRetirement" },
+      { label: "Spend", value: formatCurrency(row.spending), sub: `After-tax goal`, tip: "kpiSpendingTarget" },
+      { label: "Guaranteed", value: formatCurrency(row.guaranteedGross), sub: `Pension + CPP + OAS`, tip: "kpiGuaranteedIncome" },
+      { label: "Net Gap", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "From savings" : "No gap", tip: "kpiNetGap" },
+      { label: "Gross Draw", value: formatCurrency(row.withdrawal), sub: `Tax wedge ${formatCurrency(row.taxOnWithdrawal + row.oasClawback)}`, tip: "kpiGrossWithdrawal" },
+      { label: "Tax Est.", value: formatCurrency(row.tax + row.oasClawback), sub: `${formatPct(row.effectiveTaxRate)} effective`, tip: "oasClawback" },
       { label: "OAS Risk", value: state.strategy.oasClawbackModeling ? getOasRiskLevel(row.oasClawback).label : "Off", sub: state.strategy.oasClawbackModeling ? formatCurrency(row.oasClawback) : "Modeling off", tip: "oasRiskMeter" },
     ];
     if (el.kpiGrid) {
@@ -188,7 +188,7 @@ export function renderDashboardView(ctx) {
     const current = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge);
     if (!current) return;
     if (el.walkthroughHeading) {
-      el.walkthroughHeading.textContent = `Income Vs Spending Explained for Age ${current.age}`;
+      el.walkthroughHeading.textContent = `Explain for Age ${current.age}`;
     }
     const coveragePct = current.spending > 0 ? (current.guaranteedNet / current.spending) * 100 : 0;
     const rrifThresholdAge = state.strategy.rrifConversionAge || 71;
