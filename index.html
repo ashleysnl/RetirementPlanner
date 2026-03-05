@@ -411,6 +411,7 @@
     var bootStartedAt = Date.now();
     var bootTriedModule = false;
     var bootTriedClassic = false;
+    var bootClassicFallbackTriggered = false;
     var bootLastError = "";
     var bootFailingResources = [];
     var bootDiagLog = [];
@@ -470,6 +471,14 @@
         return;
       }
       var elapsed = Date.now() - bootStartedAt;
+      if (!bootClassicFallbackTriggered && bootTriedModule && !bootTriedClassic && elapsed > 2400) {
+        bootClassicFallbackTriggered = true;
+        bootTriedClassic = true;
+        bootLog("fallback", "module not ready quickly, trying classic");
+        appendScript(resolvePath("app.classic.js"), "");
+        setTimeout(checkBootReady, 220);
+        return;
+      }
       if (elapsed < bootDeadlineMs) {
         setTimeout(checkBootReady, 200);
         return;
@@ -577,6 +586,12 @@
       // Ignore noisy cross-origin third-party script errors (e.g., analytics) during boot.
       if (src.includes("googletagmanager")) return;
       if (msg === "Script error." && !src) return;
+      if (!bootDone && bootTriedModule && !bootTriedClassic) {
+        bootClassicFallbackTriggered = true;
+        bootTriedClassic = true;
+        bootLog("fallback", "window error during module boot, trying classic");
+        appendScript(resolvePath("app.classic.js"), "");
+      }
       if (
         src &&
         !src.includes("app.classic.js") &&
