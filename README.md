@@ -47,7 +47,13 @@ Static, local-first retirement planning app built with the existing template the
 - Mobile-first bottom tab navigation: Start / Dashboard / Plan / Learn / Tools
 - Floating support button wired from `SUPPORT_URL` constant
 - `styles.css` - Template-based tokens/utilities and component styling
-- `app.js` - State, rendering, model calculations, tooltip system, storage and import/export
+- `app.js` - App bootstrap, state wiring, event binding, view orchestration
+- `src/model/*` - Calculation engine, projection logic, schema normalization, storage helpers
+- `src/ui/*` - Charts, formatters, navigation, tooltips, field builders, dashboard helpers
+- `src/ui/views/*` - Guided setup, learn page, and plan-input view builders
+- `src/content/*` - Tooltips, glossary, references, content constants
+- `app.classic.js` - Classic non-module fallback bundle for `file://` and strict browser contexts
+- `tools/build-classic.sh` - Rebuilds `app.classic.js` from modular source without Node
 - `sw.js` - App shell caching for offline usage
 - `manifest.webmanifest` - PWA metadata
 - `docs/audit.md` - UX/model audit and rebuild mapping
@@ -58,6 +64,17 @@ Static, local-first retirement planning app built with the existing template the
 2. Recommended for service worker behavior:
    - `python3 -m http.server 8080`
    - Open `http://localhost:8080`
+3. After editing modular JS files, rebuild classic fallback:
+   - `./tools/build-classic.sh`
+4. Run the smoke checklist:
+   - `docs/smoke-test-checklist.md`
+
+## Required JS Edit Workflow
+
+For every JS change:
+1. Edit modular source files in `src/*` or `app.js`.
+2. Rebuild classic fallback: `./tools/build-classic.sh` (required).
+3. Run the smoke checklist in `docs/smoke-test-checklist.md`.
 
 ## GitHub Pages Deploy
 

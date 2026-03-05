@@ -3,9 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Canadian Retirement Planner (NL Default Province). Local-first guided planning with progressive disclosure." />
+  <meta name="description" content="Canadian Retirement Tax Simulator for CPP, OAS, pensions, RRSP/RRIF withdrawals, OAS clawback, and tax-aware retirement income planning." />
   <meta name="theme-color" content="#0f6abf" />
-  <title>Canadian Retirement Planner</title>
+  <title>Canadian Retirement Tax Simulator | OAS Clawback + RRIF Planner</title>
+  <meta property="og:title" content="Canadian Retirement Tax Simulator" />
+  <meta property="og:description" content="See how CPP, OAS, pensions, and RRSP/RRIF withdrawals interact — including tax drag, RRIF minimums, and OAS clawback." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://retirement.simplekit.app" />
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="icons/favicon.svg" />
   <link rel="mask-icon" href="icons/mask-icon.svg" color="#0f6abf" />
@@ -22,12 +26,17 @@
   </script>
 </head>
 <body>
+  <div id="bootErrorNotice" class="panel" style="display:none;">
+    <h2>App Startup Error</h2>
+    <p class="muted">The app failed to load JavaScript modules.</p>
+    <pre id="bootErrorText" class="small-copy" style="white-space:pre-wrap;"></pre>
+  </div>
   <div class="page-shell">
     <header class="hero" aria-label="Planner header">
       <div class="hero-content">
         <p class="eyebrow">Canadian Retirement Planner • Local-first • Educational • Updated for 2026</p>
-        <h1 id="appTitle">Canadian Retirement Planner</h1>
-        <p class="hero-subtitle">Start simple in under 60 seconds, then refine taxes, accounts, and withdrawal strategy.</p>
+        <h1 id="appTitle">Canadian Retirement Tax Simulator</h1>
+        <p class="hero-subtitle">OAS Clawback + RRIF Withdrawal Strategy Planner.</p>
         <p class="hero-proof">No accounts. No cloud sync. Your plan stays on this device.</p>
       </div>
         <div class="hero-actions no-print" aria-label="Plan actions">
@@ -43,26 +52,67 @@
 
     <main>
       <section id="landingPanel" class="panel landing-panel" aria-labelledby="landingTitle">
-        <h2 id="landingTitle">Build your first forecast</h2>
-        <p class="muted">Start with defaults and get a first projection quickly. You can unlock advanced details later.</p>
+        <h2 id="landingTitle">Canadian Retirement Tax Simulator</h2>
+        <p class="muted">See how CPP, OAS, pensions, and RRSP/RRIF withdrawals interact — including taxes, RRIF minimums, and OAS clawback.</p>
         <div class="landing-actions no-print">
-          <button id="startSimpleBtn" class="btn btn-primary" type="button">Start a simple plan</button>
+          <button id="startSimpleBtn" class="btn btn-primary" type="button">Start Simple Plan (60 seconds)</button>
           <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics first</button>
           <button id="landingDemoBtn" class="btn btn-secondary" type="button">Load demo plan</button>
           <button id="landingImportBtn" class="btn btn-secondary" type="button">Load plan</button>
         </div>
-        <p class="small-copy muted">No accounts. Your data stays on this device.</p>
+        <div class="preview-kpi">
+          <div class="preview-kpi-item"><strong>Retirement Gap</strong><span>What you need from savings</span></div>
+          <div class="preview-kpi-item"><strong>Gross vs Net</strong><span>Tax drag visualized</span></div>
+          <div class="preview-kpi-item"><strong>OAS Clawback Risk</strong><span>Estimate + explanation</span></div>
+        </div>
+        <p class="small-copy muted">No accounts. Data stays on your device. Planning estimate only — not financial advice.</p>
       </section>
 
       <section id="appPanel" class="app-panel" hidden>
         <nav class="tabs no-print" aria-label="App sections">
+          <button type="button" class="tab-btn" data-nav-target="home">Home</button>
           <button type="button" class="tab-btn" data-nav-target="start">Start</button>
-          <button type="button" class="tab-btn active" data-nav-target="dashboard">Dashboard</button>
+          <button type="button" class="tab-btn active" data-nav-target="dashboard">Calculator</button>
           <button type="button" class="tab-btn" data-nav-target="plan">Plan Inputs</button>
           <button type="button" class="tab-btn" data-nav-target="learn">Learn the Basics</button>
           <button type="button" class="tab-btn" data-nav-target="tools">Tools</button>
           <button type="button" class="tab-btn desktop-only-tab" data-nav-target="advanced">Advanced Settings</button>
+          <button type="button" class="tab-btn desktop-only-tab" data-nav-target="about">About</button>
+          <button type="button" class="tab-btn desktop-only-tab" data-nav-target="support">Support</button>
         </nav>
+
+        <section class="panel nav-panel" data-nav-panel="home" aria-labelledby="homeHeading" hidden>
+          <div class="panel-header">
+            <h2 id="homeHeading">Canadian Retirement Tax Simulator</h2>
+            <p>See how CPP, OAS, pensions, and RRSP/RRIF withdrawals interact — including taxes, RRIF minimums, and OAS clawback.</p>
+          </div>
+          <div class="landing-actions no-print">
+            <button class="btn btn-primary" type="button" data-nav-target="start">Start Simple Plan (60 seconds)</button>
+            <button class="btn btn-secondary" id="loadDemoBtnHome" type="button">Load Demo</button>
+            <button class="btn btn-secondary" id="importJsonBtnHome" type="button">Import Plan</button>
+          </div>
+          <div class="preview-kpi">
+            <div class="preview-kpi-item"><strong>Retirement Gap</strong><span>What must come from savings</span></div>
+            <div class="preview-kpi-item"><strong>Gross vs Net</strong><span>Tax drag visualized clearly</span></div>
+            <div class="preview-kpi-item"><strong>OAS Clawback Risk</strong><span>Estimate + why it happens</span></div>
+          </div>
+          <div class="subsection">
+            <strong>No accounts. Data stays on your device.</strong><br />
+            <span class="muted">Planning estimate only — not financial advice.</span>
+          </div>
+          <details class="subsection">
+            <summary>What is the OAS clawback?</summary>
+            <p class="muted">If taxable income rises above the annual threshold, part of OAS is repaid as recovery tax.</p>
+          </details>
+          <details class="subsection">
+            <summary>How do RRIF minimum withdrawals work?</summary>
+            <p class="muted">After RRSP conversion to RRIF, minimum withdrawals are required each year and generally increase with age.</p>
+          </details>
+          <details class="subsection">
+            <summary>Why do I need to withdraw more than I spend?</summary>
+            <p class="muted">Because RRSP/RRIF withdrawals are taxable. You need gross income to net your spending target after tax.</p>
+          </details>
+        </section>
 
         <section class="panel nav-panel active" data-nav-panel="dashboard" aria-labelledby="dashboardHeading">
           <div class="panel-header">
@@ -76,7 +126,13 @@
             <h3>At a glance</h3>
             <p id="kpiContext" class="small-copy muted"></p>
             <div id="kpiGrid" class="metric-grid metric-grid-wide"></div>
+            <div class="support-inline-callout">
+              <p class="small-copy">If this simulator helped you understand retirement taxes and clawback risk, consider supporting development.</p>
+              <a class="btn btn-secondary" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Support / Buy Me a Coffee</a>
+            </div>
           </div>
+
+          <div id="retirementScoreCard" class="subsection"></div>
 
           <div class="chart-wrap">
             <div class="chart-head-row">
@@ -100,6 +156,10 @@
                 <input id="dollarModeToggle" type="checkbox" />
                 Show in today's dollars
               </label>
+              <label class="inline-check small-copy no-print">
+                <input id="coverageTableToggle" type="checkbox" />
+                View as table
+              </label>
             </div>
             <p class="muted small-copy">Assumption: For this view, all savings withdrawals are modeled as taxable registered withdrawals (RRSP/RRIF). <button class="tooltip-trigger" type="button" aria-label="Help: registered-only assumption" data-tooltip-key="registeredAssumption">ⓘ</button></p>
             <div class="scrubber-row">
@@ -113,6 +173,9 @@
             </div>
             <div id="coverageLegend" class="legend-row"></div>
             <p class="muted small-copy">Your spending target is after-tax. Pension/CPP/OAS are taxable, and RRSP/RRIF withdrawals are taxable. That is why gross withdrawal can be higher than the net gap.</p>
+            <div id="coverageTableWrap" class="table-scroll" hidden>
+              <table id="coverageTable" class="data-table" aria-label="Income coverage table"></table>
+            </div>
           </div>
 
           <div class="subsection">
@@ -128,6 +191,14 @@
           <div class="subsection">
             <h3>Next best action</h3>
             <ul id="nextActions" class="plain-list"></ul>
+          </div>
+
+          <div class="subsection">
+            <h3>Share this tool</h3>
+            <p class="small-copy muted">Share this tool with a friend who is planning retirement income.</p>
+            <div class="landing-actions">
+              <button id="copyShareLinkBtn" class="btn btn-secondary" type="button">Copy link</button>
+            </div>
           </div>
 
           <details class="subsection" id="basicsPanel">
@@ -213,6 +284,35 @@
             </div>
           </div>
         </section>
+
+        <section class="panel nav-panel" data-nav-panel="about" aria-labelledby="aboutHeading" hidden>
+          <div class="panel-header">
+            <h2 id="aboutHeading">About / Disclaimer</h2>
+            <p>Canadian retirement tax simulator focused on OAS clawback and RRIF withdrawal impacts.</p>
+          </div>
+          <div class="subsection">
+            <p class="muted">This app provides planning-level estimates only. It is not tax, legal, or financial advice.</p>
+            <p class="muted">Assumptions and tax rules can change by year. Validate important decisions with a licensed advisor.</p>
+          </div>
+        </section>
+
+        <section class="panel nav-panel" data-nav-panel="support" aria-labelledby="supportHeading" hidden>
+          <div class="panel-header">
+            <h2 id="supportHeading">Support</h2>
+            <p>This tool is free. Support helps keep it maintained and updated.</p>
+          </div>
+          <div class="subsection">
+            <div class="landing-actions">
+            <a class="btn btn-primary" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a>
+            <a class="btn btn-secondary" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Monthly supporter</a>
+            </div>
+            <ul class="plain-list">
+              <li>Model improvements and UX enhancements</li>
+              <li>Tax table and rules maintenance</li>
+              <li>Hosting and reliability costs</li>
+            </ul>
+          </div>
+        </section>
       </section>
     </main>
 
@@ -270,6 +370,91 @@
 
   <div id="appToast" class="app-toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js"></script>
+  <script>
+    var bootErrorNotice = document.getElementById("bootErrorNotice");
+    var bootErrorText = document.getElementById("bootErrorText");
+    var bootErrored = false;
+    var bootDone = false;
+    var bootDeadlineMs = 8000;
+    var bootStartedAt = Date.now();
+
+    function showBootError(message) {
+      bootErrored = true;
+      if (bootErrorText) bootErrorText.textContent = String(message || "Unknown startup error.");
+      if (bootErrorNotice) bootErrorNotice.style.display = "block";
+    }
+
+    function hideBootError() {
+      if (bootErrorNotice) bootErrorNotice.style.display = "none";
+    }
+
+    function checkBootReady() {
+      if (window.__RETIREMENT_APP_READY === true) {
+        bootDone = true;
+        hideBootError();
+        return;
+      }
+      if (window.__RETIREMENT_APP_SCRIPT_EXECUTED !== true) {
+        showBootError("App script did not execute. This is usually a script parse/runtime error before initialization.");
+        return;
+      }
+      if (window.__RETIREMENT_APP_INIT_ERROR) {
+        showBootError("Initialization error: " + window.__RETIREMENT_APP_INIT_ERROR);
+        return;
+      }
+      var elapsed = Date.now() - bootStartedAt;
+      if (elapsed < bootDeadlineMs) {
+        setTimeout(checkBootReady, 200);
+        return;
+      }
+      if (!bootErrored) {
+        var stage = window.__RETIREMENT_APP_STAGE ? " Last stage: " + window.__RETIREMENT_APP_STAGE + "." : "";
+        showBootError("App did not initialize." + stage + " If this is iOS home screen mode, close and reopen the app or clear cached website data.");
+      }
+    }
+
+    function appendScript(src, type) {
+      var script = document.createElement("script");
+      script.src = src;
+      if (type) script.type = type;
+      script.defer = true;
+      script.onerror = function () {
+        showBootError("Failed to load " + src);
+      };
+      script.onload = function () {
+        setTimeout(checkBootReady, 120);
+      };
+      document.body.appendChild(script);
+    }
+
+    hideBootError();
+    // Use classic bundle for maximum compatibility (iOS homescreen, file://, and static hosts).
+    appendScript("app.classic.js", "");
+    setTimeout(checkBootReady, 180);
+
+    window.addEventListener("error", function (event) {
+      if (bootDone) return;
+      var msg = event && event.message ? String(event.message) : "";
+      var src = event && event.filename ? String(event.filename) : "";
+      // Ignore noisy cross-origin third-party script errors (e.g., analytics) during boot.
+      if (src.includes("googletagmanager")) return;
+      if (msg === "Script error." && !src) return;
+      if (
+        src &&
+        !src.includes("app.classic.js") &&
+        !src.includes("app.js") &&
+        !(location.host && src.includes(location.host))
+      ) {
+        return;
+      }
+      if (msg) showBootError(msg + (src ? " (" + src + ")" : ""));
+    });
+
+    window.addEventListener("unhandledrejection", function (event) {
+      if (bootDone) return;
+      var reason = event && event.reason ? String(event.reason) : "Unhandled promise rejection";
+      showBootError(reason);
+    });
+  </script>
 </body>
 </html>

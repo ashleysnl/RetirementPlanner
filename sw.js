@@ -1,9 +1,10 @@
-const CACHE_NAME = "retirement-planner-v1";
+const CACHE_NAME = "retirement-planner-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./app.classic.js",
   "./manifest.webmanifest",
   "./icons/favicon.svg",
   "./icons/icon.svg",
