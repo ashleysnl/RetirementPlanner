@@ -101,6 +101,7 @@ export function drawIncomeCoverageChart({
   selectedAge,
   showTodaysDollars,
   showGrossWithdrawals,
+  emphasizeTaxes = true,
   currentYear,
   inflationRate,
   formatCurrency,
@@ -166,7 +167,7 @@ export function drawIncomeCoverageChart({
       [cpp, "#16a34a"],
       [oas, "#0ea5a8"],
       [netW, "#0f6abf"],
-      [showGrossWithdrawals ? taxW : Math.min(taxW, maxY * 0.01), "#d9485f"],
+      [showGrossWithdrawals ? taxW : Math.min(taxW, maxY * 0.01), emphasizeTaxes ? "#d9485f" : "#e48a98"],
     ];
     segments.forEach(([value, color], segIdx) => {
       if (value <= 0) return;
@@ -174,7 +175,7 @@ export function drawIncomeCoverageChart({
       const yBottom = y(stack);
       ctx.fillStyle = color;
       ctx.fillRect(cx, yTop, barW, Math.max(1, yBottom - yTop));
-      if (segIdx === 4) {
+      if (segIdx === 4 && emphasizeTaxes) {
         ctx.save();
         ctx.strokeStyle = "rgba(255,255,255,0.45)";
         ctx.lineWidth = 1;

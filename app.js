@@ -11,6 +11,8 @@ import { buildPlanModel } from "./src/model/projection.js";
 import { computeCoverageScore } from "./src/model/score.js";
 import { buildTimingPreview } from "./src/model/timingSim.js";
 import { buildMeltdownComparison } from "./src/model/meltdown.js";
+import { buildChangeSummary } from "./src/model/diff.js";
+import { saveScenarioSnapshot, removeScenarioSnapshot, renameScenarioSnapshot } from "./src/model/scenarioStore.js";
 import { loadPlanFromStorage, savePlanToStorage } from "./src/model/planStore.js";
 import {
   createLocalId,
@@ -51,10 +53,14 @@ import {
 } from "./src/ui/share.js";
 import { renderMethodologyHtml } from "./src/content/methodology.js";
 import { renderRetirementGapHeadline } from "./src/ui/retirementGapHeadline.js";
-import { renderTaxWedgeMini } from "./src/ui/taxWedgeMini.js";
 import { renderCoverageScore } from "./src/ui/coverageScore.js";
 import { renderCppOasTimingSimulator } from "./src/ui/cppOasTimingSimulator.js";
 import { renderRrspMeltdownSimulator } from "./src/ui/rrspMeltdownSimulator.js";
+import { renderRetirementInsight } from "./src/ui/retirementInsight.js";
+import { renderGrossNetCallout } from "./src/ui/taxWedgeEnhancements.js";
+import { renderWhatChangedPanel } from "./src/ui/whatChangedPanel.js";
+import { renderScenarioCompareModal } from "./src/ui/scenarioCompare.js";
+import { buildSummaryHtml, openPrintWindow } from "./src/ui/printSummary.js";
 import {
   learnCallouts as buildLearnCallouts,
   calculatePhaseWeightedSpending as calculatePhaseWeightedSpendingUi,
@@ -116,6 +122,8 @@ const el = {
   kpiGrid: document.getElementById("kpiGrid"),
   kpiContext: document.getElementById("kpiContext"),
   retirementGapHeadline: document.getElementById("retirementGapHeadline"),
+  retirementInsight: document.getElementById("retirementInsight"),
+  whatChangedPanel: document.getElementById("whatChangedPanel"),
   resultsStrip: document.getElementById("resultsStrip"),
   taxWedgeMini: document.getElementById("taxWedgeMini"),
   coverageScoreModule: document.getElementById("coverageScoreModule"),
@@ -149,6 +157,8 @@ const el = {
   copyShareLinkBtn: document.getElementById("copyShareLinkBtn"),
   copyMinimalLinkBtn: document.getElementById("copyMinimalLinkBtn"),
   copySummaryBtn: document.getElementById("copySummaryBtn"),
+  compareScenariosBtn: document.getElementById("compareScenariosBtn"),
+  downloadSummaryBtn: document.getElementById("downloadSummaryBtn"),
 
   wizardProgressBar: document.getElementById("wizardProgressBar"),
   wizardStepLabel: document.getElementById("wizardStepLabel"),
@@ -175,6 +185,14 @@ const el = {
   planEditorTitle: document.getElementById("planEditorTitle"),
   planEditorContent: document.getElementById("planEditorContent"),
   closePlanEditorBtn: document.getElementById("closePlanEditorBtn"),
+  scenarioCompareModal: document.getElementById("scenarioCompareModal"),
+  scenarioCompareContent: document.getElementById("scenarioCompareContent"),
+  closeScenarioCompareBtn: document.getElementById("closeScenarioCompareBtn"),
+  printSummaryModal: document.getElementById("printSummaryModal"),
+  printSummaryContent: document.getElementById("printSummaryContent"),
+  closePrintSummaryBtn: document.getElementById("closePrintSummaryBtn"),
+  printSummaryBtn: document.getElementById("printSummaryBtn"),
+  copySummaryTextBtn: document.getElementById("copySummaryTextBtn"),
 
   appToast: document.getElementById("appToast"),
   supportButton: document.getElementById("supportButton"),
@@ -224,6 +242,7 @@ let ui = {
   isMobileLayout: false,
   eventsBound: false,
   activeSupportMoment: "",
+  undoPlanSnapshot: null,
 };
 globalThis.__RETIREMENT_APP_STAGE = "ui-created";
 
@@ -424,8 +443,20 @@ function bindEvents() {
   el.copyShareLinkBtn?.addEventListener("click", () => copyShare(false));
   el.copyMinimalLinkBtn?.addEventListener("click", () => copyShare(true));
   el.copySummaryBtn?.addEventListener("click", copySummary);
+  el.compareScenariosBtn?.addEventListener("click", openScenarioCompare);
+  el.downloadSummaryBtn?.addEventListener("click", openPrintSummary);
   el.resetCacheBtnTools?.addEventListener("click", resetCachedAppData);
   el.closePlanEditorBtn?.addEventListener("click", closePlanEditor);
+  el.closeScenarioCompareBtn?.addEventListener("click", () => el.scenarioCompareModal?.close());
+  el.scenarioCompareModal?.addEventListener("click", (event) => {
+    if (event.target === el.scenarioCompareModal) el.scenarioCompareModal.close();
+  });
+  el.closePrintSummaryBtn?.addEventListener("click", () => el.printSummaryModal?.close());
+  el.printSummaryModal?.addEventListener("click", (event) => {
+    if (event.target === el.printSummaryModal) el.printSummaryModal.close();
+  });
+  el.printSummaryBtn?.addEventListener("click", printSummaryNow);
+  el.copySummaryTextBtn?.addEventListener("click", copySummary);
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
   });
@@ -475,12 +506,17 @@ function handleDocumentClick(event) {
       return;
     }
     if (action === "apply-timing-preview") {
+      const beforePlan = clonePlan(state);
+      const beforeModel = buildPlanModel(beforePlan);
       const sim = state.uiState.timingSim;
       state.income.cpp.startAge = Number(sim.cppStartAge);
       state.income.oas.startAge = Number(sim.oasStartAge);
+      const afterModel = buildPlanModel(state);
+      state.uiState.lastChangeSummary = buildChangeSummary(beforeModel, afterModel, state);
+      ui.undoPlanSnapshot = beforePlan;
       savePlan();
       renderAll();
-      toast("Timing preview applied.");
+      toast("Timing preview applied. See What changed?");
       return;
     }
     if (action === "reset-timing-preview") {
@@ -544,10 +580,16 @@ function handleDocumentClick(event) {
       return;
     }
     if (action === "strategy") {
+      const beforePlan = clonePlan(state);
+      const beforeModel = buildPlanModel(beforePlan);
       const value = actionBtn.getAttribute("data-value") || "tax-smart";
       state.strategy.withdrawal = value;
+      const afterModel = buildPlanModel(state);
+      state.uiState.lastChangeSummary = buildChangeSummary(beforeModel, afterModel, state);
+      ui.undoPlanSnapshot = beforePlan;
       savePlan();
       renderAll();
+      toast("Strategy updated. See What changed?");
       return;
     }
     if (action === "add-capital-inject") {
@@ -575,6 +617,50 @@ function handleDocumentClick(event) {
       ui.activeSupportMoment = "";
       savePlan();
       renderDashboardSupportMoment();
+      return;
+    }
+    if (action === "dismiss-last-change") {
+      state.uiState.lastChangeSummary = null;
+      savePlan();
+      renderWhatChangedModule();
+      return;
+    }
+    if (action === "undo-last-change") {
+      if (!ui.undoPlanSnapshot) {
+        toast("Nothing to undo.");
+        return;
+      }
+      state = clonePlan(ui.undoPlanSnapshot);
+      ui.undoPlanSnapshot = null;
+      state.uiState.lastChangeSummary = null;
+      savePlan();
+      renderAll();
+      toast("Last change undone.");
+      return;
+    }
+    if (action === "save-current-scenario") {
+      const scenario = saveScenarioSnapshot(state, ui.lastModel, `Scenario ${((state.uiState.scenarios || []).length || 0) + 1}`);
+      savePlan();
+      openScenarioCompare();
+      toast(`Saved ${scenario.name}.`);
+      return;
+    }
+    if (action === "delete-scenario") {
+      const id = actionBtn.getAttribute("data-value") || "";
+      if (!id) return;
+      removeScenarioSnapshot(state, id);
+      savePlan();
+      openScenarioCompare();
+      return;
+    }
+    if (action === "rename-scenario") {
+      const id = actionBtn.getAttribute("data-value") || "";
+      if (!id) return;
+      const next = prompt("Rename scenario");
+      if (!next) return;
+      renameScenarioSnapshot(state, id, next);
+      savePlan();
+      openScenarioCompare();
       return;
     }
     if (action === "apply-shared-scenario") {
@@ -633,6 +719,9 @@ function handleBoundInput(event) {
 
   const path = target.getAttribute("data-bind");
   if (!path) return;
+  const trackChange = event.type === "change" && isMaterialChangePath(path);
+  const beforePlan = trackChange ? clonePlan(state) : null;
+  const beforeModel = trackChange ? buildPlanModel(beforePlan) : null;
 
   captureAdvancedAccordionState();
 
@@ -681,6 +770,14 @@ function handleBoundInput(event) {
   }
 
   renderAll();
+  if (trackChange && beforeModel) {
+    const summary = buildChangeSummary(beforeModel, ui.lastModel, state);
+    if (summary) {
+      ui.undoPlanSnapshot = beforePlan;
+      state.uiState.lastChangeSummary = summary;
+      toast("Plan updated. See What changed?");
+    }
+  }
   savePlan();
 }
 
@@ -801,7 +898,9 @@ function renderDashboard() {
   });
   renderDashboardResultsStrip();
   renderRetirementGapModule();
+  renderRetirementInsightModule();
   renderTaxWedgeMiniModule();
+  renderWhatChangedModule();
   renderCoverageScoreModule();
   renderTimingSimulatorModule();
   renderMeltdownSimulatorModule();
@@ -877,6 +976,25 @@ function renderRetirementGapModule() {
   bindInlineTooltipTriggers(el.retirementGapHeadline);
 }
 
+function renderRetirementInsightModule() {
+  if (!el.retirementInsight || !ui.lastModel) return;
+  const row = getDashboardSelectedRow();
+  if (!row) {
+    el.retirementInsight.innerHTML = "";
+    return;
+  }
+  renderRetirementInsight({
+    mountEl: el.retirementInsight,
+    row,
+    model: ui.lastModel,
+    age: row.age,
+    tooltipButton,
+    formatCurrency,
+    formatPct,
+  });
+  bindInlineTooltipTriggers(el.retirementInsight);
+}
+
 function renderTaxWedgeMiniModule() {
   if (!el.taxWedgeMini) return;
   const row = getDashboardSelectedRow();
@@ -884,15 +1002,21 @@ function renderTaxWedgeMiniModule() {
     el.taxWedgeMini.innerHTML = "";
     return;
   }
-  renderTaxWedgeMini({
+  renderGrossNetCallout({
     mountEl: el.taxWedgeMini,
     row,
-    tooltipButton,
     formatCurrency,
+    formatPct,
+    emphasizeTaxes: Boolean(state.uiState.emphasizeTaxes ?? true),
   });
-  const checkbox = el.taxWedgeMini.querySelector("input[data-bind='uiState.showGrossWithdrawals']");
-  if (checkbox) checkbox.checked = ui.showGrossWithdrawals;
   bindInlineTooltipTriggers(el.taxWedgeMini);
+}
+
+function renderWhatChangedModule() {
+  renderWhatChangedPanel({
+    mountEl: el.whatChangedPanel,
+    summary: state.uiState.lastChangeSummary || null,
+  });
 }
 
 function renderCoverageScoreModule() {
@@ -1019,6 +1143,7 @@ function drawCoverageChart(model, selectedAge) {
     selectedAge,
     showTodaysDollars: ui.showTodaysDollars,
     showGrossWithdrawals: ui.showGrossWithdrawals,
+    emphasizeTaxes: Boolean(state.uiState.emphasizeTaxes ?? true),
     currentYear: APP.currentYear,
     inflationRate: state.assumptions.inflation,
     formatCurrency,
@@ -1369,6 +1494,82 @@ async function resetCachedAppData() {
   }
 }
 
+function openScenarioCompare() {
+  if (!el.scenarioCompareModal || !el.scenarioCompareContent || !ui.lastModel) return;
+  const row65 = findRowByAgeLocal(ui.lastModel.base.rows, 65) || ui.lastModel.base.rows[0];
+  const baseMetrics = {
+    coveragePct: row65.spending > 0 ? row65.guaranteedNet / row65.spending : 1,
+    netGap65: row65.netGap || 0,
+    gross65: row65.withdrawal || 0,
+    taxWedge65: (row65.taxOnWithdrawal || 0) + (row65.oasClawback || 0),
+    clawback65: row65.oasClawback || 0,
+    depletionAge: ui.lastModel.kpis.depletionAge || null,
+  };
+  const strategyMetrics = (ui.lastModel.strategyComparisons || []).map((s) => {
+    const snap = s.snapshotsByAge?.[65] || s.snapshotsByAge?.[state.profile.retirementAge] || null;
+    const netGap = Math.max(0, (snap?.spend || 0) - Math.max(0, (snap?.guaranteedGross || 0) - (snap?.tax || 0) - (snap?.clawback || 0)));
+    return {
+      label: s.label,
+      metrics: {
+        coveragePct: snap?.spend > 0 ? (snap.guaranteedGross / snap.spend) : 1,
+        netGap65: netGap,
+        gross65: snap?.accountWithdrawals?.total || 0,
+        taxWedge65: (snap?.tax || 0) + (snap?.clawback || 0),
+        clawback65: snap?.clawback || 0,
+        depletionAge: s.depletionAge || null,
+      },
+    };
+  });
+
+  renderScenarioCompareModal({
+    mountEl: el.scenarioCompareContent,
+    baseMetrics,
+    strategyMetrics,
+    savedScenarios: state.uiState.scenarios || [],
+    formatCurrency,
+    formatPct,
+  });
+  el.scenarioCompareModal.showModal();
+}
+
+function openPrintSummary() {
+  if (!el.printSummaryModal || !el.printSummaryContent || !ui.lastModel) return;
+  const rowRet = findRowByAgeLocal(ui.lastModel.base.rows, state.profile.retirementAge) || ui.lastModel.base.rows[0];
+  const row65 = findRowByAgeLocal(ui.lastModel.base.rows, 65) || rowRet;
+  const row71 = findRowByAgeLocal(ui.lastModel.base.rows, 71) || rowRet;
+  const html = buildSummaryHtml({
+    state,
+    rowRet,
+    row65,
+    row71,
+    model: ui.lastModel,
+    formatCurrency,
+    formatPct,
+    methodologyUrl: `${shareBaseUrl()}#methodology`,
+  });
+  el.printSummaryContent.innerHTML = html;
+  el.printSummaryModal.showModal();
+}
+
+function printSummaryNow() {
+  if (!ui.lastModel) return;
+  const rowRet = findRowByAgeLocal(ui.lastModel.base.rows, state.profile.retirementAge) || ui.lastModel.base.rows[0];
+  const row65 = findRowByAgeLocal(ui.lastModel.base.rows, 65) || rowRet;
+  const row71 = findRowByAgeLocal(ui.lastModel.base.rows, 71) || rowRet;
+  const html = buildSummaryHtml({
+    state,
+    rowRet,
+    row65,
+    row71,
+    model: ui.lastModel,
+    formatCurrency,
+    formatPct,
+    methodologyUrl: `${shareBaseUrl()}#methodology`,
+  });
+  const ok = openPrintWindow(html);
+  if (!ok) toast("Could not open print window.");
+}
+
 function clearSharedScenarioQuery() {
   const url = new URL(window.location.href);
   url.searchParams.delete("share");
@@ -1377,6 +1578,23 @@ function clearSharedScenarioQuery() {
     url.hash = "";
   }
   window.history.replaceState({}, "", url.toString());
+}
+
+function isMaterialChangePath(path) {
+  return (
+    path.startsWith("strategy.") ||
+    path.startsWith("income.cpp.") ||
+    path.startsWith("income.oas.") ||
+    path.startsWith("income.pension.") ||
+    path.startsWith("profile.retirementAge") ||
+    path.startsWith("profile.desiredSpending") ||
+    path.startsWith("assumptions.")
+  );
+}
+
+function clonePlan(input) {
+  if (typeof structuredClone === "function") return structuredClone(input);
+  return JSON.parse(JSON.stringify(input));
 }
 
 function normalizePlanLocal(input) {

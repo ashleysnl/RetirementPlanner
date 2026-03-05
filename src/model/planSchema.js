@@ -197,6 +197,9 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       lastSharedScenarioBannerDismissed: false,
       justCompletedWizard: false,
       showGrossWithdrawals: true,
+      emphasizeTaxes: true,
+      lastChangeSummary: null,
+      scenarios: [],
       timingSim: {
         cppStartAge: 65,
         oasStartAge: 65,
@@ -287,6 +290,7 @@ export function normalizePlan(input, { app, provinces, riskReturns, learnProgres
         ...base.uiState.supportShownEvents,
         ...(migrated.uiState?.supportShownEvents || {}),
       },
+      scenarios: Array.isArray(migrated.uiState?.scenarios) ? migrated.uiState.scenarios : [],
       timingSim: {
         ...base.uiState.timingSim,
         ...(migrated.uiState?.timingSim || {}),
@@ -349,6 +353,11 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   state.uiState.lastSharedScenarioBannerDismissed = Boolean(state.uiState.lastSharedScenarioBannerDismissed);
   state.uiState.justCompletedWizard = Boolean(state.uiState.justCompletedWizard);
   state.uiState.showGrossWithdrawals = Boolean(state.uiState.showGrossWithdrawals ?? true);
+  state.uiState.emphasizeTaxes = Boolean(state.uiState.emphasizeTaxes ?? true);
+  state.uiState.lastChangeSummary = state.uiState.lastChangeSummary && typeof state.uiState.lastChangeSummary === "object"
+    ? state.uiState.lastChangeSummary
+    : null;
+  state.uiState.scenarios = Array.isArray(state.uiState.scenarios) ? state.uiState.scenarios.slice(-12) : [];
   state.uiState.timingSim = {
     cppStartAge: clamp(Number(state.uiState.timingSim?.cppStartAge ?? state.income.cpp.startAge), 60, 70),
     oasStartAge: clamp(Number(state.uiState.timingSim?.oasStartAge ?? state.income.oas.startAge), 65, 70),
@@ -394,6 +403,11 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
   plan.uiState.lastSharedScenarioBannerDismissed = Boolean(plan.uiState.lastSharedScenarioBannerDismissed);
   plan.uiState.justCompletedWizard = Boolean(plan.uiState.justCompletedWizard);
   plan.uiState.showGrossWithdrawals = Boolean(plan.uiState.showGrossWithdrawals ?? true);
+  plan.uiState.emphasizeTaxes = Boolean(plan.uiState.emphasizeTaxes ?? true);
+  plan.uiState.lastChangeSummary = plan.uiState.lastChangeSummary && typeof plan.uiState.lastChangeSummary === "object"
+    ? plan.uiState.lastChangeSummary
+    : null;
+  plan.uiState.scenarios = Array.isArray(plan.uiState.scenarios) ? plan.uiState.scenarios.slice(-12) : [];
   plan.uiState.timingSim = {
     cppStartAge: clamp(Number(plan.uiState.timingSim?.cppStartAge ?? plan.income.cpp.startAge), 60, 70),
     oasStartAge: clamp(Number(plan.uiState.timingSim?.oasStartAge ?? plan.income.oas.startAge), 65, 70),
@@ -418,6 +432,9 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   if (next.uiState.lastSharedScenarioBannerDismissed == null) next.uiState.lastSharedScenarioBannerDismissed = false;
   if (next.uiState.justCompletedWizard == null) next.uiState.justCompletedWizard = false;
   if (next.uiState.showGrossWithdrawals == null) next.uiState.showGrossWithdrawals = true;
+  if (next.uiState.emphasizeTaxes == null) next.uiState.emphasizeTaxes = true;
+  if (!Array.isArray(next.uiState.scenarios)) next.uiState.scenarios = [];
+  if (next.uiState.lastChangeSummary == null) next.uiState.lastChangeSummary = null;
   if (!next.uiState.timingSim) next.uiState.timingSim = { cppStartAge: 65, oasStartAge: 65, linkTiming: false };
   if (!next.savings) next.savings = createDefaultPlan({ app, riskReturns, learnProgressItems }).savings;
   if (!Array.isArray(next.savings.capitalInjects)) next.savings.capitalInjects = [];

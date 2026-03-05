@@ -429,6 +429,21 @@ body.mobile-layout .bottom-tabs {
   font-size: 1.04rem;
 }
 
+.insight-banner {
+  border: 1px solid rgba(15, 106, 191, 0.28);
+  background: linear-gradient(135deg, rgba(15, 106, 191, 0.08), rgba(14, 165, 168, 0.08));
+}
+
+.insight-warning {
+  margin-left: 8px;
+  color: #9b2c2c;
+  font-weight: 700;
+}
+
+.gross-net-callout.emphasize {
+  border-color: rgba(217, 72, 95, 0.45);
+}
+
 .mini-split-bar {
   display: flex;
   overflow: hidden;
@@ -443,12 +458,7 @@ body.mobile-layout .bottom-tabs {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
-  text-shadow: 0 1px 2px rgba(12, 22, 40, 0.6);
-  font-weight: 700;
-  font-size: 0.78rem;
-  white-space: nowrap;
-  padding: 0 6px;
+  min-height: 16px;
 }
 
 .mini-split-bar .seg.hatch {
@@ -466,6 +476,46 @@ body.mobile-layout .bottom-tabs {
   margin: 6px 0 8px;
   color: #1f2a3d;
   font-size: 0.84rem;
+}
+
+.gross-net-legend {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gross-net-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dbe6f5;
+  border-radius: 10px;
+  background: #fff;
+  color: #14243a;
+  font-size: 0.86rem;
+  padding: 8px 10px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend-dot.netdraw {
+  background: #0f6abf;
+}
+
+.legend-dot.tax {
+  background: #d9485f;
+}
+
+@media (max-width: 900px) {
+  .gross-net-legend {
+    grid-template-columns: 1fr;
+  }
 }
 
 .chart-wrap {
