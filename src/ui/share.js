@@ -23,11 +23,17 @@ export function buildSharePayload(state, minimal = false) {
     oasAge: state.income.oas.startAge,
     claw: state.strategy.oasClawbackModeling ? 1 : 0,
     rrif: state.strategy.applyRrifMinimums ? 1 : 0,
+    sn: state.uiState.selectedScenarioLabel || "",
   };
   if (!minimal) {
     payload.spouse = state.profile.hasSpouse ? 1 : 0;
     payload.cInc = state.savings.contributionIncrease;
     payload.scn = state.assumptions.scenarioSpread;
+    payload.mEn = state.strategy.meltdownEnabled ? 1 : 0;
+    payload.mAmt = state.strategy.meltdownAmount;
+    payload.mStart = state.strategy.meltdownStartAge;
+    payload.mEnd = state.strategy.meltdownEndAge;
+    payload.mCap = state.strategy.meltdownIncomeCeiling;
   }
   return payload;
 }
@@ -82,13 +88,19 @@ export function applySharedScenarioToPlan(state, payload) {
   next.income.oas.startAge = safeNumber(payload.oasAge, next.income.oas.startAge);
   next.strategy.oasClawbackModeling = Boolean(payload.claw);
   next.strategy.applyRrifMinimums = Boolean(payload.rrif);
+  next.uiState.selectedScenarioLabel = String(payload.sn || "");
   if (payload.spouse != null) next.profile.hasSpouse = Boolean(payload.spouse);
   if (payload.cInc != null) next.savings.contributionIncrease = safeNumber(payload.cInc, next.savings.contributionIncrease);
   if (payload.scn != null) next.assumptions.scenarioSpread = safeNumber(payload.scn, next.assumptions.scenarioSpread);
+  if (payload.mEn != null) next.strategy.meltdownEnabled = Boolean(payload.mEn);
+  if (payload.mAmt != null) next.strategy.meltdownAmount = safeNumber(payload.mAmt, next.strategy.meltdownAmount);
+  if (payload.mStart != null) next.strategy.meltdownStartAge = safeNumber(payload.mStart, next.strategy.meltdownStartAge);
+  if (payload.mEnd != null) next.strategy.meltdownEndAge = safeNumber(payload.mEnd, next.strategy.meltdownEndAge);
+  if (payload.mCap != null) next.strategy.meltdownIncomeCeiling = safeNumber(payload.mCap, next.strategy.meltdownIncomeCeiling);
   return next;
 }
 
-export function buildShareSummary({ state, row, formatCurrency, formatPct, link }) {
+export function buildShareSummary({ state, row, formatCurrency, formatPct, link, depletionAge = null }) {
   const pension = safeNumber(row?.pensionGross || state.income.pension.amount, 0);
   const cpp = safeNumber(row?.cppGross || state.income.cpp.amountAt65, 0);
   const oas = safeNumber(row?.oasGross || state.income.oas.amountAt65, 0);
@@ -97,8 +109,10 @@ export function buildShareSummary({ state, row, formatCurrency, formatPct, link 
   const gross = safeNumber(row?.withdrawal, 0);
   const tax = safeNumber((row?.taxOnWithdrawal || 0) + (row?.oasClawback || 0), 0);
   const age = safeNumber(row?.age, state.profile.retirementAge);
+  const scenario = String(state.uiState.selectedScenarioLabel || "Current plan");
   return [
     "Canadian Retirement Tax Simulator - Summary",
+    `Scenario: ${scenario}`,
     `Age: ${age}`,
     `Retirement age: ${state.profile.retirementAge}`,
     `After-tax spending target: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
@@ -107,6 +121,47 @@ export function buildShareSummary({ state, row, formatCurrency, formatPct, link 
     `Gross RRSP/RRIF withdrawal required: ${formatCurrency(gross)}`,
     `Tax wedge: ${formatCurrency(tax)} (effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
     `OAS clawback: ${formatCurrency(row?.oasClawback || 0)}${state.strategy.oasClawbackModeling ? "" : " (modeling off)"}`,
+    row?.netGap > 0 ? `Status: Gap remains (${formatCurrency(row.netGap)})` : `Status: Surplus/covered`,
+    depletionAge ? `Depletion age: ${depletionAge}` : "Depletion age: none in projection",
     `Link: ${link}`,
   ].join("\n");
+}
+
+export function buildScenarioPayloadFromSnapshot(snapshot) {
+  const payload = snapshot?.payload || {};
+  const strategy = payload.strategy || {};
+  const income = payload.income || {};
+  return {
+    by: payload.profile?.birthYear,
+    p: payload.profile?.province,
+    ra: payload.profile?.retirementAge,
+    le: payload.profile?.lifeExpectancy,
+    sp: payload.profile?.desiredSpending,
+    inf: payload.assumptions?.inflation,
+    rr: payload.assumptions?.riskProfile,
+    bal: payload.savings?.currentTotal,
+    con: payload.savings?.annualContribution,
+    pEn: income.pension?.enabled ? 1 : 0,
+    pAmt: income.pension?.amount,
+    pAge: income.pension?.startAge,
+    cpp: income.cpp?.amountAt65,
+    cppAge: income.cpp?.startAge,
+    oas: income.oas?.amountAt65,
+    oasAge: income.oas?.startAge,
+    claw: strategy.oasClawbackModeling ? 1 : 0,
+    rrif: strategy.applyRrifMinimums ? 1 : 0,
+    mEn: strategy.meltdownEnabled ? 1 : 0,
+    mAmt: strategy.meltdownAmount,
+    mStart: strategy.meltdownStartAge,
+    mEnd: strategy.meltdownEndAge,
+    mCap: strategy.meltdownIncomeCeiling,
+    sn: snapshot?.name || "Scenario",
+  };
+}
+
+export function buildScenarioShareUrl(baseUrl, payload) {
+  const encoded = encodeURIComponent(JSON.stringify(payload || {}));
+  const url = new URL(baseUrl);
+  url.hash = `share=${encoded}`;
+  return url.toString();
 }

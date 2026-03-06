@@ -746,6 +746,46 @@ body.mobile-layout .bottom-tabs {
   margin-top: 8px;
 }
 
+.income-phase-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 10px;
+}
+
+.phase-chip {
+  border: 1px solid #dce7f7;
+  background: #f5f9ff;
+  color: #1b365a;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.peak-tax-card p {
+  margin: 6px 0;
+}
+
+.strategy-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.strategy-card {
+  border: 1px solid #dce7f7;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+}
+
+.strategy-card.active {
+  border-color: rgba(15, 106, 191, 0.45);
+  background: #f5f9ff;
+}
+
 .chart-wrap {
   margin-top: 12px;
   border: 1px solid var(--line);
@@ -1713,6 +1753,10 @@ textarea {
   }
 
   .income-map-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .strategy-grid {
     grid-template-columns: 1fr;
   }
 

@@ -37,7 +37,7 @@ export function renderScenarioCompareModal(ctx) {
     s.metrics,
     formatCurrency,
     formatPct,
-    `<button class="text-link-btn" data-action="rename-scenario" data-value="${esc(s.id)}">Rename</button> <button class="text-link-btn" data-action="delete-scenario" data-value="${esc(s.id)}">Delete</button>`
+    `<button class="text-link-btn" data-action="preview-scenario" data-value="${esc(s.id)}">Preview</button> <button class="text-link-btn" data-action="share-scenario" data-value="${esc(s.id)}">Share</button> <button class="text-link-btn" data-action="rename-scenario" data-value="${esc(s.id)}">Rename</button> <button class="text-link-btn" data-action="delete-scenario" data-value="${esc(s.id)}">Delete</button>`
   ));
   const rows = [
     buildScenarioRow("Base plan", baseMetrics, formatCurrency, formatPct),

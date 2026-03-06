@@ -97,6 +97,7 @@ export function buildLearnHtml(ctx) {
             <span class="legend-item"><span class="legend-chip" style="background:#d9485f;"></span>Non-indexed purchasing power (today's dollars)</span>
           </div>
           <p class="small-copy muted"><strong>Why this matters:</strong> A flat pension can feel smaller each year when prices rise.</p>
+          <p class="small-copy muted"><a href="./cpp-timing-calculator-canada.html">Try the CPP timing calculator page</a>.</p>
         </section>
 
         <section class="learn-section" id="learn-taxes">
@@ -112,6 +113,7 @@ export function buildLearnHtml(ctx) {
           </div>
           <div class="preview-kpi" id="learnTaxOut"></div>
           <p class="small-copy muted">Marginal tax applies to the next dollar. Effective tax is average tax across all dollars.</p>
+          <p class="small-copy muted"><a href="./retirement-tax-calculator-canada.html">Try the retirement tax calculator page</a>.</p>
         </section>
 
         <section class="learn-section" id="learn-rrif">
@@ -127,6 +129,7 @@ export function buildLearnHtml(ctx) {
           <div class="preview-kpi learn-rrif-out" id="learnRrifOut"></div>
           <p class="small-copy muted"><strong>Why this matters:</strong> Even when spending drops, RRIF minimums can keep taxable income elevated.</p>
           <p class="small-copy muted"><a href="./rrif-withdrawal-calculator.html">Try the RRIF withdrawal landing calculator</a>.</p>
+          <p class="small-copy muted"><a href="./rrif-minimum-withdrawal-calculator.html">Try the RRIF minimum calculator page</a>.</p>
         </section>
 
         <section class="learn-section" id="learn-spousal">

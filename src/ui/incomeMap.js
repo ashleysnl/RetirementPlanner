@@ -27,6 +27,7 @@ export function renderIncomeMap(ctx) {
     formatCurrency,
     formatPct,
     state,
+    phases = [],
   } = ctx;
   if (!mountEl) return null;
   if (!rows.length) {
@@ -36,27 +37,26 @@ export function renderIncomeMap(ctx) {
   const minAge = rows[0].age;
   const maxAge = rows[rows.length - 1].age;
   const uiMap = state.uiState.incomeMap || {};
-  const windowYears = clamp(Number(uiMap.windowYears || 25), 8, 45);
-  const maxStart = Math.max(minAge, maxAge - windowYears + 1);
-  const startAge = clamp(Number(uiMap.startAge || minAge), minAge, maxStart);
   const showGross = Boolean(state.uiState.showGrossWithdrawals ?? true);
   const showMarkers = Boolean(uiMap.highlightKeyAges ?? true);
   const showTable = Boolean(uiMap.showTable);
-  const visible = rows.filter((row) => row.age >= startAge && row.age < (startAge + windowYears));
-  const keys = markerAges(plan).filter((m) => m.age >= startAge && m.age <= (startAge + windowYears - 1));
+  const visible = rows.slice();
+  const keys = markerAges(plan).filter((m) => m.age >= minAge && m.age <= maxAge);
+  const visiblePhases = (phases || []).filter((phase) => !(phase.endAge < minAge || phase.startAge > maxAge));
   const tableHtml = showTable
     ? `
       <div class="table-scroll income-map-table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Age</th><th>Pension</th><th>CPP</th><th>OAS</th><th>${showGross ? "RRSP/RRIF (gross)" : "RRSP/RRIF (net)"}</th><th>Tax wedge</th><th>Spending</th><th>Coverage</th>
+              <th>Age</th><th>Phase</th><th>Pension</th><th>CPP</th><th>OAS</th><th>${showGross ? "RRSP/RRIF (gross)" : "RRSP/RRIF (net)"}</th><th>Tax wedge</th><th>Spending</th><th>Coverage</th>
             </tr>
           </thead>
           <tbody>
             ${visible.map((row) => `
               <tr>
                 <td>${row.age}</td>
+                <td>${phaseLabelForAge(row.age, visiblePhases)}</td>
                 <td>${formatCurrency(row.pensionGross)}</td>
                 <td>${formatCurrency(row.cppGross)}</td>
                 <td>${formatCurrency(row.oasGross)}</td>
@@ -91,16 +91,15 @@ export function renderIncomeMap(ctx) {
         <label class="inline-check small-copy"><input type="checkbox" data-bind="uiState.incomeMap.highlightKeyAges" ${showMarkers ? "checked" : ""} /> Highlight key ages</label>
         <label class="inline-check small-copy"><input type="checkbox" data-bind="uiState.incomeMap.showTable" ${showTable ? "checked" : ""} /> View as table</label>
       </div>
-      <div class="income-map-controls">
-        <label class="small-copy">Start age
-          <input type="range" data-bind="uiState.incomeMap.startAge" data-type="number" data-live-input="1" min="${minAge}" max="${maxStart}" step="1" value="${startAge}" />
-          <strong>Age ${startAge}</strong>
-        </label>
-        <label class="small-copy">Window years
-          <input type="range" data-bind="uiState.incomeMap.windowYears" data-type="number" data-live-input="1" min="8" max="45" step="1" value="${windowYears}" />
-          <strong>${windowYears} years</strong>
-        </label>
-      </div>
+      ${visiblePhases.length ? `
+        <div class="income-phase-row" aria-label="Retirement phases">
+          ${visiblePhases.map((phase) => `
+            <button type="button" class="phase-chip" data-action="set-selected-age" data-value="${phase.startAge}" data-tooltip-key="${phaseTooltipKey(phase.key)}" aria-label="${phase.label} starts at age ${phase.startAge}">
+              ${phase.label} (${phase.startAge}-${phase.endAge})
+            </button>
+          `).join("")}
+        </div>
+      ` : ""}
       <div class="chart-canvas-wrap income-map-canvas-wrap">
         <canvas id="incomeMapCanvas" width="1200" height="360" aria-label="Retirement income map chart" role="img"></canvas>
         <div id="incomeMapHover" class="chart-hover" hidden></div>
@@ -112,6 +111,7 @@ export function renderIncomeMap(ctx) {
 
   return {
     visibleRows: visible,
+    visiblePhases,
     showGross,
     showMarkers,
     markers: keys,
@@ -127,6 +127,7 @@ export function drawIncomeMapCanvas(ctx) {
     showGross,
     showMarkers,
     markers,
+    phases = [],
     formatCurrency,
   } = ctx;
   if (!canvas || !visibleRows?.length) return { hitZones: [] };
@@ -158,6 +159,25 @@ export function drawIncomeMapCanvas(ctx) {
   const x = (i) => pad.left + (innerW * i) / Math.max(1, visibleRows.length - 1);
   const y = (v) => pad.top + innerH - (v / maxY) * innerH;
   const barW = Math.max(8, Math.min(18, innerW / Math.max(visibleRows.length, 24)));
+
+  for (const phase of phases) {
+    const startIdx = visibleRows.findIndex((r) => r.age >= phase.startAge);
+    const endIdx = (() => {
+      let idx = -1;
+      for (let i = visibleRows.length - 1; i >= 0; i -= 1) {
+        if (visibleRows[i].age <= phase.endAge) {
+          idx = i;
+          break;
+        }
+      }
+      return idx;
+    })();
+    if (startIdx < 0 || endIdx < 0 || endIdx < startIdx) continue;
+    const x0 = x(startIdx) - (barW / 2);
+    const x1 = x(endIdx) + (barW / 2);
+    g.fillStyle = "rgba(15, 106, 191, 0.03)";
+    g.fillRect(x0, pad.top, Math.max(1, x1 - x0), innerH);
+  }
 
   g.strokeStyle = "#dfe7f3";
   for (let i = 0; i <= 4; i += 1) {
@@ -283,3 +303,13 @@ export function pickIncomeMapAge(event, hitZones) {
   return hit?.row?.age ?? null;
 }
 
+function phaseLabelForAge(age, phases) {
+  const match = (phases || []).find((p) => age >= p.startAge && age <= p.endAge);
+  return match ? match.label : "-";
+}
+
+function phaseTooltipKey(key) {
+  if (key === "rrif") return "forcedRrifDrawdown";
+  if (key === "benefits") return "cppStartAge";
+  return "retirementAge";
+}

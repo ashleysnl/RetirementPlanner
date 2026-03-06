@@ -1123,6 +1123,135 @@ function buildYearBreakdown(plan, model) {
 }
 
 
+/* FILE: src/model/phases.js */
+function hasRow(rows, age) {
+  return rows.some((row) => row.age === age);
+}
+
+function buildRetirementPhases(plan, rows) {
+  const retireAge = Number(plan.profile.retirementAge || 65);
+  const lastAge = rows.length ? rows[rows.length - 1].age : retireAge;
+  const cppAge = Number(plan.income.cpp.startAge || 65);
+  const oasAge = Number(plan.income.oas.startAge || 65);
+  const rrifAge = plan.strategy.applyRrifMinimums
+    ? Number(plan.strategy.rrifConversionAge || 71)
+    : null;
+
+  const firstTransition = Math.min(
+    ...[cppAge, oasAge, rrifAge].filter((x) => Number.isFinite(x) && x > retireAge)
+  );
+  const earlyEnd = Number.isFinite(firstTransition) ? firstTransition - 1 : lastAge;
+
+  const bothBenefitsAge = Math.max(cppAge, oasAge);
+  const middleStart = Math.max(retireAge, bothBenefitsAge);
+  const middleEnd = rrifAge && rrifAge > middleStart ? rrifAge - 1 : null;
+
+  const phases = [];
+  if (earlyEnd >= retireAge && hasRow(rows, retireAge)) {
+    phases.push({
+      key: "early",
+      label: "Early Retirement",
+      startAge: retireAge,
+      endAge: Math.min(earlyEnd, lastAge),
+      why: "Bridge years before full government benefits and/or RRIF minimums.",
+    });
+  }
+
+  if (middleEnd != null && middleEnd >= middleStart && hasRow(rows, middleStart)) {
+    phases.push({
+      key: "benefits",
+      label: "CPP + OAS Phase",
+      startAge: middleStart,
+      endAge: Math.min(middleEnd, lastAge),
+      why: "CPP and OAS are both active, often reducing withdrawal pressure.",
+    });
+  }
+
+  if (rrifAge != null && hasRow(rows, rrifAge)) {
+    phases.push({
+      key: "rrif",
+      label: "RRIF Minimum Phase",
+      startAge: rrifAge,
+      endAge: lastAge,
+      why: "Minimum RRIF withdrawals can increase taxable income and tax drag.",
+    });
+  }
+
+  return phases.filter((p) => p.endAge >= p.startAge);
+}
+
+
+/* FILE: src/model/peakTax.js */
+
+function computeBracketTax(income, bracket, inflation, yearOffset, inflateBrackets) {
+  const inflationFactor = inflateBrackets ? Math.pow(1 + inflation, yearOffset) : 1;
+  const thresholds = bracket.thresholds.map((t) => t * inflationFactor);
+  let tax = 0;
+  for (let i = 0; i < bracket.rates.length; i += 1) {
+    const floor = thresholds[i];
+    const ceiling = thresholds[i + 1] ?? Number.POSITIVE_INFINITY;
+    const taxableInBand = Math.max(0, Math.min(income, ceiling) - floor);
+    if (taxableInBand > 0) tax += taxableInBand * bracket.rates[i];
+  }
+  return tax;
+}
+
+function causeLabel(row) {
+  const reasons = [];
+  if ((row.oasClawback || 0) > 0) reasons.push({ k: "clawback", v: row.oasClawback });
+  if ((row.rrifMinimum || 0) > 0 && (row.withdrawal || 0) >= (row.rrifMinimum || 0)) reasons.push({ k: "rrif", v: row.rrifMinimum });
+  if ((row.withdrawal || 0) > 35000) reasons.push({ k: "withdrawal", v: row.withdrawal });
+  if ((row.pension || 0) + (row.cpp || 0) + (row.oas || 0) > 35000) reasons.push({ k: "overlap", v: (row.pension || 0) + (row.cpp || 0) + (row.oas || 0) });
+  reasons.sort((a, b) => b.v - a.v);
+  const top = reasons[0]?.k || "combination";
+  if (top === "rrif") return "RRIF minimum withdrawals";
+  if (top === "clawback") return "OAS clawback";
+  if (top === "withdrawal") return "High registered withdrawals";
+  if (top === "overlap") return "Pension + CPP/OAS overlap";
+  return "Combination of income sources";
+}
+
+function findPeakTaxYear(plan, model) {
+  const rows = (model?.base?.rows || []).filter((r) => r.age >= plan.profile.retirementAge);
+  if (!rows.length) return null;
+  let best = rows[0];
+  let bestTax = (best.tax || 0) + (best.oasClawback || 0);
+  for (const row of rows) {
+    const t = (row.tax || 0) + (row.oasClawback || 0);
+    if (t > bestTax) {
+      best = row;
+      bestTax = t;
+    }
+  }
+  const yearOffset = Math.max(0, best.year - new Date().getFullYear());
+  const taxableIncome = Math.max(0, best.taxableIncome || 0);
+  const federal = computeBracketTax(
+    taxableIncome,
+    TAX_BRACKETS.federal,
+    plan.assumptions.inflation,
+    yearOffset,
+    plan.assumptions.taxBracketInflation
+  );
+  const provincialBracket = TAX_BRACKETS.provincial[plan.profile.province] || TAX_BRACKETS.provincial.NL;
+  const provincial = computeBracketTax(
+    taxableIncome,
+    provincialBracket,
+    plan.assumptions.inflation,
+    yearOffset,
+    plan.assumptions.taxBracketInflation
+  );
+  return {
+    age: best.age,
+    year: best.year,
+    totalTax: (best.tax || 0) + (best.oasClawback || 0),
+    federalTax: federal,
+    provincialTax: provincial,
+    clawback: best.oasClawback || 0,
+    cause: causeLabel(best),
+  };
+}
+
+
 /* FILE: src/model/scenarioStore.js */
 function localId() {
   return `scn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -1399,6 +1528,7 @@ function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       },
       lastSharedScenarioBannerDismissed: false,
       justCompletedWizard: false,
+      selectedScenarioLabel: "",
       showGrossWithdrawals: true,
       emphasizeTaxes: true,
       timelineSelectedAge: null,
@@ -1567,6 +1697,7 @@ function ensureValidState(state, { app, provinces, learnProgressItems }) {
   };
   state.uiState.lastSharedScenarioBannerDismissed = Boolean(state.uiState.lastSharedScenarioBannerDismissed);
   state.uiState.justCompletedWizard = Boolean(state.uiState.justCompletedWizard);
+  state.uiState.selectedScenarioLabel = String(state.uiState.selectedScenarioLabel || "");
   state.uiState.showGrossWithdrawals = Boolean(state.uiState.showGrossWithdrawals ?? true);
   state.uiState.emphasizeTaxes = Boolean(state.uiState.emphasizeTaxes ?? true);
   state.uiState.timelineSelectedAge = Number.isFinite(Number(state.uiState.timelineSelectedAge))
@@ -1631,6 +1762,7 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
   };
   plan.uiState.lastSharedScenarioBannerDismissed = Boolean(plan.uiState.lastSharedScenarioBannerDismissed);
   plan.uiState.justCompletedWizard = Boolean(plan.uiState.justCompletedWizard);
+  plan.uiState.selectedScenarioLabel = String(plan.uiState.selectedScenarioLabel || "");
   plan.uiState.showGrossWithdrawals = Boolean(plan.uiState.showGrossWithdrawals ?? true);
   plan.uiState.emphasizeTaxes = Boolean(plan.uiState.emphasizeTaxes ?? true);
   plan.uiState.timelineSelectedAge = Number.isFinite(Number(plan.uiState.timelineSelectedAge))
@@ -1674,6 +1806,7 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   if (next.uiState.supportOptOut == null) next.uiState.supportOptOut = false;
   if (next.uiState.lastSharedScenarioBannerDismissed == null) next.uiState.lastSharedScenarioBannerDismissed = false;
   if (next.uiState.justCompletedWizard == null) next.uiState.justCompletedWizard = false;
+  if (next.uiState.selectedScenarioLabel == null) next.uiState.selectedScenarioLabel = "";
   if (next.uiState.showGrossWithdrawals == null) next.uiState.showGrossWithdrawals = true;
   if (next.uiState.emphasizeTaxes == null) next.uiState.emphasizeTaxes = true;
   if (next.uiState.timelineSelectedAge == null) next.uiState.timelineSelectedAge = null;
@@ -3282,7 +3415,7 @@ function renderScenarioCompareModal(ctx) {
     s.metrics,
     formatCurrency,
     formatPct,
-    `<button class="text-link-btn" data-action="rename-scenario" data-value="${esc(s.id)}">Rename</button> <button class="text-link-btn" data-action="delete-scenario" data-value="${esc(s.id)}">Delete</button>`
+    `<button class="text-link-btn" data-action="preview-scenario" data-value="${esc(s.id)}">Preview</button> <button class="text-link-btn" data-action="share-scenario" data-value="${esc(s.id)}">Share</button> <button class="text-link-btn" data-action="rename-scenario" data-value="${esc(s.id)}">Rename</button> <button class="text-link-btn" data-action="delete-scenario" data-value="${esc(s.id)}">Delete</button>`
   ));
   const rows = [
     buildScenarioRow("Base plan", baseMetrics, formatCurrency, formatPct),
@@ -3562,7 +3695,16 @@ function parsePresetFromUrl(locationObj) {
     const url = new URL(locationObj.href);
     const preset = (url.searchParams.get("preset") || "").trim().toLowerCase();
     if (!preset) return null;
-    if (preset !== "oas-clawback" && preset !== "rrif-withdrawal") return null;
+    const allowed = new Set([
+      "oas-clawback",
+      "rrif-withdrawal",
+      "cpp-timing",
+      "rrsp-withdrawal-strategy",
+      "retirement-tax",
+      "rrif-minimum",
+      "retirement-income",
+    ]);
+    if (!allowed.has(preset)) return null;
     return { key: preset };
   } catch {
     return null;
@@ -3571,17 +3713,42 @@ function parsePresetFromUrl(locationObj) {
 
 function buildPresetBannerHtml(preset) {
   if (!preset) return "";
-  const title = preset.key === "oas-clawback"
-    ? "Loaded preset: OAS Clawback Calculator"
-    : "Loaded preset: RRIF Withdrawal Calculator";
-  const text = preset.key === "oas-clawback"
-    ? "This preset turns on clawback and RRIF rules with standard start ages so you can test clawback exposure quickly."
-    : "This preset turns on RRIF rules and sets conversion-focused defaults to illustrate RRIF minimum withdrawal effects.";
+  const map = {
+    "oas-clawback": {
+      title: "Loaded preset: OAS Clawback Calculator",
+      text: "Turns on clawback and RRIF rules with standard start ages to test OAS recovery risk.",
+    },
+    "rrif-withdrawal": {
+      title: "Loaded preset: RRIF Withdrawal Calculator",
+      text: "Turns on RRIF rules and conversion-focused defaults to illustrate minimum-withdrawal effects.",
+    },
+    "cpp-timing": {
+      title: "Loaded preset: CPP Timing Calculator (Canada)",
+      text: "Highlights CPP timing tradeoffs with age-based defaults for quick comparison.",
+    },
+    "rrsp-withdrawal-strategy": {
+      title: "Loaded preset: RRSP Withdrawal Strategy (Canada)",
+      text: "Highlights RRSP/RRIF withdrawal order and tax drag effects.",
+    },
+    "retirement-tax": {
+      title: "Loaded preset: Retirement Tax Calculator (Canada)",
+      text: "Highlights tax drag, clawback, and gross-vs-net withdrawal behavior.",
+    },
+    "rrif-minimum": {
+      title: "Loaded preset: RRIF Minimum Withdrawal Calculator",
+      text: "Highlights RRIF conversion-age rules and minimum drawdown effects.",
+    },
+    "retirement-income": {
+      title: "Loaded preset: Canadian Retirement Income Calculator",
+      text: "Balanced baseline preset showing pension/CPP/OAS plus withdrawal gap.",
+    },
+  };
+  const config = map[preset.key] || map["retirement-income"];
   return `
     <div class="banner-row">
       <div>
-        <strong>${title}</strong>
-        <p class="small-copy muted">${text}</p>
+        <strong>${config.title}</strong>
+        <p class="small-copy muted">${config.text}</p>
       </div>
       <div class="landing-actions">
         <button class="btn btn-primary" type="button" data-action="apply-preset">Apply preset</button>
@@ -3612,10 +3779,27 @@ function applyPresetToPlan(state, preset, createDemoPlan) {
     next.profile.desiredSpending = Math.max(60000, Number(next.profile.desiredSpending || 60000));
     next.income.pension.enabled = true;
     next.income.pension.amount = Math.max(12000, Number(next.income.pension.amount || 12000));
-  } else if (preset?.key === "rrif-withdrawal") {
+  } else if (preset?.key === "rrif-withdrawal" || preset?.key === "rrif-minimum") {
     next.strategy.meltdownEnabled = false;
     next.savings.currentTotal = Math.max(300000, Number(next.savings.currentTotal || 300000));
     next.profile.retirementAge = Math.min(67, Math.max(60, Number(next.profile.retirementAge || 65)));
+  } else if (preset?.key === "cpp-timing") {
+    next.income.cpp.startAge = 70;
+    next.income.oas.startAge = 67;
+    next.profile.retirementAge = Math.max(60, Number(next.profile.retirementAge || 65));
+  } else if (preset?.key === "rrsp-withdrawal-strategy") {
+    next.strategy.meltdownEnabled = true;
+    next.strategy.meltdownAmount = Math.max(10000, Number(next.strategy.meltdownAmount || 10000));
+    next.strategy.meltdownStartAge = Math.min(next.profile.retirementAge, 63);
+    next.strategy.meltdownEndAge = Math.max(next.strategy.meltdownStartAge + 1, 70);
+  } else if (preset?.key === "retirement-tax") {
+    next.profile.desiredSpending = Math.max(70000, Number(next.profile.desiredSpending || 70000));
+    next.income.pension.enabled = true;
+    next.income.pension.amount = Math.max(15000, Number(next.income.pension.amount || 15000));
+  } else if (preset?.key === "retirement-income") {
+    next.profile.desiredSpending = Math.max(65000, Number(next.profile.desiredSpending || 65000));
+    next.income.pension.enabled = true;
+    next.income.pension.amount = Math.max(10000, Number(next.income.pension.amount || 10000));
   }
   return next;
 }
@@ -3629,7 +3813,6 @@ function clearPresetQuery() {
     // ignore
   }
 }
-
 
 /* FILE: src/ui/incomeMap.js */
 function clamp(value, min, max) {
@@ -3661,6 +3844,7 @@ function renderIncomeMap(ctx) {
     formatCurrency,
     formatPct,
     state,
+    phases = [],
   } = ctx;
   if (!mountEl) return null;
   if (!rows.length) {
@@ -3670,27 +3854,26 @@ function renderIncomeMap(ctx) {
   const minAge = rows[0].age;
   const maxAge = rows[rows.length - 1].age;
   const uiMap = state.uiState.incomeMap || {};
-  const windowYears = clamp(Number(uiMap.windowYears || 25), 8, 45);
-  const maxStart = Math.max(minAge, maxAge - windowYears + 1);
-  const startAge = clamp(Number(uiMap.startAge || minAge), minAge, maxStart);
   const showGross = Boolean(state.uiState.showGrossWithdrawals ?? true);
   const showMarkers = Boolean(uiMap.highlightKeyAges ?? true);
   const showTable = Boolean(uiMap.showTable);
-  const visible = rows.filter((row) => row.age >= startAge && row.age < (startAge + windowYears));
-  const keys = markerAges(plan).filter((m) => m.age >= startAge && m.age <= (startAge + windowYears - 1));
+  const visible = rows.slice();
+  const keys = markerAges(plan).filter((m) => m.age >= minAge && m.age <= maxAge);
+  const visiblePhases = (phases || []).filter((phase) => !(phase.endAge < minAge || phase.startAge > maxAge));
   const tableHtml = showTable
     ? `
       <div class="table-scroll income-map-table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Age</th><th>Pension</th><th>CPP</th><th>OAS</th><th>${showGross ? "RRSP/RRIF (gross)" : "RRSP/RRIF (net)"}</th><th>Tax wedge</th><th>Spending</th><th>Coverage</th>
+              <th>Age</th><th>Phase</th><th>Pension</th><th>CPP</th><th>OAS</th><th>${showGross ? "RRSP/RRIF (gross)" : "RRSP/RRIF (net)"}</th><th>Tax wedge</th><th>Spending</th><th>Coverage</th>
             </tr>
           </thead>
           <tbody>
             ${visible.map((row) => `
               <tr>
                 <td>${row.age}</td>
+                <td>${phaseLabelForAge(row.age, visiblePhases)}</td>
                 <td>${formatCurrency(row.pensionGross)}</td>
                 <td>${formatCurrency(row.cppGross)}</td>
                 <td>${formatCurrency(row.oasGross)}</td>
@@ -3725,16 +3908,15 @@ function renderIncomeMap(ctx) {
         <label class="inline-check small-copy"><input type="checkbox" data-bind="uiState.incomeMap.highlightKeyAges" ${showMarkers ? "checked" : ""} /> Highlight key ages</label>
         <label class="inline-check small-copy"><input type="checkbox" data-bind="uiState.incomeMap.showTable" ${showTable ? "checked" : ""} /> View as table</label>
       </div>
-      <div class="income-map-controls">
-        <label class="small-copy">Start age
-          <input type="range" data-bind="uiState.incomeMap.startAge" data-type="number" data-live-input="1" min="${minAge}" max="${maxStart}" step="1" value="${startAge}" />
-          <strong>Age ${startAge}</strong>
-        </label>
-        <label class="small-copy">Window years
-          <input type="range" data-bind="uiState.incomeMap.windowYears" data-type="number" data-live-input="1" min="8" max="45" step="1" value="${windowYears}" />
-          <strong>${windowYears} years</strong>
-        </label>
-      </div>
+      ${visiblePhases.length ? `
+        <div class="income-phase-row" aria-label="Retirement phases">
+          ${visiblePhases.map((phase) => `
+            <button type="button" class="phase-chip" data-action="set-selected-age" data-value="${phase.startAge}" data-tooltip-key="${phaseTooltipKey(phase.key)}" aria-label="${phase.label} starts at age ${phase.startAge}">
+              ${phase.label} (${phase.startAge}-${phase.endAge})
+            </button>
+          `).join("")}
+        </div>
+      ` : ""}
       <div class="chart-canvas-wrap income-map-canvas-wrap">
         <canvas id="incomeMapCanvas" width="1200" height="360" aria-label="Retirement income map chart" role="img"></canvas>
         <div id="incomeMapHover" class="chart-hover" hidden></div>
@@ -3746,6 +3928,7 @@ function renderIncomeMap(ctx) {
 
   return {
     visibleRows: visible,
+    visiblePhases,
     showGross,
     showMarkers,
     markers: keys,
@@ -3761,6 +3944,7 @@ function drawIncomeMapCanvas(ctx) {
     showGross,
     showMarkers,
     markers,
+    phases = [],
     formatCurrency,
   } = ctx;
   if (!canvas || !visibleRows?.length) return { hitZones: [] };
@@ -3792,6 +3976,25 @@ function drawIncomeMapCanvas(ctx) {
   const x = (i) => pad.left + (innerW * i) / Math.max(1, visibleRows.length - 1);
   const y = (v) => pad.top + innerH - (v / maxY) * innerH;
   const barW = Math.max(8, Math.min(18, innerW / Math.max(visibleRows.length, 24)));
+
+  for (const phase of phases) {
+    const startIdx = visibleRows.findIndex((r) => r.age >= phase.startAge);
+    const endIdx = (() => {
+      let idx = -1;
+      for (let i = visibleRows.length - 1; i >= 0; i -= 1) {
+        if (visibleRows[i].age <= phase.endAge) {
+          idx = i;
+          break;
+        }
+      }
+      return idx;
+    })();
+    if (startIdx < 0 || endIdx < 0 || endIdx < startIdx) continue;
+    const x0 = x(startIdx) - (barW / 2);
+    const x1 = x(endIdx) + (barW / 2);
+    g.fillStyle = "rgba(15, 106, 191, 0.03)";
+    g.fillRect(x0, pad.top, Math.max(1, x1 - x0), innerH);
+  }
 
   g.strokeStyle = "#dfe7f3";
   for (let i = 0; i <= 4; i += 1) {
@@ -3915,6 +4118,102 @@ function pickIncomeMapAge(event, hitZones) {
   const py = event.clientY - rect.top;
   const hit = hitZones.find((z) => px >= z.x && px <= (z.x + z.w) && py >= z.y && py <= (z.y + z.h));
   return hit?.row?.age ?? null;
+}
+
+function phaseLabelForAge(age, phases) {
+  const match = (phases || []).find((p) => age >= p.startAge && age <= p.endAge);
+  return match ? match.label : "-";
+}
+
+function phaseTooltipKey(key) {
+  if (key === "rrif") return "forcedRrifDrawdown";
+  if (key === "benefits") return "cppStartAge";
+  return "retirementAge";
+}
+
+/* FILE: src/ui/peakTaxYear.js */
+function renderPeakTaxYear(ctx) {
+  const {
+    mountEl,
+    peak,
+    formatCurrency,
+  } = ctx;
+  if (!mountEl) return;
+  if (!peak) {
+    mountEl.innerHTML = "";
+    return;
+  }
+  mountEl.innerHTML = `
+    <article class="subsection peak-tax-card">
+      <h3>Peak Tax Year</h3>
+      <p><strong>Highest tax year: age ${peak.age}</strong></p>
+      <p class="small-copy muted">Estimated total tax: <strong>${formatCurrency(peak.totalTax)}</strong></p>
+      <p class="small-copy muted">Main driver: <strong>${peak.cause}</strong></p>
+      <p class="small-copy muted">Federal: ${formatCurrency(peak.federalTax)} | Provincial: ${formatCurrency(peak.provincialTax)} | OAS clawback: ${formatCurrency(peak.clawback)}</p>
+      <div class="landing-actions">
+        <button type="button" class="btn btn-secondary" data-action="focus-strategies">Try strategies to reduce this</button>
+      </div>
+    </article>
+  `;
+}
+
+
+/* FILE: src/ui/strategySuggestions.js */
+function esc(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+const STRATEGY_SUGGESTIONS = [
+  {
+    key: "delay-cpp",
+    title: "Delay CPP to 70",
+    desc: "Can reduce early draw pressure and increase later guaranteed income.",
+  },
+  {
+    key: "meltdown",
+    title: "Try RRSP meltdown",
+    desc: "Test planned early withdrawals to reduce later RRIF/tax pressure.",
+  },
+  {
+    key: "spend-down-10",
+    title: "Reduce spending by 10%",
+    desc: "Quick sensitivity test for plan resilience.",
+  },
+  {
+    key: "retire-later-2",
+    title: "Retire 2 years later",
+    desc: "Adds contribution years and shortens drawdown.",
+  },
+];
+
+function renderStrategySuggestions(ctx) {
+  const { mountEl, pendingKey } = ctx;
+  if (!mountEl) return;
+  mountEl.innerHTML = `
+    <article class="subsection" id="strategySuggestions">
+      <h3>Strategies to explore</h3>
+      <div class="strategy-grid">
+        ${STRATEGY_SUGGESTIONS.map((s) => `
+          <article class="strategy-card ${pendingKey === s.key ? "active" : ""}">
+            <strong>${esc(s.title)}</strong>
+            <p class="small-copy muted">${esc(s.desc)}</p>
+            <button type="button" class="btn btn-secondary" data-action="preview-strategy" data-value="${esc(s.key)}">Preview strategy</button>
+          </article>
+        `).join("")}
+      </div>
+      ${pendingKey ? `
+        <div class="landing-actions">
+          <button type="button" class="btn btn-primary" data-action="apply-strategy-preview">Apply</button>
+          <button type="button" class="btn btn-secondary" data-action="undo-strategy-preview">Undo preview</button>
+        </div>
+      ` : ""}
+    </article>
+  `;
 }
 
 
@@ -4224,11 +4523,17 @@ function buildSharePayload(state, minimal = false) {
     oasAge: state.income.oas.startAge,
     claw: state.strategy.oasClawbackModeling ? 1 : 0,
     rrif: state.strategy.applyRrifMinimums ? 1 : 0,
+    sn: state.uiState.selectedScenarioLabel || "",
   };
   if (!minimal) {
     payload.spouse = state.profile.hasSpouse ? 1 : 0;
     payload.cInc = state.savings.contributionIncrease;
     payload.scn = state.assumptions.scenarioSpread;
+    payload.mEn = state.strategy.meltdownEnabled ? 1 : 0;
+    payload.mAmt = state.strategy.meltdownAmount;
+    payload.mStart = state.strategy.meltdownStartAge;
+    payload.mEnd = state.strategy.meltdownEndAge;
+    payload.mCap = state.strategy.meltdownIncomeCeiling;
   }
   return payload;
 }
@@ -4283,13 +4588,19 @@ function applySharedScenarioToPlan(state, payload) {
   next.income.oas.startAge = safeNumber(payload.oasAge, next.income.oas.startAge);
   next.strategy.oasClawbackModeling = Boolean(payload.claw);
   next.strategy.applyRrifMinimums = Boolean(payload.rrif);
+  next.uiState.selectedScenarioLabel = String(payload.sn || "");
   if (payload.spouse != null) next.profile.hasSpouse = Boolean(payload.spouse);
   if (payload.cInc != null) next.savings.contributionIncrease = safeNumber(payload.cInc, next.savings.contributionIncrease);
   if (payload.scn != null) next.assumptions.scenarioSpread = safeNumber(payload.scn, next.assumptions.scenarioSpread);
+  if (payload.mEn != null) next.strategy.meltdownEnabled = Boolean(payload.mEn);
+  if (payload.mAmt != null) next.strategy.meltdownAmount = safeNumber(payload.mAmt, next.strategy.meltdownAmount);
+  if (payload.mStart != null) next.strategy.meltdownStartAge = safeNumber(payload.mStart, next.strategy.meltdownStartAge);
+  if (payload.mEnd != null) next.strategy.meltdownEndAge = safeNumber(payload.mEnd, next.strategy.meltdownEndAge);
+  if (payload.mCap != null) next.strategy.meltdownIncomeCeiling = safeNumber(payload.mCap, next.strategy.meltdownIncomeCeiling);
   return next;
 }
 
-function buildShareSummary({ state, row, formatCurrency, formatPct, link }) {
+function buildShareSummary({ state, row, formatCurrency, formatPct, link, depletionAge = null }) {
   const pension = safeNumber(row?.pensionGross || state.income.pension.amount, 0);
   const cpp = safeNumber(row?.cppGross || state.income.cpp.amountAt65, 0);
   const oas = safeNumber(row?.oasGross || state.income.oas.amountAt65, 0);
@@ -4298,8 +4609,10 @@ function buildShareSummary({ state, row, formatCurrency, formatPct, link }) {
   const gross = safeNumber(row?.withdrawal, 0);
   const tax = safeNumber((row?.taxOnWithdrawal || 0) + (row?.oasClawback || 0), 0);
   const age = safeNumber(row?.age, state.profile.retirementAge);
+  const scenario = String(state.uiState.selectedScenarioLabel || "Current plan");
   return [
     "Canadian Retirement Tax Simulator - Summary",
+    `Scenario: ${scenario}`,
     `Age: ${age}`,
     `Retirement age: ${state.profile.retirementAge}`,
     `After-tax spending target: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
@@ -4308,8 +4621,49 @@ function buildShareSummary({ state, row, formatCurrency, formatPct, link }) {
     `Gross RRSP/RRIF withdrawal required: ${formatCurrency(gross)}`,
     `Tax wedge: ${formatCurrency(tax)} (effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
     `OAS clawback: ${formatCurrency(row?.oasClawback || 0)}${state.strategy.oasClawbackModeling ? "" : " (modeling off)"}`,
+    row?.netGap > 0 ? `Status: Gap remains (${formatCurrency(row.netGap)})` : `Status: Surplus/covered`,
+    depletionAge ? `Depletion age: ${depletionAge}` : "Depletion age: none in projection",
     `Link: ${link}`,
   ].join("\n");
+}
+
+function buildScenarioPayloadFromSnapshot(snapshot) {
+  const payload = snapshot?.payload || {};
+  const strategy = payload.strategy || {};
+  const income = payload.income || {};
+  return {
+    by: payload.profile?.birthYear,
+    p: payload.profile?.province,
+    ra: payload.profile?.retirementAge,
+    le: payload.profile?.lifeExpectancy,
+    sp: payload.profile?.desiredSpending,
+    inf: payload.assumptions?.inflation,
+    rr: payload.assumptions?.riskProfile,
+    bal: payload.savings?.currentTotal,
+    con: payload.savings?.annualContribution,
+    pEn: income.pension?.enabled ? 1 : 0,
+    pAmt: income.pension?.amount,
+    pAge: income.pension?.startAge,
+    cpp: income.cpp?.amountAt65,
+    cppAge: income.cpp?.startAge,
+    oas: income.oas?.amountAt65,
+    oasAge: income.oas?.startAge,
+    claw: strategy.oasClawbackModeling ? 1 : 0,
+    rrif: strategy.applyRrifMinimums ? 1 : 0,
+    mEn: strategy.meltdownEnabled ? 1 : 0,
+    mAmt: strategy.meltdownAmount,
+    mStart: strategy.meltdownStartAge,
+    mEnd: strategy.meltdownEndAge,
+    mCap: strategy.meltdownIncomeCeiling,
+    sn: snapshot?.name || "Scenario",
+  };
+}
+
+function buildScenarioShareUrl(baseUrl, payload) {
+  const encoded = encodeURIComponent(JSON.stringify(payload || {}));
+  const url = new URL(baseUrl);
+  url.hash = `share=${encoded}`;
+  return url.toString();
 }
 
 /* FILE: src/ui/learnUtils.js */
@@ -4785,6 +5139,7 @@ function buildLearnHtml(ctx) {
             <span class="legend-item"><span class="legend-chip" style="background:#d9485f;"></span>Non-indexed purchasing power (today's dollars)</span>
           </div>
           <p class="small-copy muted"><strong>Why this matters:</strong> A flat pension can feel smaller each year when prices rise.</p>
+          <p class="small-copy muted"><a href="./cpp-timing-calculator-canada.html">Try the CPP timing calculator page</a>.</p>
         </section>
 
         <section class="learn-section" id="learn-taxes">
@@ -4800,6 +5155,7 @@ function buildLearnHtml(ctx) {
           </div>
           <div class="preview-kpi" id="learnTaxOut"></div>
           <p class="small-copy muted">Marginal tax applies to the next dollar. Effective tax is average tax across all dollars.</p>
+          <p class="small-copy muted"><a href="./retirement-tax-calculator-canada.html">Try the retirement tax calculator page</a>.</p>
         </section>
 
         <section class="learn-section" id="learn-rrif">
@@ -4815,6 +5171,7 @@ function buildLearnHtml(ctx) {
           <div class="preview-kpi learn-rrif-out" id="learnRrifOut"></div>
           <p class="small-copy muted"><strong>Why this matters:</strong> Even when spending drops, RRIF minimums can keep taxable income elevated.</p>
           <p class="small-copy muted"><a href="./rrif-withdrawal-calculator.html">Try the RRIF withdrawal landing calculator</a>.</p>
+          <p class="small-copy muted"><a href="./rrif-minimum-withdrawal-calculator.html">Try the RRIF minimum calculator page</a>.</p>
         </section>
 
         <section class="learn-section" id="learn-spousal">
@@ -5899,6 +6256,8 @@ const el = {
   coverageScoreModule: document.getElementById("coverageScoreModule"),
   timelineModule: document.getElementById("timelineModule"),
   keyRisksModule: document.getElementById("keyRisksModule"),
+  strategySuggestionsModule: document.getElementById("strategySuggestionsModule"),
+  peakTaxYearModule: document.getElementById("peakTaxYearModule"),
   timingSimulator: document.getElementById("timingSimulator"),
   meltdownSimulator: document.getElementById("meltdownSimulator"),
   sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
@@ -5930,6 +6289,8 @@ const el = {
   copyShareLinkBtn: document.getElementById("copyShareLinkBtn"),
   copyMinimalLinkBtn: document.getElementById("copyMinimalLinkBtn"),
   copySummaryBtn: document.getElementById("copySummaryBtn"),
+  copyScenarioShareBtn: document.getElementById("copyScenarioShareBtn"),
+  copyScenarioSummaryBtn: document.getElementById("copyScenarioSummaryBtn"),
   compareScenariosBtn: document.getElementById("compareScenariosBtn"),
   downloadSummaryBtn: document.getElementById("downloadSummaryBtn"),
 
@@ -6024,6 +6385,8 @@ let ui = {
   eventsBound: false,
   activeSupportMoment: "",
   undoPlanSnapshot: null,
+  pendingStrategyPreview: null,
+  pendingStrategyKey: "",
   supportShownThisSession: sessionSupportShown,
   incomeMapHitZones: [],
 };
@@ -6044,6 +6407,7 @@ function init() {
     sharedScenarioPayload = parseSharedScenarioFromUrl(window.location);
     if (sharedScenarioPayload) state.uiState.lastSharedScenarioBannerDismissed = false;
     presetPayload = parsePresetFromUrl(window.location);
+    state.uiState.lastChangeSummary = null;
     const hashNav = navFromHashUi(location.hash, normalizeNavTargetUi);
     if (hashNav) {
       ui.activeNav = hashNav;
@@ -6261,6 +6625,8 @@ function bindEvents() {
   el.copyShareLinkBtn?.addEventListener("click", () => copyShare(false));
   el.copyMinimalLinkBtn?.addEventListener("click", () => copyShare(true));
   el.copySummaryBtn?.addEventListener("click", copySummary);
+  el.copyScenarioShareBtn?.addEventListener("click", copyScenarioShare);
+  el.copyScenarioSummaryBtn?.addEventListener("click", copyScenarioSummary);
   el.compareScenariosBtn?.addEventListener("click", openScenarioCompare);
   el.downloadSummaryBtn?.addEventListener("click", openPrintSummary);
   el.resetCacheBtnTools?.addEventListener("click", resetCachedAppData);
@@ -6410,6 +6776,41 @@ function handleDocumentClick(event) {
       toast("Strategy updated. See What changed?");
       return;
     }
+    if (action === "preview-strategy") {
+      const key = actionBtn.getAttribute("data-value") || "";
+      if (!key) return;
+      const previewPlan = buildStrategyPreviewPlan(state, key);
+      const summary = buildChangeSummary(ui.lastModel, buildPlanModel(previewPlan), previewPlan);
+      ui.pendingStrategyPreview = previewPlan;
+      ui.pendingStrategyKey = key;
+      state.uiState.selectedScenarioLabel = `Preview: ${key}`;
+      state.uiState.lastChangeSummary = summary;
+      renderDashboard();
+      toast("Strategy preview ready.");
+      return;
+    }
+    if (action === "apply-strategy-preview") {
+      if (!ui.pendingStrategyPreview) return;
+      const beforePlan = clonePlan(state);
+      state = clonePlan(ui.pendingStrategyPreview);
+      state.uiState.selectedScenarioLabel = `Applied: ${ui.pendingStrategyKey}`;
+      ui.pendingStrategyPreview = null;
+      ui.pendingStrategyKey = "";
+      ui.undoPlanSnapshot = beforePlan;
+      savePlan();
+      renderAll();
+      toast("Strategy preview applied.");
+      return;
+    }
+    if (action === "undo-strategy-preview") {
+      ui.pendingStrategyPreview = null;
+      ui.pendingStrategyKey = "";
+      state.uiState.lastChangeSummary = null;
+      savePlan();
+      renderDashboard();
+      toast("Strategy preview cleared.");
+      return;
+    }
     if (action === "add-capital-inject") {
       state.savings.capitalInjects.push(createCapitalInjectItem());
       savePlan();
@@ -6489,6 +6890,26 @@ function handleDocumentClick(event) {
       openScenarioCompare();
       return;
     }
+    if (action === "preview-scenario") {
+      const id = actionBtn.getAttribute("data-value") || "";
+      if (!id) return;
+      const scenario = (state.uiState.scenarios || []).find((s) => s.id === id);
+      if (!scenario) return;
+      const payload = buildScenarioPayloadFromSnapshot(scenario);
+      sharedScenarioPayload = payload;
+      state.uiState.lastSharedScenarioBannerDismissed = false;
+      state.uiState.selectedScenarioLabel = scenario.name || "";
+      savePlan();
+      renderDashboardSharedScenarioBanner();
+      toast("Scenario loaded in preview banner.");
+      return;
+    }
+    if (action === "share-scenario") {
+      const id = actionBtn.getAttribute("data-value") || "";
+      if (!id) return;
+      copyScenarioShare(id);
+      return;
+    }
     if (action === "apply-shared-scenario") {
       if (!sharedScenarioPayload) return;
       state = applySharedScenarioToPlan(state, sharedScenarioPayload);
@@ -6503,8 +6924,20 @@ function handleDocumentClick(event) {
       toast("Shared scenario applied to your local plan.");
       return;
     }
+    if (action === "preview-shared-scenario") {
+      if (!sharedScenarioPayload || !ui.lastModel) return;
+      const previewPlan = applySharedScenarioToPlan(state, sharedScenarioPayload);
+      state.uiState.lastChangeSummary = buildChangeSummary(ui.lastModel, buildPlanModel(previewPlan), previewPlan);
+      renderWhatChangedModule();
+      toast("Shared scenario preview generated.");
+      return;
+    }
     if (action === "apply-preset") {
       if (!presetPayload) return;
+      if (!state.uiState.firstRun) {
+        const ok = confirm("Apply preset to your current plan? This will update assumptions but you can Undo via your saved copy/export.");
+        if (!ok) return;
+      }
       state = applyPresetToPlan(state, presetPayload, createDemoPlanLocal);
       ensureValidStateLocal();
       presetPayload = null;
@@ -6518,6 +6951,10 @@ function handleDocumentClick(event) {
       presetPayload = null;
       clearPresetQuery();
       renderDashboardPresetBanner();
+      return;
+    }
+    if (action === "focus-strategies") {
+      document.getElementById("strategySuggestions")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (action === "dismiss-shared-scenario") {
@@ -6788,8 +7225,10 @@ function renderDashboard() {
   renderTaxWedgeMiniModule();
   renderWhatChangedModule();
   renderCoverageScoreModule();
+  renderPeakTaxYearModule();
   renderTimelineModule();
   renderKeyRisksModule();
+  renderStrategySuggestionsModule();
   renderTimingSimulatorModule();
   renderMeltdownSimulatorModule();
   renderDashboardPresetBanner();
@@ -6904,10 +7343,12 @@ function renderTaxWedgeMiniModule() {
 function renderIncomeMapModule() {
   if (!el.incomeMapModule || !ui.lastModel) return;
   const breakdown = buildYearBreakdown(state, ui.lastModel);
+  const phases = buildRetirementPhases(state, breakdown);
   const rendered = renderIncomeMap({
     mountEl: el.incomeMapModule,
     plan: state,
     rows: breakdown,
+    phases,
     selectedAge: ui.selectedAge || state.profile.retirementAge,
     formatCurrency,
     formatPct,
@@ -6922,9 +7363,11 @@ function renderIncomeMapModule() {
     showGross: rendered.showGross,
     showMarkers: rendered.showMarkers,
     markers: rendered.markers,
+    phases: rendered.visiblePhases,
     formatCurrency,
   });
   ui.incomeMapHitZones = draw?.hitZones || [];
+  bindInlineTooltipTriggers(el.incomeMapModule);
 }
 
 function renderWhatChangedModule() {
@@ -6944,6 +7387,24 @@ function renderCoverageScoreModule() {
     formatPct,
   });
   bindInlineTooltipTriggers(el.coverageScoreModule);
+}
+
+function renderPeakTaxYearModule() {
+  if (!el.peakTaxYearModule || !ui.lastModel) return;
+  const peak = findPeakTaxYear(state, ui.lastModel);
+  renderPeakTaxYear({
+    mountEl: el.peakTaxYearModule,
+    peak,
+    formatCurrency,
+  });
+}
+
+function renderStrategySuggestionsModule() {
+  if (!el.strategySuggestionsModule) return;
+  renderStrategySuggestions({
+    mountEl: el.strategySuggestionsModule,
+    pendingKey: ui.pendingStrategyKey,
+  });
 }
 
 function renderTimelineModule() {
@@ -7014,10 +7475,11 @@ function renderDashboardSharedScenarioBanner() {
   el.sharedScenarioBanner.innerHTML = `
     <div class="banner-row">
       <div>
-        <strong>Loaded shared scenario</strong>
+        <strong>Shared scenario loaded</strong>
         <p class="small-copy muted">Preview loaded from link. Apply only if you want to replace current assumptions.</p>
       </div>
       <div class="landing-actions">
+        <button class="btn btn-secondary" type="button" data-action="preview-shared-scenario">Preview</button>
         <button class="btn btn-primary" type="button" data-action="apply-shared-scenario">Apply to my plan</button>
         <button class="btn btn-secondary" type="button" data-action="dismiss-shared-scenario">Dismiss</button>
       </div>
@@ -7404,6 +7866,7 @@ async function copySummary() {
     formatCurrency,
     formatPct,
     link,
+    depletionAge: ui.lastModel?.kpis?.depletionAge || null,
   });
   const copied = await writeClipboardText(summary);
   if (copied) {
@@ -7411,6 +7874,37 @@ async function copySummary() {
   } else {
     toast("Could not copy summary.");
   }
+}
+
+function getScenarioSnapshotById(id) {
+  const list = Array.isArray(state.uiState.scenarios) ? state.uiState.scenarios : [];
+  return list.find((s) => s.id === id) || null;
+}
+
+async function copyScenarioShare(id = "") {
+  const scenario = id ? getScenarioSnapshotById(id) : null;
+  const payload = scenario ? buildScenarioPayloadFromSnapshot(scenario) : buildSharePayload(state, false);
+  if (scenario) payload.sn = scenario.name || "Scenario";
+  const url = buildScenarioShareUrl(shareBaseUrl(), payload);
+  const copied = await writeClipboardText(url);
+  if (copied) toast("Scenario share link copied.");
+  else toast(url);
+}
+
+async function copyScenarioSummary() {
+  const row = getDashboardSelectedRow();
+  const link = buildShareUrl(shareBaseUrl(), state, false);
+  const summary = buildShareSummary({
+    state,
+    row,
+    formatCurrency,
+    formatPct,
+    link,
+    depletionAge: ui.lastModel?.kpis?.depletionAge || null,
+  });
+  const copied = await writeClipboardText(summary);
+  if (copied) toast("Scenario summary copied.");
+  else toast("Could not copy scenario summary.");
 }
 
 async function writeClipboardText(text) {
@@ -7562,6 +8056,27 @@ function isMaterialChangePath(path) {
 function clonePlan(input) {
   if (typeof structuredClone === "function") return structuredClone(input);
   return JSON.parse(JSON.stringify(input));
+}
+
+function buildStrategyPreviewPlan(currentPlan, key) {
+  const next = clonePlan(currentPlan);
+  if (key === "delay-cpp") {
+    next.income.cpp.startAge = 70;
+    if (next.profile.hasSpouse && next.income.spouse?.enabled) next.income.spouse.cppStartAge = 70;
+  }
+  if (key === "meltdown") {
+    next.strategy.meltdownEnabled = true;
+    next.strategy.meltdownAmount = Math.max(10000, Number(next.strategy.meltdownAmount || 0));
+    next.strategy.meltdownStartAge = Math.min(next.profile.retirementAge, 63);
+    next.strategy.meltdownEndAge = Math.max(next.strategy.meltdownStartAge + 1, 70);
+  }
+  if (key === "spend-down-10") {
+    next.profile.desiredSpending = Math.max(12000, Number(next.profile.desiredSpending || 0) * 0.9);
+  }
+  if (key === "retire-later-2") {
+    next.profile.retirementAge = Math.min(75, Number(next.profile.retirementAge || 65) + 2);
+  }
+  return next;
 }
 
 function normalizePlanLocal(input) {

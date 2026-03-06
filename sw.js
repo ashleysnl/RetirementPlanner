@@ -1,9 +1,14 @@
-const CACHE_NAME = "retirement-planner-v7";
+const CACHE_NAME = "retirement-planner-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./oas-clawback-calculator.html",
   "./rrif-withdrawal-calculator.html",
+  "./cpp-timing-calculator-canada.html",
+  "./rrsp-withdrawal-strategy-canada.html",
+  "./retirement-tax-calculator-canada.html",
+  "./rrif-minimum-withdrawal-calculator.html",
+  "./canadian-retirement-income-calculator.html",
   "./404.html",
   "./styles.css",
   "./src/main.js",

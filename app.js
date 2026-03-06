@@ -14,6 +14,8 @@ import { buildMeltdownComparison } from "./src/model/meltdown.js";
 import { buildChangeSummary } from "./src/model/diff.js";
 import { buildRiskDiagnostics } from "./src/model/risks.js";
 import { buildYearBreakdown } from "./src/model/yearBreakdown.js";
+import { buildRetirementPhases } from "./src/model/phases.js";
+import { findPeakTaxYear } from "./src/model/peakTax.js";
 import { saveScenarioSnapshot, removeScenarioSnapshot, renameScenarioSnapshot } from "./src/model/scenarioStore.js";
 import { loadPlanFromStorage, savePlanToStorage } from "./src/model/planStore.js";
 import {
@@ -48,10 +50,13 @@ import {
   isSupportDismissed,
 } from "./src/ui/supportMoments.js";
 import {
+  buildSharePayload,
   buildShareUrl,
   buildShareSummary,
   parseSharedScenarioFromUrl,
   applySharedScenarioToPlan,
+  buildScenarioPayloadFromSnapshot,
+  buildScenarioShareUrl,
 } from "./src/ui/share.js";
 import { renderMethodologyHtml } from "./src/content/methodology.js";
 import { renderRetirementGapHeadline } from "./src/ui/retirementGapHeadline.js";
@@ -64,9 +69,11 @@ import { renderWhatChangedPanel } from "./src/ui/whatChangedPanel.js";
 import { renderScenarioCompareModal } from "./src/ui/scenarioCompare.js";
 import { buildSummaryHtml, openPrintWindow } from "./src/ui/printSummary.js";
 import { renderKeyRisks } from "./src/ui/keyRisks.js";
+import { renderPeakTaxYear } from "./src/ui/peakTaxYear.js";
 import { buildTimelineEvents, renderTimeline } from "./src/ui/timeline.js";
 import { parsePresetFromUrl, buildPresetBannerHtml, applyPresetToPlan, clearPresetQuery } from "./src/ui/presets.js";
 import { renderIncomeMap, drawIncomeMapCanvas, bindIncomeMapHover, pickIncomeMapAge } from "./src/ui/incomeMap.js";
+import { renderStrategySuggestions } from "./src/ui/strategySuggestions.js";
 import {
   learnCallouts as buildLearnCallouts,
   calculatePhaseWeightedSpending as calculatePhaseWeightedSpendingUi,
@@ -137,6 +144,8 @@ const el = {
   coverageScoreModule: document.getElementById("coverageScoreModule"),
   timelineModule: document.getElementById("timelineModule"),
   keyRisksModule: document.getElementById("keyRisksModule"),
+  strategySuggestionsModule: document.getElementById("strategySuggestionsModule"),
+  peakTaxYearModule: document.getElementById("peakTaxYearModule"),
   timingSimulator: document.getElementById("timingSimulator"),
   meltdownSimulator: document.getElementById("meltdownSimulator"),
   sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
@@ -168,6 +177,8 @@ const el = {
   copyShareLinkBtn: document.getElementById("copyShareLinkBtn"),
   copyMinimalLinkBtn: document.getElementById("copyMinimalLinkBtn"),
   copySummaryBtn: document.getElementById("copySummaryBtn"),
+  copyScenarioShareBtn: document.getElementById("copyScenarioShareBtn"),
+  copyScenarioSummaryBtn: document.getElementById("copyScenarioSummaryBtn"),
   compareScenariosBtn: document.getElementById("compareScenariosBtn"),
   downloadSummaryBtn: document.getElementById("downloadSummaryBtn"),
 
@@ -262,6 +273,8 @@ let ui = {
   eventsBound: false,
   activeSupportMoment: "",
   undoPlanSnapshot: null,
+  pendingStrategyPreview: null,
+  pendingStrategyKey: "",
   supportShownThisSession: sessionSupportShown,
   incomeMapHitZones: [],
 };
@@ -282,6 +295,7 @@ function init() {
     sharedScenarioPayload = parseSharedScenarioFromUrl(window.location);
     if (sharedScenarioPayload) state.uiState.lastSharedScenarioBannerDismissed = false;
     presetPayload = parsePresetFromUrl(window.location);
+    state.uiState.lastChangeSummary = null;
     const hashNav = navFromHashUi(location.hash, normalizeNavTargetUi);
     if (hashNav) {
       ui.activeNav = hashNav;
@@ -499,6 +513,8 @@ function bindEvents() {
   el.copyShareLinkBtn?.addEventListener("click", () => copyShare(false));
   el.copyMinimalLinkBtn?.addEventListener("click", () => copyShare(true));
   el.copySummaryBtn?.addEventListener("click", copySummary);
+  el.copyScenarioShareBtn?.addEventListener("click", copyScenarioShare);
+  el.copyScenarioSummaryBtn?.addEventListener("click", copyScenarioSummary);
   el.compareScenariosBtn?.addEventListener("click", openScenarioCompare);
   el.downloadSummaryBtn?.addEventListener("click", openPrintSummary);
   el.resetCacheBtnTools?.addEventListener("click", resetCachedAppData);
@@ -648,6 +664,41 @@ function handleDocumentClick(event) {
       toast("Strategy updated. See What changed?");
       return;
     }
+    if (action === "preview-strategy") {
+      const key = actionBtn.getAttribute("data-value") || "";
+      if (!key) return;
+      const previewPlan = buildStrategyPreviewPlan(state, key);
+      const summary = buildChangeSummary(ui.lastModel, buildPlanModel(previewPlan), previewPlan);
+      ui.pendingStrategyPreview = previewPlan;
+      ui.pendingStrategyKey = key;
+      state.uiState.selectedScenarioLabel = `Preview: ${key}`;
+      state.uiState.lastChangeSummary = summary;
+      renderDashboard();
+      toast("Strategy preview ready.");
+      return;
+    }
+    if (action === "apply-strategy-preview") {
+      if (!ui.pendingStrategyPreview) return;
+      const beforePlan = clonePlan(state);
+      state = clonePlan(ui.pendingStrategyPreview);
+      state.uiState.selectedScenarioLabel = `Applied: ${ui.pendingStrategyKey}`;
+      ui.pendingStrategyPreview = null;
+      ui.pendingStrategyKey = "";
+      ui.undoPlanSnapshot = beforePlan;
+      savePlan();
+      renderAll();
+      toast("Strategy preview applied.");
+      return;
+    }
+    if (action === "undo-strategy-preview") {
+      ui.pendingStrategyPreview = null;
+      ui.pendingStrategyKey = "";
+      state.uiState.lastChangeSummary = null;
+      savePlan();
+      renderDashboard();
+      toast("Strategy preview cleared.");
+      return;
+    }
     if (action === "add-capital-inject") {
       state.savings.capitalInjects.push(createCapitalInjectItem());
       savePlan();
@@ -727,6 +778,26 @@ function handleDocumentClick(event) {
       openScenarioCompare();
       return;
     }
+    if (action === "preview-scenario") {
+      const id = actionBtn.getAttribute("data-value") || "";
+      if (!id) return;
+      const scenario = (state.uiState.scenarios || []).find((s) => s.id === id);
+      if (!scenario) return;
+      const payload = buildScenarioPayloadFromSnapshot(scenario);
+      sharedScenarioPayload = payload;
+      state.uiState.lastSharedScenarioBannerDismissed = false;
+      state.uiState.selectedScenarioLabel = scenario.name || "";
+      savePlan();
+      renderDashboardSharedScenarioBanner();
+      toast("Scenario loaded in preview banner.");
+      return;
+    }
+    if (action === "share-scenario") {
+      const id = actionBtn.getAttribute("data-value") || "";
+      if (!id) return;
+      copyScenarioShare(id);
+      return;
+    }
     if (action === "apply-shared-scenario") {
       if (!sharedScenarioPayload) return;
       state = applySharedScenarioToPlan(state, sharedScenarioPayload);
@@ -741,8 +812,20 @@ function handleDocumentClick(event) {
       toast("Shared scenario applied to your local plan.");
       return;
     }
+    if (action === "preview-shared-scenario") {
+      if (!sharedScenarioPayload || !ui.lastModel) return;
+      const previewPlan = applySharedScenarioToPlan(state, sharedScenarioPayload);
+      state.uiState.lastChangeSummary = buildChangeSummary(ui.lastModel, buildPlanModel(previewPlan), previewPlan);
+      renderWhatChangedModule();
+      toast("Shared scenario preview generated.");
+      return;
+    }
     if (action === "apply-preset") {
       if (!presetPayload) return;
+      if (!state.uiState.firstRun) {
+        const ok = confirm("Apply preset to your current plan? This will update assumptions but you can Undo via your saved copy/export.");
+        if (!ok) return;
+      }
       state = applyPresetToPlan(state, presetPayload, createDemoPlanLocal);
       ensureValidStateLocal();
       presetPayload = null;
@@ -756,6 +839,10 @@ function handleDocumentClick(event) {
       presetPayload = null;
       clearPresetQuery();
       renderDashboardPresetBanner();
+      return;
+    }
+    if (action === "focus-strategies") {
+      document.getElementById("strategySuggestions")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (action === "dismiss-shared-scenario") {
@@ -1026,8 +1113,10 @@ function renderDashboard() {
   renderTaxWedgeMiniModule();
   renderWhatChangedModule();
   renderCoverageScoreModule();
+  renderPeakTaxYearModule();
   renderTimelineModule();
   renderKeyRisksModule();
+  renderStrategySuggestionsModule();
   renderTimingSimulatorModule();
   renderMeltdownSimulatorModule();
   renderDashboardPresetBanner();
@@ -1142,10 +1231,12 @@ function renderTaxWedgeMiniModule() {
 function renderIncomeMapModule() {
   if (!el.incomeMapModule || !ui.lastModel) return;
   const breakdown = buildYearBreakdown(state, ui.lastModel);
+  const phases = buildRetirementPhases(state, breakdown);
   const rendered = renderIncomeMap({
     mountEl: el.incomeMapModule,
     plan: state,
     rows: breakdown,
+    phases,
     selectedAge: ui.selectedAge || state.profile.retirementAge,
     formatCurrency,
     formatPct,
@@ -1160,9 +1251,11 @@ function renderIncomeMapModule() {
     showGross: rendered.showGross,
     showMarkers: rendered.showMarkers,
     markers: rendered.markers,
+    phases: rendered.visiblePhases,
     formatCurrency,
   });
   ui.incomeMapHitZones = draw?.hitZones || [];
+  bindInlineTooltipTriggers(el.incomeMapModule);
 }
 
 function renderWhatChangedModule() {
@@ -1182,6 +1275,24 @@ function renderCoverageScoreModule() {
     formatPct,
   });
   bindInlineTooltipTriggers(el.coverageScoreModule);
+}
+
+function renderPeakTaxYearModule() {
+  if (!el.peakTaxYearModule || !ui.lastModel) return;
+  const peak = findPeakTaxYear(state, ui.lastModel);
+  renderPeakTaxYear({
+    mountEl: el.peakTaxYearModule,
+    peak,
+    formatCurrency,
+  });
+}
+
+function renderStrategySuggestionsModule() {
+  if (!el.strategySuggestionsModule) return;
+  renderStrategySuggestions({
+    mountEl: el.strategySuggestionsModule,
+    pendingKey: ui.pendingStrategyKey,
+  });
 }
 
 function renderTimelineModule() {
@@ -1252,10 +1363,11 @@ function renderDashboardSharedScenarioBanner() {
   el.sharedScenarioBanner.innerHTML = `
     <div class="banner-row">
       <div>
-        <strong>Loaded shared scenario</strong>
+        <strong>Shared scenario loaded</strong>
         <p class="small-copy muted">Preview loaded from link. Apply only if you want to replace current assumptions.</p>
       </div>
       <div class="landing-actions">
+        <button class="btn btn-secondary" type="button" data-action="preview-shared-scenario">Preview</button>
         <button class="btn btn-primary" type="button" data-action="apply-shared-scenario">Apply to my plan</button>
         <button class="btn btn-secondary" type="button" data-action="dismiss-shared-scenario">Dismiss</button>
       </div>
@@ -1642,6 +1754,7 @@ async function copySummary() {
     formatCurrency,
     formatPct,
     link,
+    depletionAge: ui.lastModel?.kpis?.depletionAge || null,
   });
   const copied = await writeClipboardText(summary);
   if (copied) {
@@ -1649,6 +1762,37 @@ async function copySummary() {
   } else {
     toast("Could not copy summary.");
   }
+}
+
+function getScenarioSnapshotById(id) {
+  const list = Array.isArray(state.uiState.scenarios) ? state.uiState.scenarios : [];
+  return list.find((s) => s.id === id) || null;
+}
+
+async function copyScenarioShare(id = "") {
+  const scenario = id ? getScenarioSnapshotById(id) : null;
+  const payload = scenario ? buildScenarioPayloadFromSnapshot(scenario) : buildSharePayload(state, false);
+  if (scenario) payload.sn = scenario.name || "Scenario";
+  const url = buildScenarioShareUrl(shareBaseUrl(), payload);
+  const copied = await writeClipboardText(url);
+  if (copied) toast("Scenario share link copied.");
+  else toast(url);
+}
+
+async function copyScenarioSummary() {
+  const row = getDashboardSelectedRow();
+  const link = buildShareUrl(shareBaseUrl(), state, false);
+  const summary = buildShareSummary({
+    state,
+    row,
+    formatCurrency,
+    formatPct,
+    link,
+    depletionAge: ui.lastModel?.kpis?.depletionAge || null,
+  });
+  const copied = await writeClipboardText(summary);
+  if (copied) toast("Scenario summary copied.");
+  else toast("Could not copy scenario summary.");
 }
 
 async function writeClipboardText(text) {
@@ -1800,6 +1944,27 @@ function isMaterialChangePath(path) {
 function clonePlan(input) {
   if (typeof structuredClone === "function") return structuredClone(input);
   return JSON.parse(JSON.stringify(input));
+}
+
+function buildStrategyPreviewPlan(currentPlan, key) {
+  const next = clonePlan(currentPlan);
+  if (key === "delay-cpp") {
+    next.income.cpp.startAge = 70;
+    if (next.profile.hasSpouse && next.income.spouse?.enabled) next.income.spouse.cppStartAge = 70;
+  }
+  if (key === "meltdown") {
+    next.strategy.meltdownEnabled = true;
+    next.strategy.meltdownAmount = Math.max(10000, Number(next.strategy.meltdownAmount || 0));
+    next.strategy.meltdownStartAge = Math.min(next.profile.retirementAge, 63);
+    next.strategy.meltdownEndAge = Math.max(next.strategy.meltdownStartAge + 1, 70);
+  }
+  if (key === "spend-down-10") {
+    next.profile.desiredSpending = Math.max(12000, Number(next.profile.desiredSpending || 0) * 0.9);
+  }
+  if (key === "retire-later-2") {
+    next.profile.retirementAge = Math.min(75, Number(next.profile.retirementAge || 65) + 2);
+  }
+  return next;
 }
 
 function normalizePlanLocal(input) {

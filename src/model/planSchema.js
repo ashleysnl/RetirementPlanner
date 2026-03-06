@@ -201,6 +201,7 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       },
       lastSharedScenarioBannerDismissed: false,
       justCompletedWizard: false,
+      selectedScenarioLabel: "",
       showGrossWithdrawals: true,
       emphasizeTaxes: true,
       timelineSelectedAge: null,
@@ -369,6 +370,7 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   };
   state.uiState.lastSharedScenarioBannerDismissed = Boolean(state.uiState.lastSharedScenarioBannerDismissed);
   state.uiState.justCompletedWizard = Boolean(state.uiState.justCompletedWizard);
+  state.uiState.selectedScenarioLabel = String(state.uiState.selectedScenarioLabel || "");
   state.uiState.showGrossWithdrawals = Boolean(state.uiState.showGrossWithdrawals ?? true);
   state.uiState.emphasizeTaxes = Boolean(state.uiState.emphasizeTaxes ?? true);
   state.uiState.timelineSelectedAge = Number.isFinite(Number(state.uiState.timelineSelectedAge))
@@ -433,6 +435,7 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
   };
   plan.uiState.lastSharedScenarioBannerDismissed = Boolean(plan.uiState.lastSharedScenarioBannerDismissed);
   plan.uiState.justCompletedWizard = Boolean(plan.uiState.justCompletedWizard);
+  plan.uiState.selectedScenarioLabel = String(plan.uiState.selectedScenarioLabel || "");
   plan.uiState.showGrossWithdrawals = Boolean(plan.uiState.showGrossWithdrawals ?? true);
   plan.uiState.emphasizeTaxes = Boolean(plan.uiState.emphasizeTaxes ?? true);
   plan.uiState.timelineSelectedAge = Number.isFinite(Number(plan.uiState.timelineSelectedAge))
@@ -476,6 +479,7 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   if (next.uiState.supportOptOut == null) next.uiState.supportOptOut = false;
   if (next.uiState.lastSharedScenarioBannerDismissed == null) next.uiState.lastSharedScenarioBannerDismissed = false;
   if (next.uiState.justCompletedWizard == null) next.uiState.justCompletedWizard = false;
+  if (next.uiState.selectedScenarioLabel == null) next.uiState.selectedScenarioLabel = "";
   if (next.uiState.showGrossWithdrawals == null) next.uiState.showGrossWithdrawals = true;
   if (next.uiState.emphasizeTaxes == null) next.uiState.emphasizeTaxes = true;
   if (next.uiState.timelineSelectedAge == null) next.uiState.timelineSelectedAge = null;
