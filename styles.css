@@ -434,6 +434,22 @@ body.mobile-layout .bottom-tabs {
   background: linear-gradient(135deg, rgba(15, 106, 191, 0.08), rgba(14, 165, 168, 0.08));
 }
 
+.insight-verdict h3 {
+  margin: 0 0 6px;
+}
+
+.insight-line {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.insight-terms {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .insight-warning {
   margin-left: 8px;
   color: #9b2c2c;
@@ -840,6 +856,35 @@ summary {
 .resource-list a {
   color: #0b4f8f;
   font-weight: 600;
+}
+
+.reference-links-list {
+  display: grid;
+  gap: 10px;
+}
+
+.reference-item {
+  border: 1px solid #dce7f7;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.reference-item a {
+  color: #0b4f8f;
+  font-weight: 700;
+}
+
+.metric-card-primary .value {
+  font-size: 1.35rem;
+}
+
+.kpi-mini-bar {
+  margin-top: 6px;
+}
+
+.explain-note summary {
+  font-size: 0.9rem;
 }
 
 .plan-summary-list {

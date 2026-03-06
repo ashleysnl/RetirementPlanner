@@ -19,22 +19,21 @@ export function renderRetirementInsight(ctx) {
   const depletionAge = model?.kpis?.depletionAge;
 
   const sentence = surplus
-    ? `You are covered - surplus ${formatCurrency(guaranteed - spending)}/yr at age ${age}.`
-    : `At age ${age}, guaranteed income covers ${formatPct(coverage)} of spending. You will need about ${formatCurrency(gross)}/yr from RRSP/RRIF, and about ${formatCurrency(taxWedge)}/yr goes to tax.`;
+    ? `At age ${age}, you are fully covered. Surplus: ${formatCurrency(guaranteed - spending)}/yr.`
+    : `At age ${age}, your guaranteed income covers ${formatPct(coverage)} of retirement spending. You need about ${formatCurrency(gross)}/yr from RRSP/RRIF, and about ${formatCurrency(taxWedge)}/yr goes to tax.`;
 
   mountEl.innerHTML = `
-    <article class="subsection insight-banner">
-      <p>
-        <strong>${sentence}</strong>
-        ${depletionAge ? `<span class="insight-warning">Savings run out around age ${depletionAge}.</span>` : ""}
-      </p>
-      <p class="small-copy muted">
+    <article class="subsection insight-banner insight-verdict">
+      <h3>Retirement Insight</h3>
+      <p class="insight-line"><strong>${sentence}</strong></p>
+      <p class="small-copy muted insight-terms">
         Guaranteed income ${tooltipButton("kpiGuaranteedIncome")} |
-        Coverage ${tooltipButton("kpiGuaranteedIncome")} |
+        Coverage % ${tooltipButton("kpiGuaranteedIncome")} |
         Gross withdrawal ${tooltipButton("kpiGrossWithdrawal")} |
-        Tax wedge ${tooltipButton("learnTaxGrossUp")}
+        Tax wedge ${tooltipButton("learnTaxGrossUp")} |
+        <button class="text-link-btn" type="button" data-action="open-methodology">Methodology</button>
       </p>
+      ${depletionAge ? `<span class="status-pill off-track">Savings run out around age ${depletionAge}</span>` : ""}
     </article>
   `;
 }
-

@@ -146,7 +146,7 @@
           <div id="meltdownSimulator"></div>
 
           <div class="subsection">
-            <h3>At a glance (retirement start)</h3>
+            <h3>At a glance</h3>
             <p id="kpiContext" class="small-copy muted"></p>
             <div id="kpiGrid" class="metric-grid metric-grid-wide"></div>
             <div class="support-inline-callout">
@@ -195,7 +195,10 @@
               <div id="coverageHover" class="chart-hover" hidden></div>
             </div>
             <div id="coverageLegend" class="legend-row"></div>
-            <p class="muted small-copy">Your spending target is after-tax. Pension/CPP/OAS are taxable, and RRSP/RRIF withdrawals are taxable. That is why gross withdrawal can be higher than the net gap.</p>
+            <details class="subsection explain-note">
+              <summary>ⓘ Why gross can be higher than net</summary>
+              <p class="muted small-copy">Your spending target is after-tax. Pension/CPP/OAS are taxable, and RRSP/RRIF withdrawals are taxable. That is why gross withdrawal can be higher than the net gap.</p>
+            </details>
             <div id="coverageTableWrap" class="table-scroll" hidden>
               <table id="coverageTable" class="data-table" aria-label="Income coverage table"></table>
             </div>

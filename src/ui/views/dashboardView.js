@@ -98,27 +98,40 @@ export function renderDashboardView(ctx) {
   }
 
   function renderKpiCards() {
-    const retirementRow = findRowByAge(model.base.rows, state.profile.retirementAge);
-    const row = retirementRow || findRowByAge(model.base.rows, ui.selectedAge);
+    const row = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge)
+      || findRowByAge(model.base.rows, state.profile.retirementAge);
     if (!row) return;
+    const taxWedge = row.taxOnWithdrawal + row.oasClawback;
+    const netKeep = Math.max(0, row.withdrawal - taxWedge);
+    const gross = Math.max(1, row.withdrawal);
+    const wedgePct = (taxWedge / gross) * 100;
     if (el.kpiContext) {
-      el.kpiContext.textContent = `Dashboard KPIs use retirement start (Age ${state.profile.retirementAge}). Use Pick age for year-by-year detail.`;
+      el.kpiContext.textContent = `At a glance for age ${row.age}. Planning estimate only.`;
     }
     const kpis = [
-      { label: "Retire Bal", value: formatCurrency(model.kpis.balanceAtRetirement), sub: `Age ${state.profile.retirementAge}`, tip: "kpiBalanceRetirement" },
-      { label: "Spend", value: formatCurrency(row.spending), sub: `After-tax goal`, tip: "kpiSpendingTarget" },
-      { label: "Guaranteed", value: formatCurrency(row.guaranteedGross), sub: `Pension + CPP + OAS`, tip: "kpiGuaranteedIncome" },
-      { label: "Net Gap", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "From savings" : "No gap", tip: "kpiNetGap" },
-      { label: "Gross Draw", value: formatCurrency(row.withdrawal), sub: `Tax wedge ${formatCurrency(row.taxOnWithdrawal + row.oasClawback)}`, tip: "kpiGrossWithdrawal" },
-      { label: "Tax Est.", value: formatCurrency(row.tax + row.oasClawback), sub: `${formatPct(row.effectiveTaxRate)} effective`, tip: "oasClawback" },
-      { label: "OAS Risk", value: state.strategy.oasClawbackModeling ? getOasRiskLevel(row.oasClawback).label : "Off", sub: state.strategy.oasClawbackModeling ? formatCurrency(row.oasClawback) : "Modeling off", tip: "oasRiskMeter" },
+      { label: "After-tax spending", value: formatCurrency(row.spending), sub: "Spending target", tip: "kpiSpendingTarget" },
+      { label: "Guaranteed income", value: formatCurrency(row.guaranteedGross), sub: "Pension + CPP + OAS", tip: "kpiGuaranteedIncome" },
+      { label: "Net gap from savings", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "After-tax gap" : "No gap (surplus)", tip: "kpiNetGap" },
+      {
+        label: "Gross withdrawal needed",
+        value: formatCurrency(row.withdrawal),
+        sub: `Tax wedge: ${formatCurrency(taxWedge)}`,
+        tip: "kpiGrossWithdrawal",
+        mini: true,
+      },
     ];
     if (el.kpiGrid) {
       el.kpiGrid.innerHTML = kpis.map((card) => `
-        <article class="metric-card">
+        <article class="metric-card metric-card-primary">
           <span class="label">${escapeHtml(card.label)} ${tooltipButton(card.tip)}</span>
           <span class="value">${escapeHtml(card.value)}</span>
           <span class="sub">${escapeHtml(card.sub)}</span>
+          ${card.mini ? `
+            <div class="results-mini-bar kpi-mini-bar" role="img" aria-label="Gross withdrawal split into net and tax wedge">
+              <span class="seg netdraw" style="width:${((netKeep / gross) * 100).toFixed(1)}%"></span>
+              <span class="seg tax" style="width:${Math.max(0, wedgePct).toFixed(1)}%"></span>
+            </div>
+          ` : ""}
         </article>
       `).join("");
     }

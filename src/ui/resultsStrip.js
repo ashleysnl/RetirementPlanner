@@ -27,7 +27,7 @@ export function renderResultsStrip(ctx) {
 
   mountEl.innerHTML = `
     <div class="results-strip-head">
-      <h3>5-Second Cash Flow ${tooltipButton("kpiNetGap")}</h3>
+      <h3>At a glance ${tooltipButton("kpiNetGap")}</h3>
       <div class="results-strip-controls">
         <label for="resultsAgePicker" class="small-copy">Pick age</label>
         <input id="resultsAgePicker" type="range" min="${minAge}" max="${maxAge}" step="1" value="${selectedAge}" aria-label="Results strip age selector" />
@@ -36,24 +36,24 @@ export function renderResultsStrip(ctx) {
     </div>
     <div class="results-strip-kpis">
       <article class="metric-card">
-        <span class="label">After-tax Spend ${tooltipButton("kpiSpendingTarget")}</span>
+        <span class="label">After-tax spending ${tooltipButton("kpiSpendingTarget")}</span>
         <span class="value">${formatCurrency(spending)}</span>
-        <span class="sub">Target cash needed</span>
+        <span class="sub">Target this age</span>
       </article>
       <article class="metric-card">
-        <span class="label">Guaranteed ${tooltipButton("kpiGuaranteedIncome")}</span>
+        <span class="label">Guaranteed income ${tooltipButton("kpiGuaranteedIncome")}</span>
         <span class="value">${formatCurrency(guaranteed)}</span>
         <span class="sub">Pension + CPP + OAS</span>
       </article>
       <article class="metric-card ${surplus ? "metric-good" : ""}">
-        <span class="label">Net Gap ${tooltipButton("kpiNetGap")}</span>
+        <span class="label">Net gap from savings ${tooltipButton("kpiNetGap")}</span>
         <span class="value">${surplus ? "Surplus" : formatCurrency(netGap)}</span>
-        <span class="sub">${surplus ? "Guaranteed exceeds target" : "From savings (after-tax)"}</span>
+        <span class="sub">${surplus ? "Guaranteed exceeds target" : "After-tax gap"}</span>
       </article>
       <article class="metric-card">
-        <span class="label">Gross Draw ${tooltipButton("kpiGrossWithdrawal")}</span>
+        <span class="label">Gross withdrawal needed ${tooltipButton("kpiGrossWithdrawal")}</span>
         <span class="value">${formatCurrency(gross)}</span>
-        <span class="sub">Tax wedge ${formatCurrency(taxWedge)}</span>
+        <span class="sub">Tax wedge: ${formatCurrency(taxWedge)}</span>
       </article>
     </div>
     <div class="results-strip-meta">

@@ -1,5 +1,6 @@
-import { OFFICIAL_REFERENCES } from "./constants.js";
 import { SOURCES_LAST_VERIFIED } from "./sources.js";
+import { REFERENCE_LINKS } from "./referenceLinks.js";
+import { renderReferenceLinksList } from "../ui/referenceLinksList.js";
 
 export const METHODOLOGY_LAST_UPDATED = "2026";
 
@@ -70,21 +71,15 @@ export function renderMethodologyHtml(escapeHtml) {
         </article>
       `).join("")}
       <article class="subsection">
-        <h3>References</h3>
+        <h3>Reference Links</h3>
         <p class="small-copy muted">Last verified: ${escapeHtml(SOURCES_LAST_VERIFIED)}</p>
         <p class="small-copy muted">
           Focused calculators:
           <a href="./oas-clawback-calculator.html">OAS clawback calculator</a> |
           <a href="./rrif-withdrawal-calculator.html">RRIF withdrawal calculator</a>
         </p>
-        <ul class="plain-list resource-list">
-          ${OFFICIAL_REFERENCES.map((item) => `
-            <li>
-              <a href="${escapeHtml(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)} ↗</a>
-              <span class="muted small-copy"> (${escapeHtml(item.source)})</span>
-            </li>
-          `).join("")}
-        </ul>
+        ${renderReferenceLinksList(REFERENCE_LINKS, escapeHtml)}
+        <p class="small-copy muted">These references support the planning assumptions used in the simulator. Rules can change.</p>
       </article>
     </section>
   `;
