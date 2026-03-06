@@ -72,6 +72,11 @@ export function renderMethodologyHtml(escapeHtml) {
       <article class="subsection">
         <h3>References</h3>
         <p class="small-copy muted">Last verified: ${escapeHtml(SOURCES_LAST_VERIFIED)}</p>
+        <p class="small-copy muted">
+          Focused calculators:
+          <a href="./oas-clawback-calculator.html">OAS clawback calculator</a> |
+          <a href="./rrif-withdrawal-calculator.html">RRIF withdrawal calculator</a>
+        </p>
         <ul class="plain-list resource-list">
           ${OFFICIAL_REFERENCES.map((item) => `
             <li>

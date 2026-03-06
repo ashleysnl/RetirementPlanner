@@ -126,6 +126,7 @@ export function buildLearnHtml(ctx) {
           </div>
           <div class="preview-kpi learn-rrif-out" id="learnRrifOut"></div>
           <p class="small-copy muted"><strong>Why this matters:</strong> Even when spending drops, RRIF minimums can keep taxable income elevated.</p>
+          <p class="small-copy muted"><a href="./rrif-withdrawal-calculator.html">Try the RRIF withdrawal landing calculator</a>.</p>
         </section>
 
         <section class="learn-section" id="learn-spousal">
@@ -160,6 +161,7 @@ export function buildLearnHtml(ctx) {
             </label>
           </div>
           <div class="preview-kpi" id="learnOasOut"></div>
+          <p class="small-copy muted"><a href="./oas-clawback-calculator.html">Try the OAS clawback landing calculator</a>.</p>
         </section>
 
         <section class="learn-section" id="learn-life">

@@ -369,16 +369,16 @@ export const TOOLTIPS = {
   },
   retirementScore: {
     term: "Retirement plan score",
-    plain: "A non-scientific planning score from 0-100 based on coverage, depletion, tax efficiency, and clawback exposure.",
+    plain: "A planning heuristic score from 0-100 based on coverage, longevity buffer, tax drag, clawback exposure, and RRIF shock.",
     why: "It provides a quick directional summary of plan strength and weak spots.",
     range: "Higher is generally better under current assumptions.",
     example: "A low depletion sub-score indicates longevity risk.",
   },
   coverageScoreWeights: {
     term: "Coverage score weights",
-    plain: "The score blends coverage ratio, depletion risk, tax efficiency, and clawback exposure.",
+    plain: "The score blends coverage ratio, depletion risk, tax drag, clawback exposure, and RRIF shock.",
     why: "It keeps the score transparent and easy to audit.",
-    range: "Coverage 40 points, longevity 30, tax efficiency 20, clawback 10.",
+    range: "Coverage 35 points, longevity 30, tax drag 15, clawback 10, RRIF shock 10.",
     example: "If your coverage ratio improves, your score usually rises first.",
   },
   cppOasTimingSim: {

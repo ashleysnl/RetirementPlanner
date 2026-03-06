@@ -459,6 +459,23 @@ body.mobile-layout .bottom-tabs {
   align-items: center;
   justify-content: center;
   min-height: 16px;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.76rem;
+}
+
+.mini-split-bar .seg.netdraw {
+  background: linear-gradient(135deg, #0f6abf, #0d8bd0);
+  color: #fff;
+}
+
+.mini-split-bar .seg.tax {
+  background: #d9485f;
+}
+
+.mini-split-bar .seg .seg-label {
+  padding: 0 6px;
+  white-space: nowrap;
 }
 
 .mini-split-bar .seg.hatch {
@@ -470,6 +487,8 @@ body.mobile-layout .bottom-tabs {
       rgba(217, 72, 95, 0.92) 4px,
       rgba(217, 72, 95, 0.92) 8px
     );
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
 }
 
 .mini-split-meta {
@@ -516,6 +535,199 @@ body.mobile-layout .bottom-tabs {
   .gross-net-legend {
     grid-template-columns: 1fr;
   }
+}
+
+.retirement-timeline {
+  overflow: hidden;
+}
+
+.timeline-track {
+  position: relative;
+  min-height: 78px;
+  margin: 8px 0 10px;
+  border-top: 2px solid #dce7f7;
+}
+
+.timeline-marker {
+  position: absolute;
+  transform: translateX(-50%);
+  top: -10px;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  width: 92px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.timeline-marker.edge-left {
+  transform: translateX(0);
+}
+
+.timeline-marker.edge-right {
+  transform: translateX(-100%);
+}
+
+.timeline-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid #0f6abf;
+  background: #fff;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.timeline-marker.active .timeline-dot {
+  background: #0f6abf;
+}
+
+.timeline-age {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0f6abf;
+}
+
+.timeline-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #14243a;
+}
+
+.timeline-pill {
+  display: inline-block;
+  margin-top: 4px;
+  border: 1px solid #d9e6f7;
+  background: #fff;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.74rem;
+  color: #31445f;
+}
+
+.timeline-events {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.timeline-event-card {
+  border: 1px solid #d9e6f7;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  padding: 8px 10px;
+  color: #1f2a3d;
+}
+
+.timeline-event-card ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: #5f6b7d;
+  font-size: 0.78rem;
+}
+
+.timeline-event-card.active {
+  border-color: #0f6abf;
+  background: #f5f9ff;
+}
+
+.timeline-marker.disabled,
+.timeline-stack-row.disabled {
+  opacity: 0.7;
+}
+
+.timeline-stack {
+  display: none;
+}
+
+.timeline-stack-row {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #d9e6f7;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+.timeline-stack-row.active {
+  border-color: #0f6abf;
+  background: #f5f9ff;
+}
+
+.risk-list {
+  display: grid;
+  gap: 10px;
+}
+
+.risk-row {
+  border: 1px solid #d9e6f7;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+}
+
+.risk-row-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.risk-row-main h4 {
+  margin: 0;
+}
+
+.risk-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border: 1px solid #d9e6f7;
+}
+
+.risk-row.risk-high .risk-badge {
+  color: #a9263d;
+  border-color: rgba(169, 38, 61, 0.35);
+  background: rgba(217, 72, 95, 0.1);
+}
+
+.risk-row.risk-medium .risk-badge {
+  color: #8a5b11;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.risk-row.risk-low .risk-badge {
+  color: #0f6abf;
+  border-color: rgba(15, 106, 191, 0.35);
+  background: rgba(15, 106, 191, 0.1);
+}
+
+.income-map .legend-row {
+  gap: 10px;
+}
+
+.income-map-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.income-map-controls label {
+  display: block;
+}
+
+.income-map-canvas-wrap {
+  overflow-x: auto;
+}
+
+.income-map-table-wrap {
+  margin-top: 8px;
 }
 
 .chart-wrap {
@@ -1440,6 +1652,22 @@ textarea {
   }
 
   .scrubber-row {
+    grid-template-columns: 1fr;
+  }
+
+  .timeline-track {
+    display: none;
+  }
+
+  .timeline-events {
+    display: none;
+  }
+
+  .timeline-stack {
+    display: block;
+  }
+
+  .income-map-controls {
     grid-template-columns: 1fr;
   }
 

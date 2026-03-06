@@ -188,9 +188,11 @@ export function drawIncomeCoverageChart({
         }
         ctx.restore();
         if (hSeg > 14) {
-          ctx.fillStyle = "#fff";
+          ctx.fillStyle = "rgba(255,255,255,0.86)";
+          ctx.fillRect(cx + 1, yTop + 1, Math.max(1, barW - 2), 12);
+          ctx.fillStyle = "#7f1d1d";
           ctx.font = "10px Avenir Next";
-          ctx.fillText("Tax wedge", cx + 2, yTop + Math.min(12, hSeg - 2));
+          ctx.fillText("Tax", cx + 3, yTop + Math.min(11, hSeg - 2));
         }
       }
       stack += value;

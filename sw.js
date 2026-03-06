@@ -1,7 +1,9 @@
-const CACHE_NAME = "retirement-planner-v4";
+const CACHE_NAME = "retirement-planner-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./oas-clawback-calculator.html",
+  "./rrif-withdrawal-calculator.html",
   "./404.html",
   "./styles.css",
   "./src/main.js",

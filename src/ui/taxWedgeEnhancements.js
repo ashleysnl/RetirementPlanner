@@ -17,8 +17,12 @@ export function renderGrossNetCallout(ctx) {
     <article class="subsection gross-net-callout ${emphasizeTaxes ? "emphasize" : ""}">
       <h3>Why gross &gt; net</h3>
       <div class="mini-split-bar" role="img" aria-label="Gross withdrawal split into net cash and tax wedge">
-        <span class="seg netdraw" style="width:${(netPct * 100).toFixed(1)}%"></span>
-        <span class="seg tax hatch" style="width:${(taxPct * 100).toFixed(1)}%"></span>
+        <span class="seg netdraw" style="width:${(netPct * 100).toFixed(1)}%">
+          <span class="seg-label">${netPct > 0.16 ? "Net you keep" : ""}</span>
+        </span>
+        <span class="seg tax hatch" style="width:${(taxPct * 100).toFixed(1)}%">
+          <span class="seg-label">${taxPct > 0.14 ? "Tax wedge" : ""}</span>
+        </span>
       </div>
       <div class="gross-net-legend">
         <span class="gross-net-chip net">

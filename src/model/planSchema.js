@@ -189,15 +189,27 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       showAdvancedControls: false,
       advancedSearch: "",
       supportDismissedUntil: 0,
+      supportCardShownCount: 0,
+      supportCardDismissCount: 0,
+      lastSupportTriggerReason: "",
+      supportOptOut: false,
       supportShownEvents: {
         wizardComplete: false,
         firstGrossUp: false,
         firstClawback: false,
+        reportGenerated: false,
       },
       lastSharedScenarioBannerDismissed: false,
       justCompletedWizard: false,
       showGrossWithdrawals: true,
       emphasizeTaxes: true,
+      timelineSelectedAge: null,
+      incomeMap: {
+        startAge: null,
+        windowYears: 25,
+        highlightKeyAges: true,
+        showTable: false,
+      },
       lastChangeSummary: null,
       scenarios: [],
       timingSim: {
@@ -345,15 +357,29 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   state.uiState.showAdvancedControls = Boolean(state.uiState.showAdvancedControls);
   state.uiState.advancedSearch = String(state.uiState.advancedSearch || "");
   state.uiState.supportDismissedUntil = Math.max(0, Number(state.uiState.supportDismissedUntil || 0));
+  state.uiState.supportCardShownCount = Math.max(0, Number(state.uiState.supportCardShownCount || 0));
+  state.uiState.supportCardDismissCount = Math.max(0, Number(state.uiState.supportCardDismissCount || 0));
+  state.uiState.lastSupportTriggerReason = String(state.uiState.lastSupportTriggerReason || "");
+  state.uiState.supportOptOut = Boolean(state.uiState.supportOptOut);
   state.uiState.supportShownEvents = {
     wizardComplete: Boolean(state.uiState.supportShownEvents?.wizardComplete),
     firstGrossUp: Boolean(state.uiState.supportShownEvents?.firstGrossUp),
     firstClawback: Boolean(state.uiState.supportShownEvents?.firstClawback),
+    reportGenerated: Boolean(state.uiState.supportShownEvents?.reportGenerated),
   };
   state.uiState.lastSharedScenarioBannerDismissed = Boolean(state.uiState.lastSharedScenarioBannerDismissed);
   state.uiState.justCompletedWizard = Boolean(state.uiState.justCompletedWizard);
   state.uiState.showGrossWithdrawals = Boolean(state.uiState.showGrossWithdrawals ?? true);
   state.uiState.emphasizeTaxes = Boolean(state.uiState.emphasizeTaxes ?? true);
+  state.uiState.timelineSelectedAge = Number.isFinite(Number(state.uiState.timelineSelectedAge))
+    ? Number(state.uiState.timelineSelectedAge)
+    : null;
+  state.uiState.incomeMap = {
+    startAge: Number.isFinite(Number(state.uiState.incomeMap?.startAge)) ? Number(state.uiState.incomeMap.startAge) : null,
+    windowYears: clamp(Number(state.uiState.incomeMap?.windowYears ?? 25), 8, 45),
+    highlightKeyAges: Boolean(state.uiState.incomeMap?.highlightKeyAges ?? true),
+    showTable: Boolean(state.uiState.incomeMap?.showTable),
+  };
   state.uiState.lastChangeSummary = state.uiState.lastChangeSummary && typeof state.uiState.lastChangeSummary === "object"
     ? state.uiState.lastChangeSummary
     : null;
@@ -395,15 +421,29 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
     ...(plan.uiState.learningProgress || {}),
   };
   plan.uiState.supportDismissedUntil = Math.max(0, Number(plan.uiState.supportDismissedUntil || 0));
+  plan.uiState.supportCardShownCount = Math.max(0, Number(plan.uiState.supportCardShownCount || 0));
+  plan.uiState.supportCardDismissCount = Math.max(0, Number(plan.uiState.supportCardDismissCount || 0));
+  plan.uiState.lastSupportTriggerReason = String(plan.uiState.lastSupportTriggerReason || "");
+  plan.uiState.supportOptOut = Boolean(plan.uiState.supportOptOut);
   plan.uiState.supportShownEvents = {
     wizardComplete: Boolean(plan.uiState.supportShownEvents?.wizardComplete),
     firstGrossUp: Boolean(plan.uiState.supportShownEvents?.firstGrossUp),
     firstClawback: Boolean(plan.uiState.supportShownEvents?.firstClawback),
+    reportGenerated: Boolean(plan.uiState.supportShownEvents?.reportGenerated),
   };
   plan.uiState.lastSharedScenarioBannerDismissed = Boolean(plan.uiState.lastSharedScenarioBannerDismissed);
   plan.uiState.justCompletedWizard = Boolean(plan.uiState.justCompletedWizard);
   plan.uiState.showGrossWithdrawals = Boolean(plan.uiState.showGrossWithdrawals ?? true);
   plan.uiState.emphasizeTaxes = Boolean(plan.uiState.emphasizeTaxes ?? true);
+  plan.uiState.timelineSelectedAge = Number.isFinite(Number(plan.uiState.timelineSelectedAge))
+    ? Number(plan.uiState.timelineSelectedAge)
+    : null;
+  plan.uiState.incomeMap = {
+    startAge: Number.isFinite(Number(plan.uiState.incomeMap?.startAge)) ? Number(plan.uiState.incomeMap.startAge) : null,
+    windowYears: clamp(Number(plan.uiState.incomeMap?.windowYears ?? 25), 8, 45),
+    highlightKeyAges: Boolean(plan.uiState.incomeMap?.highlightKeyAges ?? true),
+    showTable: Boolean(plan.uiState.incomeMap?.showTable),
+  };
   plan.uiState.lastChangeSummary = plan.uiState.lastChangeSummary && typeof plan.uiState.lastChangeSummary === "object"
     ? plan.uiState.lastChangeSummary
     : null;
@@ -428,11 +468,20 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   if (!next.uiState) next.uiState = createDefaultPlan({ app, riskReturns, learnProgressItems }).uiState;
   if (!next.uiState.learn) next.uiState.learn = createDefaultLearnState();
   if (!next.uiState.supportShownEvents) next.uiState.supportShownEvents = { wizardComplete: false, firstGrossUp: false, firstClawback: false };
+  if (next.uiState.supportShownEvents.reportGenerated == null) next.uiState.supportShownEvents.reportGenerated = false;
   if (next.uiState.supportDismissedUntil == null) next.uiState.supportDismissedUntil = 0;
+  if (next.uiState.supportCardShownCount == null) next.uiState.supportCardShownCount = 0;
+  if (next.uiState.supportCardDismissCount == null) next.uiState.supportCardDismissCount = 0;
+  if (next.uiState.lastSupportTriggerReason == null) next.uiState.lastSupportTriggerReason = "";
+  if (next.uiState.supportOptOut == null) next.uiState.supportOptOut = false;
   if (next.uiState.lastSharedScenarioBannerDismissed == null) next.uiState.lastSharedScenarioBannerDismissed = false;
   if (next.uiState.justCompletedWizard == null) next.uiState.justCompletedWizard = false;
   if (next.uiState.showGrossWithdrawals == null) next.uiState.showGrossWithdrawals = true;
   if (next.uiState.emphasizeTaxes == null) next.uiState.emphasizeTaxes = true;
+  if (next.uiState.timelineSelectedAge == null) next.uiState.timelineSelectedAge = null;
+  if (!next.uiState.incomeMap) {
+    next.uiState.incomeMap = { startAge: null, windowYears: 25, highlightKeyAges: true, showTable: false };
+  }
   if (!Array.isArray(next.uiState.scenarios)) next.uiState.scenarios = [];
   if (next.uiState.lastChangeSummary == null) next.uiState.lastChangeSummary = null;
   if (!next.uiState.timingSim) next.uiState.timingSim = { cppStartAge: 65, oasStartAge: 65, linkTiming: false };

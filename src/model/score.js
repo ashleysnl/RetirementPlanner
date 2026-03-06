@@ -8,9 +8,11 @@ export function computeCoverageScore(plan, model) {
   const lifeExpectancy = Number(plan.profile.lifeExpectancy || 90);
   const firstRet = rows.find((r) => r.age === retireAge) || rows[0];
   const retirementRows = rows.filter((r) => r.age >= retireAge);
+  const row70 = rows.find((r) => r.age === 70) || firstRet;
+  const row71 = rows.find((r) => r.age === 71) || firstRet;
 
   const coverageRatio = firstRet?.spending > 0 ? firstRet.guaranteedNet / firstRet.spending : 1;
-  const coveragePoints = clamp(coverageRatio, 0, 1) * 40;
+  const coveragePoints = clamp(coverageRatio, 0, 1) * 35;
 
   const depletionAge = model?.kpis?.depletionAge;
   const longevityRatio = depletionAge
@@ -18,10 +20,14 @@ export function computeCoverageScore(plan, model) {
     : 1;
   const longevityPoints = clamp(longevityRatio, 0, 1) * 30;
 
-  const avgEffectiveTaxRate = retirementRows.length
-    ? retirementRows.reduce((sum, r) => sum + (r.effectiveTaxRate || 0), 0) / retirementRows.length
+  const avgTaxWedgeRate = retirementRows.length
+    ? retirementRows.reduce((sum, r) => {
+      const gross = Number(r.withdrawal || 0);
+      const wedge = Number((r.taxOnWithdrawal || 0) + (r.oasClawback || 0));
+      return sum + (gross > 0 ? wedge / gross : 0);
+    }, 0) / retirementRows.length
     : 0;
-  const taxEfficiencyPoints = clamp(1 - (avgEffectiveTaxRate / 0.45), 0, 1) * 20;
+  const taxEfficiencyPoints = clamp(1 - (avgTaxWedgeRate / 0.45), 0, 1) * 15;
 
   const oasTotal = retirementRows.reduce((sum, r) => sum + (r.oas || 0) + (r.spouseOas || 0), 0);
   const clawbackTotal = retirementRows.reduce((sum, r) => sum + (r.oasClawback || 0), 0);
@@ -30,27 +36,33 @@ export function computeCoverageScore(plan, model) {
     ? clamp(1 - (clawbackRatio / 0.5), 0, 1) * 10
     : 10;
 
-  const total = Math.round(coveragePoints + longevityPoints + taxEfficiencyPoints + clawbackPoints);
+  const rrifShockJump = Math.max(0, Number(row71?.taxableIncome || 0) - Number(row70?.taxableIncome || 0));
+  const rrifShockPoints = plan.strategy.applyRrifMinimums
+    ? clamp(1 - (rrifShockJump / 50000), 0, 1) * 10
+    : 10;
 
-  let band = "On track";
-  if (total < 60) band = "Significant gap";
-  else if (total < 80) band = "Moderate gap";
+  const total = Math.round(coveragePoints + longevityPoints + taxEfficiencyPoints + clawbackPoints + rrifShockPoints);
+
+  let band = "Strong";
+  if (total < 60) band = "Needs attention";
+  else if (total < 80) band = "Okay";
 
   return {
     total,
     band,
     subs: {
-      coverage: Math.round(coveragePoints),
-      longevity: Math.round(longevityPoints),
-      taxEfficiency: Math.round(taxEfficiencyPoints),
-      clawback: Math.round(clawbackPoints),
+      coverage: Math.round(coveragePoints), // /35
+      longevity: Math.round(longevityPoints), // /30
+      taxDrag: Math.round(taxEfficiencyPoints), // /15
+      clawback: Math.round(clawbackPoints), // /10
+      rrifShock: Math.round(rrifShockPoints), // /10
     },
     metrics: {
       coverageRatio,
       depletionAge: depletionAge || null,
-      avgEffectiveTaxRate,
+      avgTaxWedgeRate,
       clawbackRatio,
+      rrifShockJump,
     },
   };
 }
-

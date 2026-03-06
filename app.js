@@ -12,6 +12,8 @@ import { computeCoverageScore } from "./src/model/score.js";
 import { buildTimingPreview } from "./src/model/timingSim.js";
 import { buildMeltdownComparison } from "./src/model/meltdown.js";
 import { buildChangeSummary } from "./src/model/diff.js";
+import { buildRiskDiagnostics } from "./src/model/risks.js";
+import { buildYearBreakdown } from "./src/model/yearBreakdown.js";
 import { saveScenarioSnapshot, removeScenarioSnapshot, renameScenarioSnapshot } from "./src/model/scenarioStore.js";
 import { loadPlanFromStorage, savePlanToStorage } from "./src/model/planStore.js";
 import {
@@ -61,6 +63,10 @@ import { renderGrossNetCallout } from "./src/ui/taxWedgeEnhancements.js";
 import { renderWhatChangedPanel } from "./src/ui/whatChangedPanel.js";
 import { renderScenarioCompareModal } from "./src/ui/scenarioCompare.js";
 import { buildSummaryHtml, openPrintWindow } from "./src/ui/printSummary.js";
+import { renderKeyRisks } from "./src/ui/keyRisks.js";
+import { buildTimelineEvents, renderTimeline } from "./src/ui/timeline.js";
+import { parsePresetFromUrl, buildPresetBannerHtml, applyPresetToPlan, clearPresetQuery } from "./src/ui/presets.js";
+import { renderIncomeMap, drawIncomeMapCanvas, bindIncomeMapHover, pickIncomeMapAge } from "./src/ui/incomeMap.js";
 import {
   learnCallouts as buildLearnCallouts,
   calculatePhaseWeightedSpending as calculatePhaseWeightedSpendingUi,
@@ -123,10 +129,14 @@ const el = {
   kpiContext: document.getElementById("kpiContext"),
   retirementGapHeadline: document.getElementById("retirementGapHeadline"),
   retirementInsight: document.getElementById("retirementInsight"),
+  incomeMapModule: document.getElementById("incomeMapModule"),
   whatChangedPanel: document.getElementById("whatChangedPanel"),
+  presetBanner: document.getElementById("presetBanner"),
   resultsStrip: document.getElementById("resultsStrip"),
   taxWedgeMini: document.getElementById("taxWedgeMini"),
   coverageScoreModule: document.getElementById("coverageScoreModule"),
+  timelineModule: document.getElementById("timelineModule"),
+  keyRisksModule: document.getElementById("keyRisksModule"),
   timingSimulator: document.getElementById("timingSimulator"),
   meltdownSimulator: document.getElementById("meltdownSimulator"),
   sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
@@ -141,6 +151,7 @@ const el = {
   coverageChart: document.getElementById("coverageChart"),
   coverageLegend: document.getElementById("coverageLegend"),
   coverageHover: document.getElementById("coverageHover"),
+  incomeMapHover: null,
   coverageTableToggle: document.getElementById("coverageTableToggle"),
   coverageTableWrap: document.getElementById("coverageTableWrap"),
   coverageTable: document.getElementById("coverageTable"),
@@ -211,19 +222,27 @@ globalThis.__RETIREMENT_APP_STAGE = "schema-ready";
 let state = loadPlan();
 globalThis.__RETIREMENT_APP_STAGE = "state-loaded";
 let sharedScenarioPayload = null;
+let presetPayload = null;
+const sessionSupportShown = (() => {
+  try {
+    return sessionStorage.getItem("supportMomentShown") === "1";
+  } catch {
+    return false;
+  }
+})();
 let ui = {
   activeNav: state.uiState.activeNav || "dashboard",
   tooltipKey: "",
   toastTimer: null,
   lastModel: null,
-  selectedAge: null,
+  selectedAge: state.uiState.timelineSelectedAge ?? null,
   showStressBand: true,
   showTodaysDollars: false,
   showGrossWithdrawals: Boolean(state.uiState.showGrossWithdrawals ?? true),
   showCoverageTable: false,
   advancedOpen: {
-    basics: true,
-    assumptions: true,
+    basics: false,
+    assumptions: false,
     income: false,
     accounts: false,
     rrif: false,
@@ -243,6 +262,8 @@ let ui = {
   eventsBound: false,
   activeSupportMoment: "",
   undoPlanSnapshot: null,
+  supportShownThisSession: sessionSupportShown,
+  incomeMapHitZones: [],
 };
 globalThis.__RETIREMENT_APP_STAGE = "ui-created";
 
@@ -260,6 +281,7 @@ function init() {
   try {
     sharedScenarioPayload = parseSharedScenarioFromUrl(window.location);
     if (sharedScenarioPayload) state.uiState.lastSharedScenarioBannerDismissed = false;
+    presetPayload = parsePresetFromUrl(window.location);
     const hashNav = navFromHashUi(location.hash, normalizeNavTargetUi);
     if (hashNav) {
       ui.activeNav = hashNav;
@@ -400,6 +422,7 @@ function bindEvents() {
 
   el.yearScrubber?.addEventListener("input", () => {
     ui.selectedAge = Number(el.yearScrubber.value);
+    state.uiState.timelineSelectedAge = ui.selectedAge;
     if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${ui.selectedAge}`;
     renderDashboard();
   });
@@ -411,6 +434,39 @@ function bindEvents() {
   el.mainChart?.addEventListener("mousemove", handleBalanceChartPointer);
   el.mainChart?.addEventListener("mouseleave", () => {
     if (el.balanceHover) el.balanceHover.hidden = true;
+  });
+  document.addEventListener("mousemove", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id !== "incomeMapCanvas") return;
+    const hover = document.getElementById("incomeMapHover");
+    bindIncomeMapHover(event, {
+      hitZones: ui.incomeMapHitZones,
+      hoverEl: hover,
+      chartEl: target,
+      formatCurrency,
+      formatPct,
+      showGross: Boolean(state.uiState.showGrossWithdrawals ?? true),
+    });
+  });
+  document.addEventListener("mouseleave", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id !== "incomeMapCanvas") return;
+    const hover = document.getElementById("incomeMapHover");
+    if (hover) hover.hidden = true;
+  }, true);
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLCanvasElement)) return;
+    if (target.id !== "incomeMapCanvas") return;
+    const age = pickIncomeMapAge(event, ui.incomeMapHitZones);
+    if (!Number.isFinite(age)) return;
+    ui.selectedAge = age;
+    state.uiState.timelineSelectedAge = age;
+    if (el.yearScrubber) el.yearScrubber.value = String(age);
+    if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${age}`;
+    renderDashboard();
   });
 
   el.scenarioCompareToggle?.addEventListener("change", () => {
@@ -619,6 +675,14 @@ function handleDocumentClick(event) {
       renderDashboardSupportMoment();
       return;
     }
+    if (action === "support-opt-out") {
+      state.uiState.supportOptOut = true;
+      ui.activeSupportMoment = "";
+      savePlan();
+      renderDashboardSupportMoment();
+      toast("Thanks for supporting.");
+      return;
+    }
     if (action === "dismiss-last-change") {
       state.uiState.lastChangeSummary = null;
       savePlan();
@@ -677,12 +741,66 @@ function handleDocumentClick(event) {
       toast("Shared scenario applied to your local plan.");
       return;
     }
+    if (action === "apply-preset") {
+      if (!presetPayload) return;
+      state = applyPresetToPlan(state, presetPayload, createDemoPlanLocal);
+      ensureValidStateLocal();
+      presetPayload = null;
+      clearPresetQuery();
+      savePlan();
+      renderAll();
+      toast("Preset applied to your local plan.");
+      return;
+    }
+    if (action === "dismiss-preset") {
+      presetPayload = null;
+      clearPresetQuery();
+      renderDashboardPresetBanner();
+      return;
+    }
     if (action === "dismiss-shared-scenario") {
       state.uiState.lastSharedScenarioBannerDismissed = true;
       sharedScenarioPayload = null;
       clearSharedScenarioQuery();
       savePlan();
       renderDashboardSharedScenarioBanner();
+      return;
+    }
+    if (action === "enable-clawback") {
+      state.strategy.oasClawbackModeling = true;
+      savePlan();
+      renderAll();
+      toast("OAS clawback modeling enabled.");
+      return;
+    }
+    if (action === "enable-rrif") {
+      state.strategy.applyRrifMinimums = true;
+      savePlan();
+      renderAll();
+      toast("RRIF minimum rules enabled.");
+      return;
+    }
+    if (action === "focus-timing-sim" || action === "focus-meltdown-sim") {
+      setActiveNav("dashboard");
+      const targetId = action === "focus-timing-sim" ? "timingSimulator" : "meltdownSimulator";
+      requestAnimationFrame(() => {
+        document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return;
+    }
+    if (action === "set-selected-age") {
+      const nextAge = Number(actionBtn.getAttribute("data-value"));
+      if (!Number.isFinite(nextAge)) return;
+      ui.selectedAge = nextAge;
+      state.uiState.timelineSelectedAge = nextAge;
+      if (el.yearScrubber) el.yearScrubber.value = String(nextAge);
+      if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${nextAge}`;
+      const rs = document.getElementById("resultsAgePicker");
+      if (rs) rs.value = String(nextAge);
+      const gp = document.getElementById("gapAgePicker");
+      if (gp) gp.value = String(nextAge);
+      savePlan();
+      renderDashboard();
       return;
     }
     if (action === "learn-send-spending") {
@@ -764,6 +882,9 @@ function handleBoundInput(event) {
   if (event.type === "input" && !(target instanceof HTMLInputElement && target.type === "checkbox")) {
     if (target.getAttribute("data-live-input") === "1") {
       if (path === "uiState.advancedSearch") applyAdvancedSearchFilter();
+      if (path.startsWith("uiState.incomeMap.")) {
+        renderDashboard();
+      }
     }
     savePlan();
     return;
@@ -815,6 +936,7 @@ function handleDashboardInput(event) {
   const nextAge = Number(target.value);
   if (!Number.isFinite(nextAge)) return;
   ui.selectedAge = nextAge;
+  state.uiState.timelineSelectedAge = nextAge;
   if (el.yearScrubber) el.yearScrubber.value = String(nextAge);
   if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${nextAge}`;
   const rs = document.getElementById("resultsAgePicker");
@@ -899,13 +1021,17 @@ function renderDashboard() {
   renderDashboardResultsStrip();
   renderRetirementGapModule();
   renderRetirementInsightModule();
+  renderDashboardSupportMoment();
+  renderIncomeMapModule();
   renderTaxWedgeMiniModule();
   renderWhatChangedModule();
   renderCoverageScoreModule();
+  renderTimelineModule();
+  renderKeyRisksModule();
   renderTimingSimulatorModule();
   renderMeltdownSimulatorModule();
+  renderDashboardPresetBanner();
   renderDashboardSharedScenarioBanner();
-  renderDashboardSupportMoment();
 }
 
 function dashboardRetirementRows() {
@@ -937,6 +1063,7 @@ function renderDashboardResultsStrip() {
   const maxAge = rows[rows.length - 1].age;
   const selected = clamp(ui.selectedAge ?? minAge, minAge, maxAge);
   ui.selectedAge = selected;
+  state.uiState.timelineSelectedAge = selected;
   const row = findRowByAgeLocal(rows, selected) || rows[0];
   renderResultsStrip({
     mountEl: el.resultsStrip,
@@ -1012,6 +1139,32 @@ function renderTaxWedgeMiniModule() {
   bindInlineTooltipTriggers(el.taxWedgeMini);
 }
 
+function renderIncomeMapModule() {
+  if (!el.incomeMapModule || !ui.lastModel) return;
+  const breakdown = buildYearBreakdown(state, ui.lastModel);
+  const rendered = renderIncomeMap({
+    mountEl: el.incomeMapModule,
+    plan: state,
+    rows: breakdown,
+    selectedAge: ui.selectedAge || state.profile.retirementAge,
+    formatCurrency,
+    formatPct,
+    state,
+  });
+  if (!rendered) return;
+  const canvas = document.getElementById("incomeMapCanvas");
+  const draw = drawIncomeMapCanvas({
+    canvas,
+    visibleRows: rendered.visibleRows,
+    selectedAge: ui.selectedAge || state.profile.retirementAge,
+    showGross: rendered.showGross,
+    showMarkers: rendered.showMarkers,
+    markers: rendered.markers,
+    formatCurrency,
+  });
+  ui.incomeMapHitZones = draw?.hitZones || [];
+}
+
 function renderWhatChangedModule() {
   renderWhatChangedPanel({
     mountEl: el.whatChangedPanel,
@@ -1029,6 +1182,28 @@ function renderCoverageScoreModule() {
     formatPct,
   });
   bindInlineTooltipTriggers(el.coverageScoreModule);
+}
+
+function renderTimelineModule() {
+  if (!el.timelineModule) return;
+  const events = buildTimelineEvents(state);
+  renderTimeline({
+    mountEl: el.timelineModule,
+    events,
+    selectedAge: ui.selectedAge || state.profile.retirementAge,
+  });
+}
+
+function renderKeyRisksModule() {
+  if (!el.keyRisksModule || !ui.lastModel) return;
+  const selected = getDashboardSelectedRow();
+  const risks = buildRiskDiagnostics(state, ui.lastModel, selected?.age || state.profile.retirementAge);
+  renderKeyRisks({
+    mountEl: el.keyRisksModule,
+    risks,
+    tooltipButton,
+  });
+  bindInlineTooltipTriggers(el.keyRisksModule);
 }
 
 function renderTimingSimulatorModule() {
@@ -1088,19 +1263,28 @@ function renderDashboardSharedScenarioBanner() {
   `;
 }
 
+function renderDashboardPresetBanner() {
+  if (!el.presetBanner) return;
+  const show = Boolean(presetPayload);
+  el.presetBanner.hidden = !show;
+  el.presetBanner.innerHTML = show ? buildPresetBannerHtml(presetPayload) : "";
+}
+
 function renderDashboardSupportMoment() {
   if (!el.supportMomentMount || !ui.lastModel) return;
   ensureSupportMomentState(state.uiState);
   const row = getDashboardSelectedRow();
   let trigger = "";
   if (state.uiState.justCompletedWizard) {
-    trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "wizardComplete" });
+    trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "wizardComplete", sessionShown: ui.supportShownThisSession });
     state.uiState.justCompletedWizard = false;
   }
-  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstGrossUp" });
-  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstClawback" });
+  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstGrossUp", sessionShown: ui.supportShownThisSession });
+  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstClawback", sessionShown: ui.supportShownThisSession });
   if (trigger) {
     ui.activeSupportMoment = trigger;
+    ui.supportShownThisSession = true;
+    try { sessionStorage.setItem("supportMomentShown", "1"); } catch {}
     markSupportMomentShown(state.uiState, trigger);
     savePlan();
   }
@@ -1109,6 +1293,25 @@ function renderDashboardSupportMoment() {
     return;
   }
   el.supportMomentMount.innerHTML = buildSupportMomentCard(ui.activeSupportMoment);
+}
+
+function triggerSupportMoment(trigger) {
+  if (!ui.lastModel) return;
+  const row = getDashboardSelectedRow();
+  const hit = maybeTriggerSupportMoment({
+    state,
+    model: ui.lastModel,
+    row,
+    trigger,
+    sessionShown: ui.supportShownThisSession,
+  });
+  if (!hit) return;
+  ui.activeSupportMoment = hit;
+  ui.supportShownThisSession = true;
+  try { sessionStorage.setItem("supportMomentShown", "1"); } catch {}
+  markSupportMomentShown(state.uiState, hit);
+  savePlan();
+  renderDashboardSupportMoment();
 }
 
 function getOasRiskLevelLocal(amount) {
@@ -1549,6 +1752,7 @@ function openPrintSummary() {
   });
   el.printSummaryContent.innerHTML = html;
   el.printSummaryModal.showModal();
+  triggerSupportMoment("reportGenerated");
 }
 
 function printSummaryNow() {
@@ -1568,6 +1772,7 @@ function printSummaryNow() {
   });
   const ok = openPrintWindow(html);
   if (!ok) toast("Could not open print window.");
+  if (ok) triggerSupportMoment("reportGenerated");
 }
 
 function clearSharedScenarioQuery() {
