@@ -1545,6 +1545,13 @@ function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
         oasStartAge: 65,
         linkTiming: false,
       },
+      clientSummary: {
+        enabled: false,
+        preparedFor: "",
+        scenarioLabel: "",
+        preparedBy: "",
+        summaryDate: "",
+      },
       learn: createDefaultLearnState(),
       learningProgress: createDefaultLearningProgress(learnProgressItems),
       unlocked: {
@@ -1635,6 +1642,10 @@ function normalizePlan(input, { app, provinces, riskReturns, learnProgressItems 
         ...base.uiState.timingSim,
         ...(migrated.uiState?.timingSim || {}),
       },
+      clientSummary: {
+        ...base.uiState.clientSummary,
+        ...(migrated.uiState?.clientSummary || {}),
+      },
       learn: normalizeLearnState(migrated.uiState?.learn || base.uiState.learn),
       learningProgress: {
         ...createDefaultLearningProgress(learnProgressItems),
@@ -1718,6 +1729,13 @@ function ensureValidState(state, { app, provinces, learnProgressItems }) {
     oasStartAge: clamp(Number(state.uiState.timingSim?.oasStartAge ?? state.income.oas.startAge), 65, 70),
     linkTiming: Boolean(state.uiState.timingSim?.linkTiming),
   };
+  state.uiState.clientSummary = {
+    enabled: Boolean(state.uiState.clientSummary?.enabled),
+    preparedFor: String(state.uiState.clientSummary?.preparedFor || ""),
+    scenarioLabel: String(state.uiState.clientSummary?.scenarioLabel || ""),
+    preparedBy: String(state.uiState.clientSummary?.preparedBy || ""),
+    summaryDate: String(state.uiState.clientSummary?.summaryDate || ""),
+  };
   const defaultProgress = createDefaultLearningProgress(learnProgressItems);
   state.uiState.learningProgress = {
     ...defaultProgress,
@@ -1782,6 +1800,13 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
     cppStartAge: clamp(Number(plan.uiState.timingSim?.cppStartAge ?? plan.income.cpp.startAge), 60, 70),
     oasStartAge: clamp(Number(plan.uiState.timingSim?.oasStartAge ?? plan.income.oas.startAge), 65, 70),
     linkTiming: Boolean(plan.uiState.timingSim?.linkTiming),
+  };
+  plan.uiState.clientSummary = {
+    enabled: Boolean(plan.uiState.clientSummary?.enabled),
+    preparedFor: String(plan.uiState.clientSummary?.preparedFor || ""),
+    scenarioLabel: String(plan.uiState.clientSummary?.scenarioLabel || ""),
+    preparedBy: String(plan.uiState.clientSummary?.preparedBy || ""),
+    summaryDate: String(plan.uiState.clientSummary?.summaryDate || ""),
   };
   if (!plan.version) plan.version = app.version;
 }
@@ -3464,6 +3489,11 @@ function buildSummaryHtml(ctx) {
   return `
     <section class="print-summary">
       <h1>Canadian Retirement Tax Simulator - Retirement Summary</h1>
+      ${
+        state.uiState?.clientSummary
+          ? `<p><strong>Prepared for:</strong> ${state.uiState.clientSummary.preparedFor || "-"} | <strong>Scenario:</strong> ${state.uiState.clientSummary.scenarioLabel || "Current plan"} | <strong>Prepared by:</strong> ${state.uiState.clientSummary.preparedBy || "-"} | <strong>Date:</strong> ${state.uiState.clientSummary.summaryDate || "-"}</p>`
+          : ""
+      }
       <p><strong>Province:</strong> ${state.profile.province} | <strong>Retirement age:</strong> ${state.profile.retirementAge} | <strong>Life expectancy:</strong> ${state.profile.lifeExpectancy}</p>
       <p><strong>Inflation:</strong> ${formatPct(state.assumptions.inflation)} | <strong>Risk profile:</strong> ${state.assumptions.riskProfile}</p>
       <h2>Core results</h2>
@@ -3494,8 +3524,12 @@ function buildSummaryHtml(ctx) {
 }
 
 function openPrintWindow(summaryHtml) {
-  const w = window.open("", "_blank", "noopener,noreferrer,width=980,height=860");
+  const w = window.open("", "_blank", "width=980,height=860");
   if (!w) return false;
+  const printWhenReady = () => {
+    try { w.focus(); } catch {}
+    try { w.print(); } catch {}
+  };
   w.document.open();
   w.document.write(`
     <html><head><title>Retirement Summary</title>
@@ -3509,11 +3543,12 @@ function openPrintWindow(summaryHtml) {
     </head><body>${summaryHtml}</body></html>
   `);
   w.document.close();
-  w.focus();
-  w.print();
+  if (typeof w.addEventListener === "function") {
+    w.addEventListener("load", () => setTimeout(printWhenReady, 120), { once: true });
+  }
+  setTimeout(printWhenReady, 220);
   return true;
 }
-
 
 /* FILE: src/ui/keyRisks.js */
 function severityClass(level) {
@@ -3860,6 +3895,39 @@ function renderIncomeMap(ctx) {
   const visible = rows.slice();
   const keys = markerAges(plan).filter((m) => m.age >= minAge && m.age <= maxAge);
   const visiblePhases = (phases || []).filter((phase) => !(phase.endAge < minAge || phase.startAge > maxAge));
+  const ageSpan = Math.max(1, maxAge - minAge);
+  const phaseTrackHtml = visiblePhases.length
+    ? `
+      <div class="income-phase-track" aria-label="Retirement phases aligned to timeline">
+        <div class="income-phase-track-inner">
+          ${visiblePhases.map((phase) => {
+            const start = clamp(Number(phase.startAge), minAge, maxAge);
+            const end = clamp(Number(phase.endAge), minAge, maxAge);
+            const leftPct = ((start - minAge) / ageSpan) * 100;
+            const widthPct = Math.max(2, ((Math.max(start, end) - start + 1) / (ageSpan + 1)) * 100);
+            return `
+              <button
+                type="button"
+                class="phase-ruler"
+                style="left:${leftPct.toFixed(2)}%; width:${widthPct.toFixed(2)}%;"
+                data-tooltip-key="${phaseTooltipKey(phase.key)}"
+                aria-label="${phase.label} from age ${start} to ${end}"
+                title="${phase.label} (${start}-${end})"
+              >
+                <span class="phase-ruler-line" aria-hidden="true">
+                  <span class="phase-ruler-arrow phase-ruler-arrow-left"></span>
+                  <span class="phase-ruler-stroke"></span>
+                  <span class="phase-ruler-arrow phase-ruler-arrow-right"></span>
+                </span>
+                <span class="phase-ruler-pill">${phase.label}</span>
+                <span class="phase-ruler-range">${start}-${end}</span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `
+    : "";
   const tableHtml = showTable
     ? `
       <div class="table-scroll income-map-table-wrap">
@@ -3908,15 +3976,7 @@ function renderIncomeMap(ctx) {
         <label class="inline-check small-copy"><input type="checkbox" data-bind="uiState.incomeMap.highlightKeyAges" ${showMarkers ? "checked" : ""} /> Highlight key ages</label>
         <label class="inline-check small-copy"><input type="checkbox" data-bind="uiState.incomeMap.showTable" ${showTable ? "checked" : ""} /> View as table</label>
       </div>
-      ${visiblePhases.length ? `
-        <div class="income-phase-row" aria-label="Retirement phases">
-          ${visiblePhases.map((phase) => `
-            <button type="button" class="phase-chip" data-action="set-selected-age" data-value="${phase.startAge}" data-tooltip-key="${phaseTooltipKey(phase.key)}" aria-label="${phase.label} starts at age ${phase.startAge}">
-              ${phase.label} (${phase.startAge}-${phase.endAge})
-            </button>
-          `).join("")}
-        </div>
-      ` : ""}
+      ${phaseTrackHtml}
       <div class="chart-canvas-wrap income-map-canvas-wrap">
         <canvas id="incomeMapCanvas" width="1200" height="360" aria-label="Retirement income map chart" role="img"></canvas>
         <div id="incomeMapHover" class="chart-hover" hidden></div>
@@ -4216,6 +4276,443 @@ function renderStrategySuggestions(ctx) {
   `;
 }
 
+
+/* FILE: src/model/clientSummary.js */
+function buildClientSummaryData({ plan, model, selectedAge, rows, phases, risks }) {
+  const allRows = Array.isArray(rows) && rows.length
+    ? rows
+    : (model?.base?.rows || []).filter((r) => r.age >= Number(plan.profile.retirementAge || 65));
+  if (!allRows.length) return null;
+
+  const fallbackAge = Number(plan.profile.retirementAge || allRows[0].age);
+  const current = allRows.find((r) => Number(r.age) === Number(selectedAge))
+    || allRows.find((r) => Number(r.age) === fallbackAge)
+    || allRows[0];
+
+  const guaranteed = Number(current.guaranteedNet || 0);
+  const spending = Number(current.spending || 0);
+  const netGap = Math.max(0, Number(current.netGap || 0));
+  const grossWithdrawal = Math.max(0, Number(current.withdrawal || 0));
+  const taxWedge = Math.max(0, Number((current.taxOnWithdrawal || 0) + (current.oasClawback || 0)));
+  const netSpendingAvailable = Math.max(0, guaranteed + Math.max(0, Number(current.netFromWithdrawal || 0)));
+  const coverageRatio = spending > 0 ? guaranteed / spending : 1;
+
+  const depletionAge = model?.kpis?.depletionAge || null;
+  const rrifPhaseAge = plan.strategy.applyRrifMinimums
+    ? Number(plan.strategy.rrifConversionAge || 71)
+    : null;
+  const clawbackRisk = risks?.find((r) => r.key === "clawback") || null;
+
+  return {
+    selected: current,
+    metrics: {
+      spending,
+      guaranteed,
+      netGap,
+      grossWithdrawal,
+      taxWedge,
+      netSpendingAvailable,
+      coverageRatio,
+      effectiveRate: Number(current.effectiveTaxRate || 0),
+    },
+    warnings: {
+      depletionAge,
+      hasRrifPressure: Boolean(rrifPhaseAge && Number(current.age) >= rrifPhaseAge && Number(current.rrifMinimum || 0) > 0),
+      clawbackSeverity: clawbackRisk?.severity || "Low",
+      clawbackAmount: Number(current.oasClawback || 0),
+    },
+    phases: Array.isArray(phases) ? phases : [],
+  };
+}
+
+/* FILE: src/ui/clientSummaryMode.js */
+
+function esc(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function severityClass(severity) {
+  const s = String(severity || "").toLowerCase();
+  if (s === "high") return "risk-high";
+  if (s === "medium") return "risk-medium";
+  return "risk-low";
+}
+
+function fmtRange(phase) {
+  if (!phase) return "";
+  if (Number(phase.startAge) === Number(phase.endAge)) return `Age ${phase.startAge}`;
+  return `Age ${phase.startAge}-${phase.endAge}`;
+}
+
+function renderClientSummaryMode(ctx) {
+  const {
+    mountEl,
+    enabled,
+    summary,
+    risks,
+    selectedAge,
+    formatCurrency,
+    formatPct,
+    tooltipButton,
+    pendingStrategyKey,
+    changeSummary,
+    prefs,
+  } = ctx;
+
+  if (!mountEl) return;
+  mountEl.hidden = !enabled;
+  if (!enabled || !summary) {
+    mountEl.innerHTML = "";
+    return;
+  }
+
+  const row = summary.selected;
+  const m = summary.metrics;
+  const coveragePct = m.coverageRatio;
+  const surplus = Math.max(0, m.guaranteed - m.spending);
+  const hasSurplus = surplus > 0.5;
+
+  mountEl.innerHTML = `
+    <article class="subsection client-summary-mode" aria-live="polite">
+      <div class="client-summary-banner">
+        <strong>Simplified communication view using your current plan assumptions.</strong>
+        <div class="landing-actions">
+          <button type="button" class="btn btn-secondary" data-action="print-client-summary">Print Client Report</button>
+          <button type="button" class="btn btn-secondary" data-action="exit-client-summary">Open full planner view</button>
+        </div>
+      </div>
+
+      <div class="subsection client-meta-grid">
+        <h3>Prepared details</h3>
+        <label>
+          <span class="small-copy muted">Prepared for</span>
+          <input data-bind="uiState.clientSummary.preparedFor" type="text" value="${esc(prefs.preparedFor || "")}" placeholder="Client or household name" />
+        </label>
+        <label>
+          <span class="small-copy muted">Scenario label</span>
+          <input data-bind="uiState.clientSummary.scenarioLabel" type="text" value="${esc(prefs.scenarioLabel || "")}" placeholder="Base plan / Strategy A" />
+        </label>
+        <label>
+          <span class="small-copy muted">Prepared by</span>
+          <input data-bind="uiState.clientSummary.preparedBy" type="text" value="${esc(prefs.preparedBy || "")}" placeholder="Advisor or planner" />
+        </label>
+        <label>
+          <span class="small-copy muted">Date</span>
+          <input data-bind="uiState.clientSummary.summaryDate" type="date" value="${esc(prefs.summaryDate || "")}" />
+        </label>
+      </div>
+
+      <section class="subsection">
+        <h3>Retirement Readiness Snapshot</h3>
+        <p><strong>At age ${row.age}, guaranteed income ${tooltipButton("kpiGuaranteedIncome")} covers <span class="client-summary-number">${formatPct(coveragePct)}</span> of your target spending ${tooltipButton("kpiSpendingTarget")}.</strong> ${hasSurplus
+          ? `You are fully covered with an estimated surplus of <strong>${formatCurrency(surplus)}</strong> per year.`
+          : `You need about <strong>${formatCurrency(m.grossWithdrawal)}</strong>/yr from RRSP/RRIF ${tooltipButton("kpiGrossWithdrawal")}, and about <strong>${formatCurrency(m.taxWedge)}</strong>/yr goes to tax.`}
+        </p>
+        <div class="metric-grid metric-grid-wide">
+          <article class="metric-card metric-card-primary">
+            <span class="label">Coverage</span>
+            <span class="value">${formatPct(coveragePct)}</span>
+          </article>
+          <article class="metric-card metric-card-primary">
+            <span class="label">Guaranteed income</span>
+            <span class="value">${formatCurrency(m.guaranteed)}</span>
+          </article>
+          <article class="metric-card metric-card-primary">
+            <span class="label">Savings withdrawals</span>
+            <span class="value">${formatCurrency(m.grossWithdrawal)}</span>
+          </article>
+          <article class="metric-card metric-card-primary">
+            <span class="label">Estimated taxes</span>
+            <span class="value">${formatCurrency(m.taxWedge)}</span>
+          </article>
+          <article class="metric-card metric-card-primary">
+            <span class="label">Net spending available</span>
+            <span class="value">${formatCurrency(m.netSpendingAvailable)}</span>
+          </article>
+        </div>
+        <div class="landing-actions">
+          ${summary.warnings.clawbackAmount > 0 ? `<span class="risk-badge ${severityClass(summary.warnings.clawbackSeverity)}">OAS clawback risk: ${esc(summary.warnings.clawbackSeverity)}</span>` : ""}
+          ${summary.warnings.depletionAge ? `<span class="risk-badge risk-high">Savings run out around age ${summary.warnings.depletionAge}</span>` : ""}
+          ${summary.warnings.hasRrifPressure ? `<span class="risk-badge risk-medium">RRIF minimum phase active</span>` : ""}
+        </div>
+      </section>
+
+      <section class="chart-wrap">
+        <div class="chart-head-row">
+          <h3>Projection</h3>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="clientSummaryProjectionChart" width="1000" height="340" aria-label="Client summary projected portfolio balance chart" role="img"></canvas>
+        </div>
+        <div id="clientSummaryProjectionLegend" class="legend-row"></div>
+      </section>
+
+      <section class="subsection">
+        <h3>Retirement Income Map</h3>
+        <p class="small-copy muted">Where retirement cash flow comes from each year, including tax wedge impact.</p>
+        <div id="clientSummaryIncomeMapMount"></div>
+      </section>
+
+      <section class="subsection">
+        <h3>Income Timeline</h3>
+        <div class="client-timeline-grid">
+          ${(summary.phases || []).map((phase) => {
+            const title = phase.key === "early"
+              ? "Early retirement"
+              : phase.key === "benefits"
+                ? "CPP + OAS phase"
+                : "RRIF minimum phase";
+            return `
+              <button type="button" class="client-phase-card" data-action="set-selected-age" data-value="${phase.startAge}" aria-label="Jump to ${title} at age ${phase.startAge}">
+                <strong>${esc(title)}</strong>
+                <span>${esc(fmtRange(phase))}</span>
+                <p class="small-copy muted">${esc(phase.why || "")}</p>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </section>
+
+      <section class="subsection">
+        <h3>Key Risks</h3>
+        <div class="risk-list compact">
+          ${(risks || []).slice(0, 5).map((risk) => `
+            <article class="risk-row ${severityClass(risk.severity)}">
+              <div class="risk-row-main">
+                <h4>${esc(risk.title)}</h4>
+                <span class="risk-badge">${esc(risk.severity)}</span>
+              </div>
+              <p class="small-copy">${esc(risk.detail)}</p>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="subsection" id="clientStrategySuggestions">
+        <h3>Strategy Suggestions</h3>
+        <div class="strategy-grid">
+          ${STRATEGY_SUGGESTIONS.map((s) => `
+            <article class="strategy-card ${pendingStrategyKey === s.key ? "active" : ""}">
+              <strong>${esc(s.title)}</strong>
+              <p class="small-copy muted">${esc(s.desc)}</p>
+              <button type="button" class="btn btn-secondary" data-action="preview-strategy" data-value="${esc(s.key)}">Preview impact</button>
+            </article>
+          `).join("")}
+        </div>
+        ${pendingStrategyKey && changeSummary ? `
+          <div class="subsection">
+            <strong>What changed?</strong>
+            <ul class="plain-list">
+              ${(changeSummary.bullets || []).slice(0, 6).map((b) => `<li>${esc(b)}</li>`).join("")}
+            </ul>
+            <div class="landing-actions">
+              <button type="button" class="btn btn-primary" data-action="apply-strategy-preview">Apply</button>
+              <button type="button" class="btn btn-secondary" data-action="undo-strategy-preview">Undo preview</button>
+            </div>
+          </div>
+        ` : ""}
+      </section>
+
+      <p class="small-copy muted">Planning estimate only - not tax, legal, or financial advice.</p>
+    </article>
+  `;
+}
+
+/* FILE: src/ui/clientSummaryPrint.js */
+function esc(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function phaseTitle(key) {
+  if (key === "early") return "Early retirement";
+  if (key === "benefits") return "CPP + OAS phase";
+  return "RRIF minimum phase";
+}
+
+function yesNo(value) {
+  return value ? "Yes" : "No";
+}
+
+function fmtListItems(items) {
+  return items.map((item) => `<li>${esc(item)}</li>`).join("");
+}
+
+function buildClientSummaryHtml(ctx) {
+  const {
+    state,
+    summary,
+    risks,
+    strategySuggestions,
+    formatCurrency,
+    formatPct,
+    methodologyUrl,
+    chartImages,
+  } = ctx;
+
+  const row = summary.selected;
+  const m = summary.metrics;
+  const prefs = state.uiState.clientSummary || {};
+  const dateValue = prefs.summaryDate || new Date().toISOString().slice(0, 10);
+  const spouse = state.income?.spouse || {};
+  const injects = Array.isArray(state.savings?.capitalInjects)
+    ? state.savings.capitalInjects.filter((x) => x && x.enabled)
+    : [];
+  const detailedInputs = {
+    profile: [
+      `Province: ${state.profile.province}`,
+      `Year of birth: ${state.profile.birthYear}`,
+      `Retirement age: ${state.profile.retirementAge}`,
+      `Life expectancy: ${state.profile.lifeExpectancy}`,
+      `After-tax spending target (today's dollars): ${formatCurrency(state.profile.desiredSpending)}`,
+      `Has spouse plan: ${yesNo(state.profile.hasSpouse)}`,
+    ],
+    assumptions: [
+      `Inflation: ${formatPct(state.assumptions.inflation)}`,
+      `Risk profile: ${state.assumptions.riskProfile}`,
+      `Conservative return: ${formatPct(state.assumptions.returns.conservative)}`,
+      `Balanced return: ${formatPct(state.assumptions.returns.balanced)}`,
+      `Aggressive return: ${formatPct(state.assumptions.returns.aggressive)}`,
+      `Scenario spread: ${formatPct(state.assumptions.scenarioSpread)}`,
+      `Tax brackets indexed with inflation: ${yesNo(state.assumptions.indexTaxBrackets)}`,
+    ],
+    savings: [
+      `Current savings: ${formatCurrency(state.savings.currentTotal)}`,
+      `Annual contribution: ${formatCurrency(state.savings.annualContribution)}`,
+      `Contribution increase YoY: ${formatPct(state.savings.contributionIncrease || 0)}`,
+      `Capital injections: ${injects.length ? injects.map((x) => `${x.label || "Lump sum"} ${formatCurrency(x.amount)} at age ${x.age}`).join("; ") : "None"}`,
+    ],
+    income: [
+      `Private pension enabled: ${yesNo(state.income.pension.enabled)}`,
+      `Private pension amount: ${formatCurrency(state.income.pension.amount)}`,
+      `Private pension start age: ${state.income.pension.startAge}`,
+      `CPP amount at 65: ${formatCurrency(state.income.cpp.amountAt65)}`,
+      `CPP start age: ${state.income.cpp.startAge}`,
+      `OAS amount at 65: ${formatCurrency(state.income.oas.amountAt65)}`,
+      `OAS start age: ${state.income.oas.startAge}`,
+      `Spousal income enabled: ${yesNo(spouse.enabled)}`,
+      `Spouse pension amount / start age: ${formatCurrency(spouse.pensionAmount || 0)} / ${spouse.pensionStartAge || "-"}`,
+      `Spouse CPP amount / start age: ${formatCurrency(spouse.cppAmountAt65 || 0)} / ${spouse.cppStartAge || "-"}`,
+      `Spouse OAS amount / start age: ${formatCurrency(spouse.oasAmountAt65 || 0)} / ${spouse.oasStartAge || "-"}`,
+    ],
+    accounts: [
+      `RRSP/RRIF: ${formatCurrency(state.accounts.rrsp)}`,
+      `TFSA: ${formatCurrency(state.accounts.tfsa)}`,
+      `Non-registered: ${formatCurrency(state.accounts.nonRegistered)}`,
+      `Cash: ${formatCurrency(state.accounts.cash)}`,
+    ],
+    strategy: [
+      `Withdrawal strategy: ${state.strategy.withdrawal}`,
+      `Estimate taxes: ${yesNo(state.strategy.estimateTaxes)}`,
+      `OAS clawback modeling: ${yesNo(state.strategy.oasClawbackModeling)}`,
+      `Apply RRIF minimums: ${yesNo(state.strategy.applyRrifMinimums)}`,
+      `RRIF conversion age: ${state.strategy.rrifConversionAge}`,
+      `RRSP meltdown enabled: ${yesNo(state.strategy.meltdownEnabled)}`,
+      `Meltdown amount per year: ${formatCurrency(state.strategy.meltdownAmount || 0)}`,
+      `Meltdown age range: ${state.strategy.meltdownStartAge || "-"} to ${state.strategy.meltdownEndAge || "-"}`,
+      `Meltdown taxable income ceiling: ${formatCurrency(state.strategy.meltdownIncomeCeiling || 0)}`,
+    ],
+  };
+
+  return `
+    <section class="print-summary client-summary-print">
+      <h1>Canadian Retirement Tax Simulator - Client Summary</h1>
+      <p><strong>Prepared for:</strong> ${esc(prefs.preparedFor || "-")} | <strong>Scenario:</strong> ${esc(prefs.scenarioLabel || "Current plan")}</p>
+      <p><strong>Prepared by:</strong> ${esc(prefs.preparedBy || "-")} | <strong>Date:</strong> ${esc(dateValue)}</p>
+
+      <h2>Retirement Readiness Snapshot (Age ${row.age})</h2>
+      <ul>
+        <li>Coverage: ${formatPct(m.coverageRatio)}</li>
+        <li>Guaranteed income: ${formatCurrency(m.guaranteed)}</li>
+        <li>Savings withdrawals needed (gross): ${formatCurrency(m.grossWithdrawal)}</li>
+        <li>Estimated taxes (tax wedge): ${formatCurrency(m.taxWedge)}</li>
+        <li>Net spending available: ${formatCurrency(m.netSpendingAvailable)}</li>
+      </ul>
+      ${chartImages?.projection
+        ? `<figure class="print-chart"><img src="${chartImages.projection}" alt="Projection chart" /><figcaption>Projection chart (from current client summary view)</figcaption></figure>`
+        : ""
+      }
+
+      <h2>Income Timeline</h2>
+      <ul>
+        ${(summary.phases || []).map((phase) => {
+          const range = Number(phase.startAge) === Number(phase.endAge)
+            ? `Age ${phase.startAge}`
+            : `Age ${phase.startAge}-${phase.endAge}`;
+          return `<li><strong>${phaseTitle(phase.key)} (${range})</strong>: ${esc(phase.why || "")}</li>`;
+        }).join("")}
+      </ul>
+      ${chartImages?.incomeMap
+        ? `<figure class="print-chart"><img src="${chartImages.incomeMap}" alt="Retirement income map chart" /><figcaption>Retirement income map (from current client summary view)</figcaption></figure>`
+        : ""
+      }
+
+      <h2>Key Risks</h2>
+      <ul>
+        ${(risks || []).slice(0, 5).map((risk) => `<li><strong>${esc(risk.title)} (${esc(risk.severity)})</strong>: ${esc(risk.detail)}</li>`).join("")}
+      </ul>
+
+      <h2>Strategy Suggestions</h2>
+      <ul>
+        ${(strategySuggestions || []).map((s) => `<li><strong>${esc(s.title)}</strong>: ${esc(s.desc)}</li>`).join("")}
+      </ul>
+
+      <h2>Detailed Plan Inputs</h2>
+      <h3>Profile</h3>
+      <ul>${fmtListItems(detailedInputs.profile)}</ul>
+      <h3>Assumptions</h3>
+      <ul>${fmtListItems(detailedInputs.assumptions)}</ul>
+      <h3>Savings</h3>
+      <ul>${fmtListItems(detailedInputs.savings)}</ul>
+      <h3>Income Sources</h3>
+      <ul>${fmtListItems(detailedInputs.income)}</ul>
+      <h3>Accounts</h3>
+      <ul>${fmtListItems(detailedInputs.accounts)}</ul>
+      <h3>Strategy Settings</h3>
+      <ul>${fmtListItems(detailedInputs.strategy)}</ul>
+
+      <p><strong>Planning estimate only.</strong> Not tax, legal, or financial advice.</p>
+      <p>Methodology: ${esc(methodologyUrl)}</p>
+    </section>
+  `;
+}
+
+function openClientSummaryPrintWindow(summaryHtml) {
+  const w = window.open("", "_blank", "width=980,height=860");
+  if (!w) return false;
+  const printWhenReady = () => {
+    try { w.focus(); } catch {}
+    try { w.print(); } catch {}
+  };
+  w.document.open();
+  w.document.write(`
+    <html><head><title>Client Summary</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:20px;color:#132033}
+        h1,h2{margin:0 0 10px}
+        ul{margin:0 0 14px;padding-left:18px}
+        li{margin:0 0 6px}
+        .print-chart{margin:10px 0 16px}
+        .print-chart img{display:block;max-width:100%;height:auto;border:1px solid #dbe5f2;border-radius:8px}
+        .print-chart figcaption{font-size:11px;color:#5f6b7d;margin-top:4px}
+        @media print { body{color:#000;background:#fff} }
+      </style>
+    </head><body>${summaryHtml}</body></html>
+  `);
+  w.document.close();
+  if (typeof w.addEventListener === "function") {
+    w.addEventListener("load", () => setTimeout(printWhenReady, 120), { once: true });
+  }
+  setTimeout(printWhenReady, 220);
+  return true;
+}
 
 /* FILE: src/ui/coverageScore.js */
 function renderCoverageScore(ctx) {
@@ -6262,6 +6759,10 @@ const el = {
   meltdownSimulator: document.getElementById("meltdownSimulator"),
   sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
   supportMomentMount: document.getElementById("supportMomentMount"),
+  clientSummaryModeMount: document.getElementById("clientSummaryModeMount"),
+  plannerDashboardContent: document.getElementById("plannerDashboardContent"),
+  clientSummaryToggleBtn: document.getElementById("clientSummaryToggleBtn"),
+  exitClientSummaryBtn: document.getElementById("exitClientSummaryBtn"),
   mainChart: document.getElementById("mainChart"),
   balanceHover: document.getElementById("balanceHover"),
   chartLegend: document.getElementById("chartLegend"),
@@ -6293,6 +6794,7 @@ const el = {
   copyScenarioSummaryBtn: document.getElementById("copyScenarioSummaryBtn"),
   compareScenariosBtn: document.getElementById("compareScenariosBtn"),
   downloadSummaryBtn: document.getElementById("downloadSummaryBtn"),
+  downloadClientSummaryBtn: document.getElementById("downloadClientSummaryBtn"),
 
   wizardProgressBar: document.getElementById("wizardProgressBar"),
   wizardStepLabel: document.getElementById("wizardStepLabel"),
@@ -6629,6 +7131,7 @@ function bindEvents() {
   el.copyScenarioSummaryBtn?.addEventListener("click", copyScenarioSummary);
   el.compareScenariosBtn?.addEventListener("click", openScenarioCompare);
   el.downloadSummaryBtn?.addEventListener("click", openPrintSummary);
+  el.downloadClientSummaryBtn?.addEventListener("click", printClientSummaryNow);
   el.resetCacheBtnTools?.addEventListener("click", resetCachedAppData);
   el.closePlanEditorBtn?.addEventListener("click", closePlanEditor);
   el.closeScenarioCompareBtn?.addEventListener("click", () => el.scenarioCompareModal?.close());
@@ -6641,6 +7144,8 @@ function bindEvents() {
   });
   el.printSummaryBtn?.addEventListener("click", printSummaryNow);
   el.copySummaryTextBtn?.addEventListener("click", copySummary);
+  el.clientSummaryToggleBtn?.addEventListener("click", () => setClientSummaryMode(true));
+  el.exitClientSummaryBtn?.addEventListener("click", () => setClientSummaryMode(false));
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
   });
@@ -6786,6 +7291,7 @@ function handleDocumentClick(event) {
       state.uiState.selectedScenarioLabel = `Preview: ${key}`;
       state.uiState.lastChangeSummary = summary;
       renderDashboard();
+      scrollDashboardToTop();
       toast("Strategy preview ready.");
       return;
     }
@@ -6799,6 +7305,7 @@ function handleDocumentClick(event) {
       ui.undoPlanSnapshot = beforePlan;
       savePlan();
       renderAll();
+      scrollDashboardToTop();
       toast("Strategy preview applied.");
       return;
     }
@@ -6808,6 +7315,7 @@ function handleDocumentClick(event) {
       state.uiState.lastChangeSummary = null;
       savePlan();
       renderDashboard();
+      scrollDashboardToTop();
       toast("Strategy preview cleared.");
       return;
     }
@@ -6849,7 +7357,7 @@ function handleDocumentClick(event) {
     if (action === "dismiss-last-change") {
       state.uiState.lastChangeSummary = null;
       savePlan();
-      renderWhatChangedModule();
+      renderDashboard();
       return;
     }
     if (action === "undo-last-change") {
@@ -7000,6 +7508,18 @@ function handleDocumentClick(event) {
       if (gp) gp.value = String(nextAge);
       savePlan();
       renderDashboard();
+      return;
+    }
+    if (action === "open-client-summary") {
+      setClientSummaryMode(true);
+      return;
+    }
+    if (action === "exit-client-summary") {
+      setClientSummaryMode(false);
+      return;
+    }
+    if (action === "print-client-summary") {
+      printClientSummaryNow();
       return;
     }
     if (action === "learn-send-spending") {
@@ -7193,7 +7713,17 @@ function setActiveNav(next) {
   renderAll();
 }
 
+function scrollDashboardToTop() {
+  const panel = document.querySelector('[data-nav-panel="dashboard"]');
+  if (panel instanceof HTMLElement) {
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
 function renderDashboard() {
+  syncClientSummaryModeUi();
   renderDashboardView({
     state,
     ui,
@@ -7233,6 +7763,24 @@ function renderDashboard() {
   renderMeltdownSimulatorModule();
   renderDashboardPresetBanner();
   renderDashboardSharedScenarioBanner();
+  renderClientSummaryModeModule();
+}
+
+function syncClientSummaryModeUi() {
+  const enabled = Boolean(state.uiState.clientSummary?.enabled);
+  if (el.clientSummaryToggleBtn) el.clientSummaryToggleBtn.hidden = enabled;
+  if (el.exitClientSummaryBtn) el.exitClientSummaryBtn.hidden = !enabled;
+  if (el.clientSummaryModeMount) el.clientSummaryModeMount.hidden = !enabled;
+  if (el.plannerDashboardContent) el.plannerDashboardContent.hidden = enabled;
+}
+
+function setClientSummaryMode(enabled) {
+  if (!state.uiState.clientSummary || typeof state.uiState.clientSummary !== "object") {
+    state.uiState.clientSummary = { enabled: false, preparedFor: "", scenarioLabel: "", preparedBy: "", summaryDate: "" };
+  }
+  state.uiState.clientSummary.enabled = Boolean(enabled);
+  savePlan();
+  renderDashboard();
 }
 
 function dashboardRetirementRows() {
@@ -7342,10 +7890,15 @@ function renderTaxWedgeMiniModule() {
 
 function renderIncomeMapModule() {
   if (!el.incomeMapModule || !ui.lastModel) return;
+  renderIncomeMapAtMount(el.incomeMapModule);
+}
+
+function renderIncomeMapAtMount(mountEl) {
+  if (!mountEl || !ui.lastModel) return;
   const breakdown = buildYearBreakdown(state, ui.lastModel);
   const phases = buildRetirementPhases(state, breakdown);
   const rendered = renderIncomeMap({
-    mountEl: el.incomeMapModule,
+    mountEl,
     plan: state,
     rows: breakdown,
     phases,
@@ -7355,7 +7908,7 @@ function renderIncomeMapModule() {
     state,
   });
   if (!rendered) return;
-  const canvas = document.getElementById("incomeMapCanvas");
+  const canvas = mountEl.querySelector("#incomeMapCanvas");
   const draw = drawIncomeMapCanvas({
     canvas,
     visibleRows: rendered.visibleRows,
@@ -7367,7 +7920,7 @@ function renderIncomeMapModule() {
     formatCurrency,
   });
   ui.incomeMapHitZones = draw?.hitZones || [];
-  bindInlineTooltipTriggers(el.incomeMapModule);
+  bindInlineTooltipTriggers(mountEl);
 }
 
 function renderWhatChangedModule() {
@@ -7401,6 +7954,10 @@ function renderPeakTaxYearModule() {
 
 function renderStrategySuggestionsModule() {
   if (!el.strategySuggestionsModule) return;
+  if (state.uiState.clientSummary?.enabled) {
+    el.strategySuggestionsModule.innerHTML = "";
+    return;
+  }
   renderStrategySuggestions({
     mountEl: el.strategySuggestionsModule,
     pendingKey: ui.pendingStrategyKey,
@@ -7431,6 +7988,10 @@ function renderKeyRisksModule() {
 
 function renderTimingSimulatorModule() {
   if (!el.timingSimulator || !ui.lastModel) return;
+  if (state.uiState.clientSummary?.enabled) {
+    el.timingSimulator.innerHTML = "";
+    return;
+  }
   const sim = state.uiState.timingSim;
   const preview = buildTimingPreview({
     plan: state,
@@ -7451,6 +8012,10 @@ function renderTimingSimulatorModule() {
 
 function renderMeltdownSimulatorModule() {
   if (!el.meltdownSimulator || !ui.lastModel) return;
+  if (state.uiState.clientSummary?.enabled) {
+    el.meltdownSimulator.innerHTML = "";
+    return;
+  }
   const comparison = buildMeltdownComparison(ui.lastModel, state);
   renderRrspMeltdownSimulator({
     mountEl: el.meltdownSimulator,
@@ -7496,6 +8061,10 @@ function renderDashboardPresetBanner() {
 
 function renderDashboardSupportMoment() {
   if (!el.supportMomentMount || !ui.lastModel) return;
+  if (state.uiState.clientSummary?.enabled) {
+    el.supportMomentMount.innerHTML = "";
+    return;
+  }
   ensureSupportMomentState(state.uiState);
   const row = getDashboardSelectedRow();
   let trigger = "";
@@ -7536,6 +8105,67 @@ function triggerSupportMoment(trigger) {
   markSupportMomentShown(state.uiState, hit);
   savePlan();
   renderDashboardSupportMoment();
+}
+
+function renderClientSummaryModeModule() {
+  if (!el.clientSummaryModeMount || !ui.lastModel) return;
+  const enabled = Boolean(state.uiState.clientSummary?.enabled);
+  const rows = buildYearBreakdown(state, ui.lastModel);
+  const phases = buildRetirementPhases(state, rows);
+  const selected = getDashboardSelectedRow();
+  const risks = buildRiskDiagnostics(state, ui.lastModel, selected?.age || state.profile.retirementAge);
+  const summary = buildClientSummaryData({
+    plan: state,
+    model: ui.lastModel,
+    selectedAge: selected?.age || state.profile.retirementAge,
+    rows,
+    phases,
+    risks,
+  });
+  renderClientSummaryMode({
+    mountEl: el.clientSummaryModeMount,
+    enabled,
+    summary,
+    risks,
+    selectedAge: selected?.age || state.profile.retirementAge,
+    formatCurrency,
+    formatPct,
+    tooltipButton,
+    pendingStrategyKey: ui.pendingStrategyKey,
+    changeSummary: state.uiState.lastChangeSummary || null,
+    prefs: state.uiState.clientSummary || {},
+  });
+  if (enabled) {
+    renderClientSummaryProjectionChart();
+    const mapMount = document.getElementById("clientSummaryIncomeMapMount");
+    if (mapMount) renderIncomeMapAtMount(mapMount);
+  }
+  bindInlineTooltipTriggers(el.clientSummaryModeMount);
+}
+
+function renderClientSummaryProjectionChart() {
+  if (!ui.lastModel) return;
+  const canvas = document.getElementById("clientSummaryProjectionChart");
+  const legendEl = document.getElementById("clientSummaryProjectionLegend");
+  if (!canvas) return;
+  const rows = ui.lastModel.base.rows.slice();
+  const best = ui.lastModel.best.rows.slice();
+  const worst = ui.lastModel.worst.rows.slice();
+  drawPortfolioChart({
+    canvas,
+    rows,
+    bestRows: best,
+    worstRows: worst,
+    showStressBand: ui.showStressBand,
+    formatCurrency,
+    formatCompactCurrency,
+  });
+  if (legendEl) {
+    const items = getBalanceLegendItems(ui.showStressBand);
+    legendEl.innerHTML = items.map((item) => `
+      <span class="legend-item"><span class="legend-chip" style="background:${item[1]};"></span>${item[0]}</span>
+    `).join("");
+  }
 }
 
 function getOasRiskLevelLocal(amount) {
@@ -8029,6 +8659,63 @@ function printSummaryNow() {
   const ok = openPrintWindow(html);
   if (!ok) toast("Could not open print window.");
   if (ok) triggerSupportMoment("reportGenerated");
+}
+
+function printClientSummaryNow() {
+  if (!ui.lastModel) return;
+  const rows = buildYearBreakdown(state, ui.lastModel);
+  const phases = buildRetirementPhases(state, rows);
+  const selected = getDashboardSelectedRow();
+  const risks = buildRiskDiagnostics(state, ui.lastModel, selected?.age || state.profile.retirementAge);
+  const summary = buildClientSummaryData({
+    plan: state,
+    model: ui.lastModel,
+    selectedAge: selected?.age || state.profile.retirementAge,
+    rows,
+    phases,
+    risks,
+  });
+  if (!summary) return;
+  const chartImages = captureClientSummaryCharts();
+  const html = buildClientSummaryHtml({
+    state,
+    summary,
+    risks,
+    strategySuggestions: [
+      { title: "Delay CPP to 70", desc: "May increase guaranteed income later and reduce later withdrawal pressure." },
+      { title: "Try earlier RRSP withdrawals", desc: "Can smooth taxable income and reduce later RRIF/clawback pressure." },
+      { title: "Reduce retirement spending", desc: "Sensitivity test to improve coverage ratio and longevity buffer." },
+      { title: "Retire later", desc: "Adds savings years and shortens drawdown years." },
+    ],
+    formatCurrency,
+    formatPct,
+    methodologyUrl: `${shareBaseUrl()}#methodology`,
+    chartImages,
+  });
+  const ok = openClientSummaryPrintWindow(html);
+  if (!ok) {
+    toast("Could not open client summary print window.");
+    return;
+  }
+  triggerSupportMoment("reportGenerated");
+}
+
+function captureClientSummaryCharts() {
+  const toDataUrl = (canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement)) return "";
+    try {
+      return canvas.toDataURL("image/png");
+    } catch {
+      return "";
+    }
+  };
+  const projectionCanvas = document.getElementById("clientSummaryProjectionChart");
+  const incomeMapCanvas = el.clientSummaryModeMount?.querySelector("#incomeMapCanvas")
+    || document.querySelector("#clientSummaryIncomeMapMount #incomeMapCanvas");
+  return {
+    projection: toDataUrl(projectionCanvas),
+    incomeMap: toDataUrl(incomeMapCanvas),
+  };
 }
 
 function clearSharedScenarioQuery() {

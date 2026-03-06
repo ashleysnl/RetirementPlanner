@@ -43,6 +43,39 @@ export function renderIncomeMap(ctx) {
   const visible = rows.slice();
   const keys = markerAges(plan).filter((m) => m.age >= minAge && m.age <= maxAge);
   const visiblePhases = (phases || []).filter((phase) => !(phase.endAge < minAge || phase.startAge > maxAge));
+  const ageSpan = Math.max(1, maxAge - minAge);
+  const phaseTrackHtml = visiblePhases.length
+    ? `
+      <div class="income-phase-track" aria-label="Retirement phases aligned to timeline">
+        <div class="income-phase-track-inner">
+          ${visiblePhases.map((phase) => {
+            const start = clamp(Number(phase.startAge), minAge, maxAge);
+            const end = clamp(Number(phase.endAge), minAge, maxAge);
+            const leftPct = ((start - minAge) / ageSpan) * 100;
+            const widthPct = Math.max(2, ((Math.max(start, end) - start + 1) / (ageSpan + 1)) * 100);
+            return `
+              <button
+                type="button"
+                class="phase-ruler"
+                style="left:${leftPct.toFixed(2)}%; width:${widthPct.toFixed(2)}%;"
+                data-tooltip-key="${phaseTooltipKey(phase.key)}"
+                aria-label="${phase.label} from age ${start} to ${end}"
+                title="${phase.label} (${start}-${end})"
+              >
+                <span class="phase-ruler-line" aria-hidden="true">
+                  <span class="phase-ruler-arrow phase-ruler-arrow-left"></span>
+                  <span class="phase-ruler-stroke"></span>
+                  <span class="phase-ruler-arrow phase-ruler-arrow-right"></span>
+                </span>
+                <span class="phase-ruler-pill">${phase.label}</span>
+                <span class="phase-ruler-range">${start}-${end}</span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `
+    : "";
   const tableHtml = showTable
     ? `
       <div class="table-scroll income-map-table-wrap">
@@ -91,15 +124,7 @@ export function renderIncomeMap(ctx) {
         <label class="inline-check small-copy"><input type="checkbox" data-bind="uiState.incomeMap.highlightKeyAges" ${showMarkers ? "checked" : ""} /> Highlight key ages</label>
         <label class="inline-check small-copy"><input type="checkbox" data-bind="uiState.incomeMap.showTable" ${showTable ? "checked" : ""} /> View as table</label>
       </div>
-      ${visiblePhases.length ? `
-        <div class="income-phase-row" aria-label="Retirement phases">
-          ${visiblePhases.map((phase) => `
-            <button type="button" class="phase-chip" data-action="set-selected-age" data-value="${phase.startAge}" data-tooltip-key="${phaseTooltipKey(phase.key)}" aria-label="${phase.label} starts at age ${phase.startAge}">
-              ${phase.label} (${phase.startAge}-${phase.endAge})
-            </button>
-          `).join("")}
-        </div>
-      ` : ""}
+      ${phaseTrackHtml}
       <div class="chart-canvas-wrap income-map-canvas-wrap">
         <canvas id="incomeMapCanvas" width="1200" height="360" aria-label="Retirement income map chart" role="img"></canvas>
         <div id="incomeMapHover" class="chart-hover" hidden></div>

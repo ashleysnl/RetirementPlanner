@@ -218,6 +218,13 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
         oasStartAge: 65,
         linkTiming: false,
       },
+      clientSummary: {
+        enabled: false,
+        preparedFor: "",
+        scenarioLabel: "",
+        preparedBy: "",
+        summaryDate: "",
+      },
       learn: createDefaultLearnState(),
       learningProgress: createDefaultLearningProgress(learnProgressItems),
       unlocked: {
@@ -308,6 +315,10 @@ export function normalizePlan(input, { app, provinces, riskReturns, learnProgres
         ...base.uiState.timingSim,
         ...(migrated.uiState?.timingSim || {}),
       },
+      clientSummary: {
+        ...base.uiState.clientSummary,
+        ...(migrated.uiState?.clientSummary || {}),
+      },
       learn: normalizeLearnState(migrated.uiState?.learn || base.uiState.learn),
       learningProgress: {
         ...createDefaultLearningProgress(learnProgressItems),
@@ -391,6 +402,13 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
     oasStartAge: clamp(Number(state.uiState.timingSim?.oasStartAge ?? state.income.oas.startAge), 65, 70),
     linkTiming: Boolean(state.uiState.timingSim?.linkTiming),
   };
+  state.uiState.clientSummary = {
+    enabled: Boolean(state.uiState.clientSummary?.enabled),
+    preparedFor: String(state.uiState.clientSummary?.preparedFor || ""),
+    scenarioLabel: String(state.uiState.clientSummary?.scenarioLabel || ""),
+    preparedBy: String(state.uiState.clientSummary?.preparedBy || ""),
+    summaryDate: String(state.uiState.clientSummary?.summaryDate || ""),
+  };
   const defaultProgress = createDefaultLearningProgress(learnProgressItems);
   state.uiState.learningProgress = {
     ...defaultProgress,
@@ -455,6 +473,13 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
     cppStartAge: clamp(Number(plan.uiState.timingSim?.cppStartAge ?? plan.income.cpp.startAge), 60, 70),
     oasStartAge: clamp(Number(plan.uiState.timingSim?.oasStartAge ?? plan.income.oas.startAge), 65, 70),
     linkTiming: Boolean(plan.uiState.timingSim?.linkTiming),
+  };
+  plan.uiState.clientSummary = {
+    enabled: Boolean(plan.uiState.clientSummary?.enabled),
+    preparedFor: String(plan.uiState.clientSummary?.preparedFor || ""),
+    scenarioLabel: String(plan.uiState.clientSummary?.scenarioLabel || ""),
+    preparedBy: String(plan.uiState.clientSummary?.preparedBy || ""),
+    summaryDate: String(plan.uiState.clientSummary?.summaryDate || ""),
   };
   if (!plan.version) plan.version = app.version;
 }

@@ -12,6 +12,11 @@ export function buildSummaryHtml(ctx) {
   return `
     <section class="print-summary">
       <h1>Canadian Retirement Tax Simulator - Retirement Summary</h1>
+      ${
+        state.uiState?.clientSummary
+          ? `<p><strong>Prepared for:</strong> ${state.uiState.clientSummary.preparedFor || "-"} | <strong>Scenario:</strong> ${state.uiState.clientSummary.scenarioLabel || "Current plan"} | <strong>Prepared by:</strong> ${state.uiState.clientSummary.preparedBy || "-"} | <strong>Date:</strong> ${state.uiState.clientSummary.summaryDate || "-"}</p>`
+          : ""
+      }
       <p><strong>Province:</strong> ${state.profile.province} | <strong>Retirement age:</strong> ${state.profile.retirementAge} | <strong>Life expectancy:</strong> ${state.profile.lifeExpectancy}</p>
       <p><strong>Inflation:</strong> ${formatPct(state.assumptions.inflation)} | <strong>Risk profile:</strong> ${state.assumptions.riskProfile}</p>
       <h2>Core results</h2>
@@ -42,8 +47,12 @@ export function buildSummaryHtml(ctx) {
 }
 
 export function openPrintWindow(summaryHtml) {
-  const w = window.open("", "_blank", "noopener,noreferrer,width=980,height=860");
+  const w = window.open("", "_blank", "width=980,height=860");
   if (!w) return false;
+  const printWhenReady = () => {
+    try { w.focus(); } catch {}
+    try { w.print(); } catch {}
+  };
   w.document.open();
   w.document.write(`
     <html><head><title>Retirement Summary</title>
@@ -57,8 +66,9 @@ export function openPrintWindow(summaryHtml) {
     </head><body>${summaryHtml}</body></html>
   `);
   w.document.close();
-  w.focus();
-  w.print();
+  if (typeof w.addEventListener === "function") {
+    w.addEventListener("load", () => setTimeout(printWhenReady, 120), { once: true });
+  }
+  setTimeout(printWhenReady, 220);
   return true;
 }
-

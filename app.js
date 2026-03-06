@@ -74,6 +74,9 @@ import { buildTimelineEvents, renderTimeline } from "./src/ui/timeline.js";
 import { parsePresetFromUrl, buildPresetBannerHtml, applyPresetToPlan, clearPresetQuery } from "./src/ui/presets.js";
 import { renderIncomeMap, drawIncomeMapCanvas, bindIncomeMapHover, pickIncomeMapAge } from "./src/ui/incomeMap.js";
 import { renderStrategySuggestions } from "./src/ui/strategySuggestions.js";
+import { renderClientSummaryMode } from "./src/ui/clientSummaryMode.js";
+import { buildClientSummaryData } from "./src/model/clientSummary.js";
+import { buildClientSummaryHtml, openClientSummaryPrintWindow } from "./src/ui/clientSummaryPrint.js";
 import {
   learnCallouts as buildLearnCallouts,
   calculatePhaseWeightedSpending as calculatePhaseWeightedSpendingUi,
@@ -150,6 +153,10 @@ const el = {
   meltdownSimulator: document.getElementById("meltdownSimulator"),
   sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
   supportMomentMount: document.getElementById("supportMomentMount"),
+  clientSummaryModeMount: document.getElementById("clientSummaryModeMount"),
+  plannerDashboardContent: document.getElementById("plannerDashboardContent"),
+  clientSummaryToggleBtn: document.getElementById("clientSummaryToggleBtn"),
+  exitClientSummaryBtn: document.getElementById("exitClientSummaryBtn"),
   mainChart: document.getElementById("mainChart"),
   balanceHover: document.getElementById("balanceHover"),
   chartLegend: document.getElementById("chartLegend"),
@@ -181,6 +188,7 @@ const el = {
   copyScenarioSummaryBtn: document.getElementById("copyScenarioSummaryBtn"),
   compareScenariosBtn: document.getElementById("compareScenariosBtn"),
   downloadSummaryBtn: document.getElementById("downloadSummaryBtn"),
+  downloadClientSummaryBtn: document.getElementById("downloadClientSummaryBtn"),
 
   wizardProgressBar: document.getElementById("wizardProgressBar"),
   wizardStepLabel: document.getElementById("wizardStepLabel"),
@@ -517,6 +525,7 @@ function bindEvents() {
   el.copyScenarioSummaryBtn?.addEventListener("click", copyScenarioSummary);
   el.compareScenariosBtn?.addEventListener("click", openScenarioCompare);
   el.downloadSummaryBtn?.addEventListener("click", openPrintSummary);
+  el.downloadClientSummaryBtn?.addEventListener("click", printClientSummaryNow);
   el.resetCacheBtnTools?.addEventListener("click", resetCachedAppData);
   el.closePlanEditorBtn?.addEventListener("click", closePlanEditor);
   el.closeScenarioCompareBtn?.addEventListener("click", () => el.scenarioCompareModal?.close());
@@ -529,6 +538,8 @@ function bindEvents() {
   });
   el.printSummaryBtn?.addEventListener("click", printSummaryNow);
   el.copySummaryTextBtn?.addEventListener("click", copySummary);
+  el.clientSummaryToggleBtn?.addEventListener("click", () => setClientSummaryMode(true));
+  el.exitClientSummaryBtn?.addEventListener("click", () => setClientSummaryMode(false));
   el.planEditorModal?.addEventListener("click", (event) => {
     if (event.target === el.planEditorModal) closePlanEditor();
   });
@@ -674,6 +685,7 @@ function handleDocumentClick(event) {
       state.uiState.selectedScenarioLabel = `Preview: ${key}`;
       state.uiState.lastChangeSummary = summary;
       renderDashboard();
+      scrollDashboardToTop();
       toast("Strategy preview ready.");
       return;
     }
@@ -687,6 +699,7 @@ function handleDocumentClick(event) {
       ui.undoPlanSnapshot = beforePlan;
       savePlan();
       renderAll();
+      scrollDashboardToTop();
       toast("Strategy preview applied.");
       return;
     }
@@ -696,6 +709,7 @@ function handleDocumentClick(event) {
       state.uiState.lastChangeSummary = null;
       savePlan();
       renderDashboard();
+      scrollDashboardToTop();
       toast("Strategy preview cleared.");
       return;
     }
@@ -737,7 +751,7 @@ function handleDocumentClick(event) {
     if (action === "dismiss-last-change") {
       state.uiState.lastChangeSummary = null;
       savePlan();
-      renderWhatChangedModule();
+      renderDashboard();
       return;
     }
     if (action === "undo-last-change") {
@@ -888,6 +902,18 @@ function handleDocumentClick(event) {
       if (gp) gp.value = String(nextAge);
       savePlan();
       renderDashboard();
+      return;
+    }
+    if (action === "open-client-summary") {
+      setClientSummaryMode(true);
+      return;
+    }
+    if (action === "exit-client-summary") {
+      setClientSummaryMode(false);
+      return;
+    }
+    if (action === "print-client-summary") {
+      printClientSummaryNow();
       return;
     }
     if (action === "learn-send-spending") {
@@ -1081,7 +1107,17 @@ function setActiveNav(next) {
   renderAll();
 }
 
+function scrollDashboardToTop() {
+  const panel = document.querySelector('[data-nav-panel="dashboard"]');
+  if (panel instanceof HTMLElement) {
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
 function renderDashboard() {
+  syncClientSummaryModeUi();
   renderDashboardView({
     state,
     ui,
@@ -1121,6 +1157,24 @@ function renderDashboard() {
   renderMeltdownSimulatorModule();
   renderDashboardPresetBanner();
   renderDashboardSharedScenarioBanner();
+  renderClientSummaryModeModule();
+}
+
+function syncClientSummaryModeUi() {
+  const enabled = Boolean(state.uiState.clientSummary?.enabled);
+  if (el.clientSummaryToggleBtn) el.clientSummaryToggleBtn.hidden = enabled;
+  if (el.exitClientSummaryBtn) el.exitClientSummaryBtn.hidden = !enabled;
+  if (el.clientSummaryModeMount) el.clientSummaryModeMount.hidden = !enabled;
+  if (el.plannerDashboardContent) el.plannerDashboardContent.hidden = enabled;
+}
+
+function setClientSummaryMode(enabled) {
+  if (!state.uiState.clientSummary || typeof state.uiState.clientSummary !== "object") {
+    state.uiState.clientSummary = { enabled: false, preparedFor: "", scenarioLabel: "", preparedBy: "", summaryDate: "" };
+  }
+  state.uiState.clientSummary.enabled = Boolean(enabled);
+  savePlan();
+  renderDashboard();
 }
 
 function dashboardRetirementRows() {
@@ -1230,10 +1284,15 @@ function renderTaxWedgeMiniModule() {
 
 function renderIncomeMapModule() {
   if (!el.incomeMapModule || !ui.lastModel) return;
+  renderIncomeMapAtMount(el.incomeMapModule);
+}
+
+function renderIncomeMapAtMount(mountEl) {
+  if (!mountEl || !ui.lastModel) return;
   const breakdown = buildYearBreakdown(state, ui.lastModel);
   const phases = buildRetirementPhases(state, breakdown);
   const rendered = renderIncomeMap({
-    mountEl: el.incomeMapModule,
+    mountEl,
     plan: state,
     rows: breakdown,
     phases,
@@ -1243,7 +1302,7 @@ function renderIncomeMapModule() {
     state,
   });
   if (!rendered) return;
-  const canvas = document.getElementById("incomeMapCanvas");
+  const canvas = mountEl.querySelector("#incomeMapCanvas");
   const draw = drawIncomeMapCanvas({
     canvas,
     visibleRows: rendered.visibleRows,
@@ -1255,7 +1314,7 @@ function renderIncomeMapModule() {
     formatCurrency,
   });
   ui.incomeMapHitZones = draw?.hitZones || [];
-  bindInlineTooltipTriggers(el.incomeMapModule);
+  bindInlineTooltipTriggers(mountEl);
 }
 
 function renderWhatChangedModule() {
@@ -1289,6 +1348,10 @@ function renderPeakTaxYearModule() {
 
 function renderStrategySuggestionsModule() {
   if (!el.strategySuggestionsModule) return;
+  if (state.uiState.clientSummary?.enabled) {
+    el.strategySuggestionsModule.innerHTML = "";
+    return;
+  }
   renderStrategySuggestions({
     mountEl: el.strategySuggestionsModule,
     pendingKey: ui.pendingStrategyKey,
@@ -1319,6 +1382,10 @@ function renderKeyRisksModule() {
 
 function renderTimingSimulatorModule() {
   if (!el.timingSimulator || !ui.lastModel) return;
+  if (state.uiState.clientSummary?.enabled) {
+    el.timingSimulator.innerHTML = "";
+    return;
+  }
   const sim = state.uiState.timingSim;
   const preview = buildTimingPreview({
     plan: state,
@@ -1339,6 +1406,10 @@ function renderTimingSimulatorModule() {
 
 function renderMeltdownSimulatorModule() {
   if (!el.meltdownSimulator || !ui.lastModel) return;
+  if (state.uiState.clientSummary?.enabled) {
+    el.meltdownSimulator.innerHTML = "";
+    return;
+  }
   const comparison = buildMeltdownComparison(ui.lastModel, state);
   renderRrspMeltdownSimulator({
     mountEl: el.meltdownSimulator,
@@ -1384,6 +1455,10 @@ function renderDashboardPresetBanner() {
 
 function renderDashboardSupportMoment() {
   if (!el.supportMomentMount || !ui.lastModel) return;
+  if (state.uiState.clientSummary?.enabled) {
+    el.supportMomentMount.innerHTML = "";
+    return;
+  }
   ensureSupportMomentState(state.uiState);
   const row = getDashboardSelectedRow();
   let trigger = "";
@@ -1424,6 +1499,67 @@ function triggerSupportMoment(trigger) {
   markSupportMomentShown(state.uiState, hit);
   savePlan();
   renderDashboardSupportMoment();
+}
+
+function renderClientSummaryModeModule() {
+  if (!el.clientSummaryModeMount || !ui.lastModel) return;
+  const enabled = Boolean(state.uiState.clientSummary?.enabled);
+  const rows = buildYearBreakdown(state, ui.lastModel);
+  const phases = buildRetirementPhases(state, rows);
+  const selected = getDashboardSelectedRow();
+  const risks = buildRiskDiagnostics(state, ui.lastModel, selected?.age || state.profile.retirementAge);
+  const summary = buildClientSummaryData({
+    plan: state,
+    model: ui.lastModel,
+    selectedAge: selected?.age || state.profile.retirementAge,
+    rows,
+    phases,
+    risks,
+  });
+  renderClientSummaryMode({
+    mountEl: el.clientSummaryModeMount,
+    enabled,
+    summary,
+    risks,
+    selectedAge: selected?.age || state.profile.retirementAge,
+    formatCurrency,
+    formatPct,
+    tooltipButton,
+    pendingStrategyKey: ui.pendingStrategyKey,
+    changeSummary: state.uiState.lastChangeSummary || null,
+    prefs: state.uiState.clientSummary || {},
+  });
+  if (enabled) {
+    renderClientSummaryProjectionChart();
+    const mapMount = document.getElementById("clientSummaryIncomeMapMount");
+    if (mapMount) renderIncomeMapAtMount(mapMount);
+  }
+  bindInlineTooltipTriggers(el.clientSummaryModeMount);
+}
+
+function renderClientSummaryProjectionChart() {
+  if (!ui.lastModel) return;
+  const canvas = document.getElementById("clientSummaryProjectionChart");
+  const legendEl = document.getElementById("clientSummaryProjectionLegend");
+  if (!canvas) return;
+  const rows = ui.lastModel.base.rows.slice();
+  const best = ui.lastModel.best.rows.slice();
+  const worst = ui.lastModel.worst.rows.slice();
+  drawPortfolioChart({
+    canvas,
+    rows,
+    bestRows: best,
+    worstRows: worst,
+    showStressBand: ui.showStressBand,
+    formatCurrency,
+    formatCompactCurrency,
+  });
+  if (legendEl) {
+    const items = getBalanceLegendItems(ui.showStressBand);
+    legendEl.innerHTML = items.map((item) => `
+      <span class="legend-item"><span class="legend-chip" style="background:${item[1]};"></span>${item[0]}</span>
+    `).join("");
+  }
 }
 
 function getOasRiskLevelLocal(amount) {
@@ -1917,6 +2053,63 @@ function printSummaryNow() {
   const ok = openPrintWindow(html);
   if (!ok) toast("Could not open print window.");
   if (ok) triggerSupportMoment("reportGenerated");
+}
+
+function printClientSummaryNow() {
+  if (!ui.lastModel) return;
+  const rows = buildYearBreakdown(state, ui.lastModel);
+  const phases = buildRetirementPhases(state, rows);
+  const selected = getDashboardSelectedRow();
+  const risks = buildRiskDiagnostics(state, ui.lastModel, selected?.age || state.profile.retirementAge);
+  const summary = buildClientSummaryData({
+    plan: state,
+    model: ui.lastModel,
+    selectedAge: selected?.age || state.profile.retirementAge,
+    rows,
+    phases,
+    risks,
+  });
+  if (!summary) return;
+  const chartImages = captureClientSummaryCharts();
+  const html = buildClientSummaryHtml({
+    state,
+    summary,
+    risks,
+    strategySuggestions: [
+      { title: "Delay CPP to 70", desc: "May increase guaranteed income later and reduce later withdrawal pressure." },
+      { title: "Try earlier RRSP withdrawals", desc: "Can smooth taxable income and reduce later RRIF/clawback pressure." },
+      { title: "Reduce retirement spending", desc: "Sensitivity test to improve coverage ratio and longevity buffer." },
+      { title: "Retire later", desc: "Adds savings years and shortens drawdown years." },
+    ],
+    formatCurrency,
+    formatPct,
+    methodologyUrl: `${shareBaseUrl()}#methodology`,
+    chartImages,
+  });
+  const ok = openClientSummaryPrintWindow(html);
+  if (!ok) {
+    toast("Could not open client summary print window.");
+    return;
+  }
+  triggerSupportMoment("reportGenerated");
+}
+
+function captureClientSummaryCharts() {
+  const toDataUrl = (canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement)) return "";
+    try {
+      return canvas.toDataURL("image/png");
+    } catch {
+      return "";
+    }
+  };
+  const projectionCanvas = document.getElementById("clientSummaryProjectionChart");
+  const incomeMapCanvas = el.clientSummaryModeMount?.querySelector("#incomeMapCanvas")
+    || document.querySelector("#clientSummaryIncomeMapMount #incomeMapCanvas");
+  return {
+    projection: toDataUrl(projectionCanvas),
+    incomeMap: toDataUrl(incomeMapCanvas),
+  };
 }
 
 function clearSharedScenarioQuery() {

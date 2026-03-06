@@ -764,6 +764,98 @@ body.mobile-layout .bottom-tabs {
   cursor: pointer;
 }
 
+.income-phase-track {
+  position: relative;
+  height: 68px;
+  margin: 8px 0 10px;
+  border: 1px solid #dce7f7;
+  border-radius: 10px;
+  background: #f7fbff;
+  overflow: hidden;
+}
+
+.income-phase-track-inner {
+  position: absolute;
+  left: 52px;
+  right: 16px;
+  top: 0;
+  bottom: 0;
+}
+
+.phase-ruler {
+  position: absolute;
+  top: 6px;
+  height: 56px;
+  border: 0;
+  background: transparent;
+  color: #1b365a;
+  text-align: center;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.phase-ruler-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+}
+
+.phase-ruler-stroke {
+  flex: 1 1 auto;
+  border-top: 2px solid #6f98c7;
+}
+
+.phase-ruler-arrow {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+
+.phase-ruler-arrow-left {
+  border-right: 8px solid #6f98c7;
+}
+
+.phase-ruler-arrow-right {
+  border-left: 8px solid #6f98c7;
+}
+
+.phase-ruler-pill {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  display: inline-block;
+  max-width: calc(100% - 10px);
+  border: 1px solid #bfd8f3;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1b365a;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phase-ruler-range {
+  position: absolute;
+  left: 50%;
+  top: 42px;
+  transform: translateX(-50%);
+  font-size: 0.66rem;
+  color: #4b5f7c;
+  white-space: nowrap;
+}
+
 .peak-tax-card p {
   margin: 6px 0;
 }
@@ -784,6 +876,49 @@ body.mobile-layout .bottom-tabs {
 .strategy-card.active {
   border-color: rgba(15, 106, 191, 0.45);
   background: #f5f9ff;
+}
+
+.client-summary-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.client-meta-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.client-summary-number {
+  font-size: 1.15em;
+}
+
+.client-timeline-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.client-phase-card {
+  border: 1px solid #dce7f7;
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  color: inherit;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.client-phase-card strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.risk-list.compact .risk-row {
+  padding: 8px 10px;
 }
 
 .chart-wrap {
@@ -1756,7 +1891,66 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .income-phase-track {
+    height: auto;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+
+  .income-phase-track-inner {
+    position: static;
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    display: grid;
+    gap: 8px;
+  }
+
+  .phase-ruler {
+    position: static;
+    width: 100% !important;
+    height: auto;
+    text-align: left;
+    border: 1px solid #bfd8f3;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #ffffff, #eef6ff);
+    padding: 8px 10px;
+  }
+
+  .phase-ruler-line {
+    position: static;
+    margin-bottom: 6px;
+  }
+
+  .phase-ruler-pill,
+  .phase-ruler-range {
+    position: static;
+    transform: none;
+    display: block;
+    max-width: none;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .phase-ruler-pill {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0 0 2px;
+  }
+
   .strategy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .client-meta-grid,
+  .client-timeline-grid {
     grid-template-columns: 1fr;
   }
 
