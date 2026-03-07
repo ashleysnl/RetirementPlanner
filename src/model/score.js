@@ -43,9 +43,10 @@ export function computeCoverageScore(plan, model) {
 
   const total = Math.round(coveragePoints + longevityPoints + taxEfficiencyPoints + clawbackPoints + rrifShockPoints);
 
-  let band = "Strong";
-  if (total < 60) band = "Needs attention";
-  else if (total < 80) band = "Okay";
+  let band = "Very Strong";
+  if (total < 60) band = "Needs Attention";
+  else if (total < 75) band = "Moderate";
+  else if (total < 90) band = "Strong";
 
   return {
     total,

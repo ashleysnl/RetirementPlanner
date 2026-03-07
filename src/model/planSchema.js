@@ -185,6 +185,7 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       firstRun: true,
       hasStarted: false,
       activeNav: "start",
+      experienceMode: "beginner",
       wizardStep: 1,
       showScenarioCompare: false,
       showAdvancedControls: false,
@@ -369,6 +370,7 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   state.strategy.meltdownIncomeCeiling = Math.max(0, Number(state.strategy.meltdownIncomeCeiling || 0));
   state.uiState.learn = normalizeLearnState(state.uiState.learn);
   state.uiState.showAdvancedControls = Boolean(state.uiState.showAdvancedControls);
+  state.uiState.experienceMode = state.uiState.experienceMode === "advanced" ? "advanced" : "beginner";
   state.uiState.advancedSearch = String(state.uiState.advancedSearch || "");
   state.uiState.supportDismissedUntil = Math.max(0, Number(state.uiState.supportDismissedUntil || 0));
   state.uiState.supportCardShownCount = Math.max(0, Number(state.uiState.supportCardShownCount || 0));
@@ -444,6 +446,7 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
     ...(plan.uiState.learningProgress || {}),
   };
   plan.uiState.supportDismissedUntil = Math.max(0, Number(plan.uiState.supportDismissedUntil || 0));
+  plan.uiState.experienceMode = plan.uiState.experienceMode === "advanced" ? "advanced" : "beginner";
   plan.uiState.supportCardShownCount = Math.max(0, Number(plan.uiState.supportCardShownCount || 0));
   plan.uiState.supportCardDismissCount = Math.max(0, Number(plan.uiState.supportCardDismissCount || 0));
   plan.uiState.lastSupportTriggerReason = String(plan.uiState.lastSupportTriggerReason || "");
@@ -498,6 +501,7 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   }
   if (!next.uiState) next.uiState = createDefaultPlan({ app, riskReturns, learnProgressItems }).uiState;
   if (!next.uiState.learn) next.uiState.learn = createDefaultLearnState();
+  if (next.uiState.experienceMode == null) next.uiState.experienceMode = "beginner";
   if (!next.uiState.supportShownEvents) next.uiState.supportShownEvents = { wizardComplete: false, firstGrossUp: false, firstClawback: false };
   if (next.uiState.supportShownEvents.reportGenerated == null) next.uiState.supportShownEvents.reportGenerated = false;
   if (next.uiState.supportDismissedUntil == null) next.uiState.supportDismissedUntil = 0;

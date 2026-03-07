@@ -134,8 +134,14 @@ const el = {
   importJsonBtnHome: document.getElementById("importJsonBtnHome"),
 
   tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
+  experienceModeButtons: Array.from(document.querySelectorAll("[data-action='set-experience-mode']")),
   navPanels: Array.from(document.querySelectorAll(".nav-panel")),
 
+  canIRetireModule: document.getElementById("canIRetireModule"),
+  planHealthHeroModule: document.getElementById("planHealthHeroModule"),
+  keyInsightsModule: document.getElementById("keyInsightsModule"),
+  incomeStackModule: document.getElementById("incomeStackModule"),
+  plannerComparisonModule: document.getElementById("plannerComparisonModule"),
   kpiGrid: document.getElementById("kpiGrid"),
   kpiContext: document.getElementById("kpiContext"),
   retirementGapHeadline: document.getElementById("retirementGapHeadline"),
@@ -152,6 +158,8 @@ const el = {
   peakTaxYearModule: document.getElementById("peakTaxYearModule"),
   timingSimulator: document.getElementById("timingSimulator"),
   meltdownSimulator: document.getElementById("meltdownSimulator"),
+  commonMistakesModule: document.getElementById("commonMistakesModule"),
+  methodologySummaryModule: document.getElementById("methodologySummaryModule"),
   sharedScenarioBanner: document.getElementById("sharedScenarioBanner"),
   supportMomentMount: document.getElementById("supportMomentMount"),
   clientSummaryModeMount: document.getElementById("clientSummaryModeMount"),
@@ -616,6 +624,17 @@ function handleDocumentClick(event) {
       setActiveNav("learn");
       return;
     }
+    if (action === "set-experience-mode") {
+      const value = actionBtn.getAttribute("data-value") === "advanced" ? "advanced" : "beginner";
+      state.uiState.experienceMode = value;
+      if (value === "advanced") {
+        state.uiState.unlocked.advanced = true;
+      }
+      savePlan();
+      renderAll();
+      toast(value === "advanced" ? "Advanced Mode enabled." : "Beginner Mode enabled.");
+      return;
+    }
     if (action === "edit-plan-row") {
       const key = actionBtn.getAttribute("data-value") || "";
       if (!key) return;
@@ -773,6 +792,10 @@ function handleDocumentClick(event) {
       savePlan();
       openScenarioCompare();
       toast(`Saved ${scenario.name}.`);
+      return;
+    }
+    if (action === "open-scenario-compare") {
+      openScenarioCompare();
       return;
     }
     if (action === "delete-scenario") {
@@ -1072,6 +1095,7 @@ function renderAll() {
   if (el.appPanel) el.appPanel.hidden = showLanding;
   if (el.bottomTabs) el.bottomTabs.hidden = showLanding;
 
+  syncExperienceModeUi();
   renderNav();
   renderDashboard();
   renderLearn();
@@ -1082,6 +1106,17 @@ function renderAll() {
   renderMethodology();
   renderNotes();
   bindInlineTooltipTriggers(document.body);
+}
+
+function syncExperienceModeUi() {
+  const mode = state.uiState.experienceMode === "advanced" ? "advanced" : "beginner";
+  document.body.classList.toggle("advanced-experience", mode === "advanced");
+  document.body.classList.toggle("beginner-experience", mode !== "advanced");
+  el.experienceModeButtons.forEach((btn) => {
+    const active = (btn.getAttribute("data-value") || "beginner") === mode;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
 }
 
 function renderNav() {
@@ -1330,6 +1365,10 @@ function renderWhatChangedModule() {
 
 function renderCoverageScoreModule() {
   if (!el.coverageScoreModule || !ui.lastModel) return;
+  if (state.uiState.experienceMode !== "advanced") {
+    el.coverageScoreModule.innerHTML = "";
+    return;
+  }
   const score = computeCoverageScore(state, ui.lastModel);
   renderCoverageScore({
     mountEl: el.coverageScoreModule,
@@ -1386,7 +1425,7 @@ function renderKeyRisksModule() {
 
 function renderTimingSimulatorModule() {
   if (!el.timingSimulator || !ui.lastModel) return;
-  if (state.uiState.clientSummary?.enabled) {
+  if (state.uiState.clientSummary?.enabled || state.uiState.experienceMode !== "advanced") {
     el.timingSimulator.innerHTML = "";
     return;
   }
@@ -1410,7 +1449,7 @@ function renderTimingSimulatorModule() {
 
 function renderMeltdownSimulatorModule() {
   if (!el.meltdownSimulator || !ui.lastModel) return;
-  if (state.uiState.clientSummary?.enabled) {
+  if (state.uiState.clientSummary?.enabled || state.uiState.experienceMode !== "advanced") {
     el.meltdownSimulator.innerHTML = "";
     return;
   }
@@ -2098,6 +2137,8 @@ function printClientSummaryNow() {
     formatCurrency,
     formatPct,
     methodologyUrl: `${shareBaseUrl()}#methodology`,
+    toolUrl: shareBaseUrl(),
+    supportUrl: SUPPORT_URL,
     chartImages,
   });
   const ok = openClientSummaryPrintWindow(html);

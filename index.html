@@ -37,6 +37,10 @@
       </div>
         <div class="hero-actions no-print" aria-label="Plan actions">
           <span class="offline-badge">Local-first</span>
+          <div id="experienceModeSwitch" class="mode-switch" aria-label="Experience mode">
+            <button class="mode-switch-btn active" type="button" data-action="set-experience-mode" data-value="beginner">Beginner Mode</button>
+            <button class="mode-switch-btn" type="button" data-action="set-experience-mode" data-value="advanced">Advanced Mode</button>
+          </div>
           <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics</button>
           <button id="exportJsonBtn" class="btn btn-secondary" type="button">Save plan</button>
           <button id="importJsonBtn" class="btn btn-secondary" type="button">Load plan</button>
@@ -147,10 +151,12 @@
         <section class="panel nav-panel active" data-nav-panel="dashboard" aria-labelledby="dashboardHeading">
           <div class="panel-header">
             <h2 id="dashboardHeading">Simple Dashboard</h2>
-            <p>Quick snapshot with clear next actions.</p>
+            <p>Results first, interpretation second, advanced detail when you need it.</p>
             <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">New to retirement planning? Learn the basics first →</button></p>
             <div id="dashboardStatus" class="status-pill"></div>
             <div class="landing-actions no-print">
+              <button class="btn btn-secondary" type="button" data-action="set-experience-mode" data-value="beginner">Beginner Mode</button>
+              <button class="btn btn-secondary" type="button" data-action="set-experience-mode" data-value="advanced">Advanced Mode</button>
               <button id="clientSummaryToggleBtn" class="btn btn-secondary" type="button">Client Summary Mode</button>
               <button id="exitClientSummaryBtn" class="btn btn-secondary" type="button" hidden>Exit Client Summary</button>
             </div>
@@ -159,6 +165,11 @@
           <div id="clientSummaryModeMount" hidden></div>
 
           <div id="plannerDashboardContent">
+            <div id="canIRetireModule"></div>
+            <div id="planHealthHeroModule"></div>
+            <div id="keyInsightsModule"></div>
+            <div id="incomeStackModule"></div>
+            <div id="plannerComparisonModule"></div>
             <div id="retirementGapHeadline"></div>
             <div id="retirementInsight"></div>
             <div id="supportMomentMount"></div>
@@ -174,6 +185,8 @@
             <div id="strategySuggestionsModule"></div>
             <div id="timingSimulator"></div>
             <div id="meltdownSimulator"></div>
+            <div id="commonMistakesModule"></div>
+            <div id="methodologySummaryModule"></div>
 
             <div class="subsection">
               <h3>At a glance</h3>
@@ -251,7 +264,7 @@
             </div>
 
             <div class="subsection">
-              <h3>Share this tool</h3>
+              <h3>Shareable results</h3>
               <p class="small-copy muted">Share this tool with a friend who is planning retirement income.</p>
               <p class="small-copy muted">If this was helpful, consider supporting the tool ☕</p>
               <div class="landing-actions">
@@ -305,8 +318,12 @@
         <section class="panel nav-panel" data-nav-panel="plan" aria-labelledby="inputsHeading" hidden>
           <div class="panel-header">
             <h2 id="inputsHeading">Plan Inputs (Basics)</h2>
-            <p>Core assumptions in one place. Advanced controls remain in Advanced Inputs.</p>
+            <p>Core assumptions first. Advanced controls stay available without crowding the essentials.</p>
             <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">New to retirement planning? Learn the basics first →</button></p>
+            <div class="landing-actions no-print">
+              <button class="btn btn-secondary" type="button" data-action="set-experience-mode" data-value="beginner">Beginner Mode</button>
+              <button class="btn btn-secondary" type="button" data-action="set-experience-mode" data-value="advanced">Advanced Mode</button>
+            </div>
           </div>
           <div id="planInputsPanel" class="subsection"></div>
         </section>

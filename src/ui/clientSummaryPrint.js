@@ -32,6 +32,12 @@ function renderLegend(items) {
   `;
 }
 
+function qrCodeUrl(value, size = 132) {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}`;
+}
+
 export function buildClientSummaryHtml(ctx) {
   const {
     state,
@@ -41,6 +47,8 @@ export function buildClientSummaryHtml(ctx) {
     formatCurrency,
     formatPct,
     methodologyUrl,
+    toolUrl,
+    supportUrl,
     chartImages,
   } = ctx;
 
@@ -107,6 +115,10 @@ export function buildClientSummaryHtml(ctx) {
       `Meltdown taxable income ceiling: ${formatCurrency(state.strategy.meltdownIncomeCeiling || 0)}`,
     ],
   };
+  const plannerHref = esc(toolUrl || "https://retirement.simplekit.app");
+  const supportHref = esc(supportUrl || "https://buymeacoffee.com/ashleysnl");
+  const plannerQr = qrCodeUrl(toolUrl || "https://retirement.simplekit.app");
+  const supportQr = qrCodeUrl(supportUrl || "https://buymeacoffee.com/ashleysnl");
 
   return `
     <section class="print-summary client-summary-print">
@@ -163,6 +175,20 @@ export function buildClientSummaryHtml(ctx) {
         ${(strategySuggestions || []).map((s) => `<li><strong>${esc(s.title)}</strong>: ${esc(s.desc)}</li>`).join("")}
       </ul>
 
+      <h2>Links</h2>
+      <div class="print-link-grid">
+        <div class="print-link-card">
+          <strong>Open the calculator</strong>
+          <p><a href="${plannerHref}" target="_blank" rel="noopener noreferrer">${plannerHref}</a></p>
+          ${plannerQr ? `<img class="print-qr" src="${plannerQr}" alt="QR code linking to the retirement calculator" />` : ""}
+        </div>
+        <div class="print-link-card">
+          <strong>☕ Support this free tool</strong>
+          <p><a href="${supportHref}" target="_blank" rel="noopener noreferrer">${supportHref}</a></p>
+          ${supportQr ? `<img class="print-qr" src="${supportQr}" alt="QR code linking to Buy Me a Coffee support page" />` : ""}
+        </div>
+      </div>
+
       <h2>Detailed Plan Inputs</h2>
       <h3>Profile</h3>
       <ul>${fmtListItems(detailedInputs.profile)}</ul>
@@ -204,6 +230,13 @@ export function openClientSummaryPrintWindow(summaryHtml) {
         .print-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
         .print-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#334155}
         .print-legend-swatch{width:10px;height:10px;border-radius:999px;display:inline-block;border:1px solid rgba(0,0,0,0.08)}
+        .print-link-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:10px 0 16px}
+        .print-link-card{border:1px solid #dbe5f2;border-radius:10px;padding:12px;background:#fff}
+        .print-link-card p{margin:6px 0 0;word-break:break-word}
+        .print-link-card a{color:#0b4f8f;text-decoration:none}
+        .print-link-card a:hover{text-decoration:underline}
+        .print-qr{display:block;margin-top:10px;width:132px;height:132px;border:1px solid #dbe5f2;border-radius:8px;background:#fff}
+        @media (max-width:700px){.print-link-grid{grid-template-columns:1fr}}
         @media print { body{color:#000;background:#fff} }
       </style>
     </head><body>${summaryHtml}</body></html>

@@ -111,6 +111,47 @@ summary:focus-visible,
   max-width: 460px;
 }
 
+.mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.mode-switch-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.mode-switch-btn.active {
+  background: #fff;
+  color: #12406a;
+}
+
+.panel .mode-switch {
+  background: #eef5ff;
+  border-color: #d8e6f7;
+}
+
+.panel .mode-switch-btn {
+  color: #31527b;
+}
+
+.panel .mode-switch-btn.active {
+  background: #fff;
+  color: #12406a;
+  box-shadow: 0 4px 14px rgba(15, 106, 191, 0.08);
+}
+
 .offline-badge {
   display: inline-flex;
   width: fit-content;
@@ -406,6 +447,157 @@ body.mobile-layout .bottom-tabs {
 
 .support-moment-card h3 {
   margin: 0 0 6px;
+}
+
+.verdict-hero {
+  border-width: 1px;
+}
+
+.verdict-hero.verdict-strong {
+  border-color: rgba(22, 163, 74, 0.28);
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.08), rgba(14, 165, 168, 0.08));
+}
+
+.verdict-hero.verdict-moderate {
+  border-color: rgba(15, 106, 191, 0.24);
+  background: linear-gradient(135deg, rgba(15, 106, 191, 0.08), rgba(14, 165, 168, 0.08));
+}
+
+.verdict-hero.verdict-attention {
+  border-color: rgba(217, 72, 95, 0.3);
+  background: linear-gradient(135deg, rgba(217, 72, 95, 0.08), rgba(245, 158, 11, 0.08));
+}
+
+.verdict-hero-main,
+.section-head-tight {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.verdict-hero .eyebrow {
+  color: #30537a;
+}
+
+.verdict-hero h3,
+.plan-health-hero h3 {
+  margin: 0;
+}
+
+.verdict-copy {
+  margin: 6px 0;
+  font-size: 0.96rem;
+}
+
+.verdict-badge-block {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.verdict-score {
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.plan-health-hero {
+  background: linear-gradient(180deg, #fbfdff, #ffffff);
+}
+
+.plan-health-total {
+  border: 1px solid #dce7f7;
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px 12px;
+  min-width: 110px;
+  text-align: right;
+}
+
+.plan-health-total strong {
+  display: block;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.plan-health-total span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.insight-card-grid,
+.comparison-card-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.insight-card,
+.comparison-card {
+  border: 1px solid #dce7f7;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+}
+
+.insight-card h4,
+.comparison-card strong {
+  margin: 0 0 4px;
+  display: block;
+}
+
+.insight-card p,
+.comparison-card p {
+  margin: 0;
+  color: #415267;
+  font-size: 0.86rem;
+}
+
+.comparison-card .btn {
+  margin-top: 8px;
+}
+
+.income-stack-bar {
+  height: 18px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #d9e2ef;
+  display: flex;
+  background: #f3f7fd;
+  margin: 8px 0;
+}
+
+.income-stack-bar span {
+  height: 100%;
+}
+
+.methodology-summary-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
+}
+
+.methodology-summary-grid > div {
+  border: 1px solid #e4edf9;
+  border-radius: 12px;
+  padding: 10px;
+  background: #f9fcff;
+}
+
+.methodology-summary-grid strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #12406a;
+}
+
+.methodology-summary-grid p {
+  margin: 0;
 }
 
 .banner-row {
@@ -1066,6 +1258,10 @@ summary {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.plan-inputs-next {
+  background: linear-gradient(180deg, #fbfdff, #ffffff);
 }
 
 .plan-row-btn {
@@ -1851,10 +2047,19 @@ textarea {
     flex-direction: column;
   }
 
+  .hero-actions {
+    max-width: none;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .metric-grid,
   .metric-grid-wide,
   .preview-kpi,
-  .walkthrough-strip {
+  .walkthrough-strip,
+  .insight-card-grid,
+  .comparison-card-grid,
+  .methodology-summary-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1952,6 +2157,12 @@ textarea {
   .client-meta-grid,
   .client-timeline-grid {
     grid-template-columns: 1fr;
+  }
+
+  .verdict-badge-block,
+  .plan-health-total {
+    justify-items: start;
+    text-align: left;
   }
 
   .wizard-grid,
