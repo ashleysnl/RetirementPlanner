@@ -31,13 +31,13 @@ export function renderGrossNetCallout(ctx) {
         </span>
         <span class="gross-net-chip tax">
           <span class="legend-dot tax"></span>
-          <strong>Tax wedge:</strong> ${formatCurrency(tax)}
+          <strong>Tax + clawback drag:</strong> ${formatCurrency(tax)}
         </span>
       </div>
       <p class="small-copy muted">
         Withdrawal required: <strong>${formatCurrency(gross)}</strong> |
         You keep: <strong>${formatCurrency(net)}</strong> |
-        Tax wedge: <strong>${formatCurrency(tax)}</strong> |
+        Tax + clawback drag: <strong>${formatCurrency(tax)}</strong> |
         Effective rate: <strong>${formatPct(row.effectiveTaxRate || 0)}</strong>
       </p>
       <label class="inline-check small-copy">

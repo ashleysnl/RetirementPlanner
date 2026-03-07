@@ -171,6 +171,7 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
     },
     strategy: {
       withdrawal: "tax-smart",
+      estimateTaxes: true,
       oasClawbackModeling: true,
       rrifConversionAge: 71,
       applyRrifMinimums: true,
@@ -359,6 +360,7 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   state.income.spouse.cppAmountAt65 = Math.max(0, Number(state.income.spouse.cppAmountAt65));
   state.income.spouse.oasAmountAt65 = Math.max(0, Number(state.income.spouse.oasAmountAt65));
   state.strategy.rrifConversionAge = clamp(Number(state.strategy.rrifConversionAge || 71), 65, 75);
+  state.strategy.estimateTaxes = Boolean(state.strategy.estimateTaxes ?? true);
   state.strategy.applyRrifMinimums = Boolean(state.strategy.applyRrifMinimums ?? true);
   state.strategy.meltdownEnabled = Boolean(state.strategy.meltdownEnabled);
   state.strategy.meltdownAmount = Math.max(0, Number(state.strategy.meltdownAmount || 0));
@@ -435,6 +437,7 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
   if (!["tax-smart", "rrsp-first", "tfsa-first"].includes(plan.strategy.withdrawal)) {
     throw new Error("Withdrawal strategy is invalid.");
   }
+  plan.strategy.estimateTaxes = Boolean(plan.strategy.estimateTaxes ?? true);
   plan.uiState.learn = normalizeLearnState(plan.uiState.learn || createDefaultLearnState());
   plan.uiState.learningProgress = {
     ...createDefaultLearningProgress(learnProgressItems),

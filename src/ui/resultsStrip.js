@@ -1,3 +1,5 @@
+import { getReportMetrics } from "../model/reportMetrics.js";
+
 export function renderResultsStrip(ctx) {
   const {
     mountEl,
@@ -12,14 +14,15 @@ export function renderResultsStrip(ctx) {
   } = ctx;
   if (!mountEl || !row) return;
 
-  const spending = Math.max(0, Number(row.spending || 0));
-  const guaranteed = Math.max(0, Number(row.guaranteedGross || 0));
-  const netGap = Math.max(0, Number(row.netGap || 0));
-  const gross = Math.max(0, Number(row.withdrawal || 0));
-  const taxWedge = Math.max(0, Number((row.taxOnWithdrawal || 0) + (row.oasClawback || 0)));
-  const coverageRatio = spending > 0 ? guaranteed / spending : 1;
+  const metrics = getReportMetrics(ctx.plan, row);
+  const spending = metrics.spending;
+  const guaranteed = metrics.guaranteedNet;
+  const netGap = metrics.netGap;
+  const gross = metrics.grossWithdrawal;
+  const taxWedge = metrics.dragAmount;
+  const coverageRatio = metrics.coverageRatio;
   const coveragePct = clamp(coverageRatio * 100, 0, 300);
-  const surplus = guaranteed > spending;
+  const surplus = metrics.surplus > 0;
   const barTotal = Math.max(1, guaranteed + Math.max(0, gross - taxWedge) + taxWedge);
   const guaranteedW = (guaranteed / barTotal) * 100;
   const netW = (Math.max(0, gross - taxWedge) / barTotal) * 100;
@@ -43,7 +46,7 @@ export function renderResultsStrip(ctx) {
       <article class="metric-card">
         <span class="label">Guaranteed income ${tooltipButton("kpiGuaranteedIncome")}</span>
         <span class="value">${formatCurrency(guaranteed)}</span>
-        <span class="sub">Pension + CPP + OAS</span>
+        <span class="sub">${metrics.estimateTaxes ? "After estimated tax" : "Tax estimates off"}</span>
       </article>
       <article class="metric-card ${surplus ? "metric-good" : ""}">
         <span class="label">Net gap from savings ${tooltipButton("kpiNetGap")}</span>
@@ -53,19 +56,19 @@ export function renderResultsStrip(ctx) {
       <article class="metric-card">
         <span class="label">Gross withdrawal needed ${tooltipButton("kpiGrossWithdrawal")}</span>
         <span class="value">${formatCurrency(gross)}</span>
-        <span class="sub">Tax wedge: ${formatCurrency(taxWedge)}</span>
+        <span class="sub">${metrics.estimateTaxes ? `Tax + clawback drag: ${formatCurrency(taxWedge)}` : "Tax estimates off"}</span>
       </article>
     </div>
     <div class="results-strip-meta">
       <span class="coverage-badge ${surplus ? "coverage-good" : ""}">
-        Income covers ${formatPct(Math.min(2.99, coverageRatio))}
+        Guaranteed income covers ${formatPct(Math.min(2.99, coverageRatio))}
       </span>
       <div class="results-mini-bar" role="img" aria-label="Income coverage mini bar">
         <span class="seg guaranteed" style="width:${guaranteedW.toFixed(1)}%"></span>
         <span class="seg netdraw" style="width:${netW.toFixed(1)}%"></span>
         <span class="seg tax" style="width:${taxW.toFixed(1)}%"></span>
       </div>
-      <p class="small-copy muted">Spending = Guaranteed + Net from savings. Gross draw = Net + Tax wedge.</p>
+      <p class="small-copy muted">All comparisons are on an after-tax spending basis. Gross draw = net withdrawal plus estimated tax/clawback drag.</p>
     </div>
   `;
 }

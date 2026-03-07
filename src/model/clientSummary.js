@@ -1,3 +1,5 @@
+import { getReportMetrics } from "./reportMetrics.js";
+
 export function buildClientSummaryData({ plan, model, selectedAge, rows, phases, risks }) {
   const allRows = Array.isArray(rows) && rows.length
     ? rows
@@ -9,13 +11,7 @@ export function buildClientSummaryData({ plan, model, selectedAge, rows, phases,
     || allRows.find((r) => Number(r.age) === fallbackAge)
     || allRows[0];
 
-  const guaranteed = Number(current.guaranteedNet || 0);
-  const spending = Number(current.spending || 0);
-  const netGap = Math.max(0, Number(current.netGap || 0));
-  const grossWithdrawal = Math.max(0, Number(current.withdrawal || 0));
-  const taxWedge = Math.max(0, Number((current.taxOnWithdrawal || 0) + (current.oasClawback || 0)));
-  const netSpendingAvailable = Math.max(0, guaranteed + Math.max(0, Number(current.netFromWithdrawal || 0)));
-  const coverageRatio = spending > 0 ? guaranteed / spending : 1;
+  const report = getReportMetrics(plan, current);
 
   const depletionAge = model?.kpis?.depletionAge || null;
   const rrifPhaseAge = plan.strategy.applyRrifMinimums
@@ -26,14 +22,18 @@ export function buildClientSummaryData({ plan, model, selectedAge, rows, phases,
   return {
     selected: current,
     metrics: {
-      spending,
-      guaranteed,
-      netGap,
-      grossWithdrawal,
-      taxWedge,
-      netSpendingAvailable,
-      coverageRatio,
-      effectiveRate: Number(current.effectiveTaxRate || 0),
+      spending: report.spending,
+      guaranteed: report.guaranteedNet,
+      guaranteedGross: report.guaranteedGross,
+      netGap: report.netGap,
+      grossWithdrawal: report.grossWithdrawal,
+      taxWedge: report.dragAmount,
+      incomeTax: report.incomeTax,
+      clawback: report.clawback,
+      netSpendingAvailable: report.totalSpendable,
+      coverageRatio: report.coverageRatio,
+      effectiveRate: report.effectiveTaxRate,
+      estimateTaxes: report.estimateTaxes,
     },
     warnings: {
       depletionAge,

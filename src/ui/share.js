@@ -1,3 +1,5 @@
+import { getReportMetrics } from "../model/reportMetrics.js";
+
 function safeNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -104,10 +106,11 @@ export function buildShareSummary({ state, row, formatCurrency, formatPct, link,
   const pension = safeNumber(row?.pensionGross || state.income.pension.amount, 0);
   const cpp = safeNumber(row?.cppGross || state.income.cpp.amountAt65, 0);
   const oas = safeNumber(row?.oasGross || state.income.oas.amountAt65, 0);
-  const guaranteed = safeNumber(row?.guaranteedGross, pension + cpp + oas);
-  const netGap = safeNumber(row?.netGap, 0);
-  const gross = safeNumber(row?.withdrawal, 0);
-  const tax = safeNumber((row?.taxOnWithdrawal || 0) + (row?.oasClawback || 0), 0);
+  const metrics = getReportMetrics(state, row || {});
+  const guaranteed = metrics.guaranteedNet;
+  const netGap = metrics.netGap;
+  const gross = metrics.grossWithdrawal;
+  const tax = metrics.dragAmount;
   const age = safeNumber(row?.age, state.profile.retirementAge);
   const scenario = String(state.uiState.selectedScenarioLabel || "Current plan");
   return [
@@ -116,12 +119,14 @@ export function buildShareSummary({ state, row, formatCurrency, formatPct, link,
     `Age: ${age}`,
     `Retirement age: ${state.profile.retirementAge}`,
     `After-tax spending target: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
-    `Guaranteed income: ${formatCurrency(guaranteed)} (Pension ${formatCurrency(pension)} / CPP ${formatCurrency(cpp)} / OAS ${formatCurrency(oas)})`,
+    `Guaranteed income after estimated tax: ${formatCurrency(guaranteed)} (Gross sources: Pension ${formatCurrency(pension)} / CPP ${formatCurrency(cpp)} / OAS ${formatCurrency(oas)})`,
     `Net gap from savings: ${formatCurrency(netGap)}`,
     `Gross RRSP/RRIF withdrawal required: ${formatCurrency(gross)}`,
-    `Tax wedge: ${formatCurrency(tax)} (effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
-    `OAS clawback: ${formatCurrency(row?.oasClawback || 0)}${state.strategy.oasClawbackModeling ? "" : " (modeling off)"}`,
-    row?.netGap > 0 ? `Status: Gap remains (${formatCurrency(row.netGap)})` : `Status: Surplus/covered`,
+    metrics.estimateTaxes
+      ? `Estimated tax + clawback drag: ${formatCurrency(tax)} (effective rate ${formatPct(metrics.effectiveTaxRate)})`
+      : "Tax estimates: Off",
+    `OAS clawback: ${formatCurrency(metrics.clawback)}${state.strategy.oasClawbackModeling && metrics.estimateTaxes ? "" : " (modeling off)"}`,
+    metrics.netGap > 0 ? `Status: Gap remains (${formatCurrency(metrics.netGap)})` : `Status: Surplus/covered`,
     depletionAge ? `Depletion age: ${depletionAge}` : "Depletion age: none in projection",
     `Link: ${link}`,
   ].join("\n");

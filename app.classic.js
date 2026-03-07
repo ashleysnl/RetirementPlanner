@@ -3,7 +3,7 @@
 /* FILE: src/model/constants.js */
 const APP = {
   storageKey: "retirementPlanner.plan.v2",
-  version: 3,
+  version: 4,
   currentYear: new Date().getFullYear(),
   defaultProvince: "NL",
 };
@@ -90,6 +90,7 @@ function adjustedOAS(amountAt65, startAge) {
 }
 
 function estimateOasClawback(plan, taxableIncome, oasAmount, yearOffset) {
+  if (plan?.strategy?.estimateTaxes === false) return 0;
   if (!oasAmount) return 0;
   const thresholdBase = 93000;
   const threshold = plan.assumptions.taxBracketInflation
@@ -100,6 +101,7 @@ function estimateOasClawback(plan, taxableIncome, oasAmount, yearOffset) {
 }
 
 function estimateEffectiveTaxRate(plan, income, yearOffset) {
+  if (plan?.strategy?.estimateTaxes === false) return 0;
   const taxable = Math.max(0, income);
   if (taxable <= 0) return 0;
 
@@ -109,6 +111,7 @@ function estimateEffectiveTaxRate(plan, income, yearOffset) {
 }
 
 function estimateTotalTax(plan, income, yearOffset) {
+  if (plan?.strategy?.estimateTaxes === false) return 0;
   const taxable = Math.max(0, income);
   const federal = computeBracketTax(taxable, TAX_BRACKETS.federal, plan, yearOffset);
   const provincialBase = TAX_BRACKETS.provincial[plan.profile.province] || TAX_BRACKETS.provincial.NL;
@@ -1089,6 +1092,46 @@ function buildRiskDiagnostics(plan, model, selectedAge) {
 }
 
 
+/* FILE: src/model/reportMetrics.js */
+function num(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getReportMetrics(plan, row) {
+  const estimateTaxes = plan?.strategy?.estimateTaxes !== false;
+  const spending = Math.max(0, num(row?.spending));
+  const guaranteedGross = Math.max(0, num(row?.guaranteedGross));
+  const guaranteedNet = Math.max(0, estimateTaxes ? num(row?.guaranteedNet) : guaranteedGross);
+  const netGap = Math.max(0, num(row?.netGap));
+  const grossWithdrawal = Math.max(0, num(row?.withdrawal));
+  const incomeTax = Math.max(0, estimateTaxes ? num(row?.taxOnWithdrawal) : 0);
+  const clawback = Math.max(0, estimateTaxes ? num(row?.oasClawback) : 0);
+  const dragAmount = incomeTax + clawback;
+  const netWithdrawal = Math.max(0, estimateTaxes ? num(row?.netFromWithdrawal) : grossWithdrawal);
+  const totalSpendable = guaranteedNet + netWithdrawal;
+  const coverageRatio = spending > 0 ? guaranteedNet / spending : 1;
+  const surplus = Math.max(0, guaranteedNet - spending);
+  const effectiveTaxRate = estimateTaxes ? num(row?.effectiveTaxRate) : 0;
+
+  return {
+    estimateTaxes,
+    spending,
+    guaranteedGross,
+    guaranteedNet,
+    netGap,
+    grossWithdrawal,
+    netWithdrawal,
+    incomeTax,
+    clawback,
+    dragAmount,
+    totalSpendable,
+    coverageRatio,
+    surplus,
+    effectiveTaxRate,
+  };
+}
+
 /* FILE: src/model/yearBreakdown.js */
 function buildYearBreakdown(plan, model) {
   const rows = (model?.base?.rows || []).filter((row) => row.age >= plan.profile.retirementAge);
@@ -1498,6 +1541,7 @@ function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
     },
     strategy: {
       withdrawal: "tax-smart",
+      estimateTaxes: true,
       oasClawbackModeling: true,
       rrifConversionAge: 71,
       applyRrifMinimums: true,
@@ -1686,6 +1730,7 @@ function ensureValidState(state, { app, provinces, learnProgressItems }) {
   state.income.spouse.cppAmountAt65 = Math.max(0, Number(state.income.spouse.cppAmountAt65));
   state.income.spouse.oasAmountAt65 = Math.max(0, Number(state.income.spouse.oasAmountAt65));
   state.strategy.rrifConversionAge = clamp(Number(state.strategy.rrifConversionAge || 71), 65, 75);
+  state.strategy.estimateTaxes = Boolean(state.strategy.estimateTaxes ?? true);
   state.strategy.applyRrifMinimums = Boolean(state.strategy.applyRrifMinimums ?? true);
   state.strategy.meltdownEnabled = Boolean(state.strategy.meltdownEnabled);
   state.strategy.meltdownAmount = Math.max(0, Number(state.strategy.meltdownAmount || 0));
@@ -1762,6 +1807,7 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
   if (!["tax-smart", "rrsp-first", "tfsa-first"].includes(plan.strategy.withdrawal)) {
     throw new Error("Withdrawal strategy is invalid.");
   }
+  plan.strategy.estimateTaxes = Boolean(plan.strategy.estimateTaxes ?? true);
   plan.uiState.learn = normalizeLearnState(plan.uiState.learn || createDefaultLearnState());
   plan.uiState.learningProgress = {
     ...createDefaultLearningProgress(learnProgressItems),
@@ -2200,10 +2246,17 @@ const TOOLTIPS = {
   },
   kpiGuaranteedIncome: {
     term: "Guaranteed income",
-    plain: "Combined pension, CPP, and OAS for the year.",
-    why: "This income reduces how much must come from savings.",
+    plain: "Combined pension, CPP, and OAS available for spending in the year. In summary views this is shown after estimated tax when tax estimates are enabled.",
+    why: "This is the portion of spending covered before savings withdrawals are needed.",
     range: "Depends on benefit amounts and start ages.",
-    example: "If guaranteed income covers most spending, withdrawals are lower.",
+    example: "If after-tax guaranteed income covers most spending, required withdrawals are lower.",
+  },
+  kpiCoveragePercent: {
+    term: "Guaranteed-income coverage",
+    plain: "The share of your after-tax spending target covered by after-tax guaranteed income alone.",
+    why: "It shows how dependent the plan is on savings withdrawals.",
+    range: "100% means guaranteed income alone covers the full spending target on the same after-tax basis.",
+    example: "If after-tax guaranteed income is $45k and spending target is $60k, coverage is 75%.",
   },
   kpiNetGap: {
     term: "Net gap from savings",
@@ -2218,6 +2271,20 @@ const TOOLTIPS = {
     why: "Withdrawals are taxable, so gross is often higher than net needed.",
     range: "Depends on taxable income and tax rate in that year.",
     example: "A $20k net gap may require a $26k gross withdrawal.",
+  },
+  netSpendingAvailable: {
+    term: "Net spending available",
+    plain: "Total spendable cash flow after estimated tax and clawback for the selected year.",
+    why: "This is the amount available to actually fund spending.",
+    range: "Usually equals guaranteed income after tax plus net withdrawals.",
+    example: "If guaranteed income nets $45k and net withdrawals add $15k, net spending available is $60k.",
+  },
+  taxDrag: {
+    term: "Tax and clawback drag",
+    plain: "The portion of gross withdrawals that does not become spendable cash because of estimated income tax and any modeled OAS clawback.",
+    why: "This explains why gross withdrawals can be larger than the net spending gap.",
+    range: "Zero when tax estimates are disabled or no taxable withdrawal is required.",
+    example: "A $28k gross withdrawal with $6k tax/clawback drag leaves about $22k net to spend.",
   },
   registeredAssumption: {
     term: "Registered-only assumption",
@@ -3196,6 +3263,7 @@ function buildStartupDiagnostics({ error, failingResources = [] }) {
 
 
 /* FILE: src/ui/retirementGapHeadline.js */
+
 function renderRetirementGapHeadline(ctx) {
   const {
     mountEl,
@@ -3210,13 +3278,14 @@ function renderRetirementGapHeadline(ctx) {
   } = ctx;
   if (!mountEl || !row) return;
 
-  const spending = Math.max(0, Number(row.spending || 0));
-  const guaranteed = Math.max(0, Number(row.guaranteedGross || 0));
-  const netGap = Math.max(0, Number(row.netGap || 0));
-  const gross = Math.max(0, Number(row.withdrawal || 0));
-  const taxWedge = Math.max(0, Number((row.taxOnWithdrawal || 0) + (row.oasClawback || 0)));
-  const coverage = spending > 0 ? guaranteed / spending : 1;
-  const surplus = guaranteed >= spending;
+  const metrics = getReportMetrics(ctx.plan, row);
+  const spending = metrics.spending;
+  const guaranteed = metrics.guaranteedNet;
+  const netGap = metrics.netGap;
+  const gross = metrics.grossWithdrawal;
+  const taxWedge = metrics.dragAmount;
+  const coverage = metrics.coverageRatio;
+  const surplus = metrics.surplus > 0;
   const depletionAge = model?.kpis?.depletionAge;
   const highTaxDrag = gross > 0 ? (taxWedge / gross) > 0.25 : false;
 
@@ -3230,24 +3299,25 @@ function renderRetirementGapHeadline(ctx) {
           <strong>Age ${selectedAge}</strong>
         </div>
       </div>
-      <p><strong>Your guaranteed income covers ${formatPct(coverage)}</strong> of your retirement spending.</p>
+      <p><strong>Your guaranteed income ${tooltipButton("kpiCoveragePercent")} covers ${formatPct(coverage)}</strong> of your retirement spending.</p>
       ${surplus
-        ? `<p class="status-good">You are covered. Surplus: <strong>${formatCurrency(guaranteed - spending)}</strong>.</p>`
-        : `<p>You need <strong>${formatCurrency(netGap)}/yr</strong> from savings (after tax). Because withdrawals are taxable, you must withdraw about <strong>${formatCurrency(gross)}/yr</strong>.</p>`
+        ? `<p class="status-good">You are covered. Surplus: <strong>${formatCurrency(metrics.surplus)}</strong>.</p>`
+        : metrics.estimateTaxes
+          ? `<p>You need <strong>${formatCurrency(netGap)}/yr</strong> from savings (after tax). Because withdrawals are taxable, you must withdraw about <strong>${formatCurrency(gross)}/yr</strong>.</p>`
+          : `<p>You need <strong>${formatCurrency(netGap)}/yr</strong> from savings. With tax estimates off, the gross withdrawal shown is not tax-adjusted.</p>`
       }
       <p class="small-copy muted">
         Spend ${tooltipButton("kpiSpendingTarget")} ${formatCurrency(spending)} |
-        Guaranteed ${tooltipButton("kpiGuaranteedIncome")} ${formatCurrency(guaranteed)} |
+        Guaranteed after tax ${tooltipButton("kpiGuaranteedIncome")} ${formatCurrency(guaranteed)} |
         Net gap ${tooltipButton("kpiNetGap")} ${formatCurrency(netGap)} |
         Gross draw ${tooltipButton("kpiGrossWithdrawal")} ${formatCurrency(gross)} |
-        Tax wedge ${tooltipButton("learnTaxGrossUp")} ${formatCurrency(taxWedge)}
+        ${metrics.estimateTaxes ? `Tax + clawback drag ${tooltipButton("taxDrag")} ${formatCurrency(taxWedge)}` : `Tax estimates off`}
       </p>
       ${highTaxDrag ? `<span class="status-pill borderline">High tax drag this year</span>` : ""}
       ${depletionAge ? `<span class="status-pill off-track">Savings run out at age ${depletionAge}</span>` : ""}
     </article>
   `;
 }
-
 
 /* FILE: src/ui/taxWedgeMini.js */
 function renderTaxWedgeMini(ctx) {
@@ -3285,6 +3355,7 @@ function renderTaxWedgeMini(ctx) {
 }
 
 /* FILE: src/ui/retirementInsight.js */
+
 function renderRetirementInsight(ctx) {
   const {
     mountEl,
@@ -3297,17 +3368,20 @@ function renderRetirementInsight(ctx) {
   } = ctx;
   if (!mountEl || !row) return;
 
-  const guaranteed = Math.max(0, Number(row.guaranteedGross || 0));
-  const spending = Math.max(0, Number(row.spending || 0));
-  const gross = Math.max(0, Number(row.withdrawal || 0));
-  const taxWedge = Math.max(0, Number((row.taxOnWithdrawal || 0) + (row.oasClawback || 0)));
-  const coverage = spending > 0 ? guaranteed / spending : 1;
-  const surplus = guaranteed >= spending;
+  const metrics = getReportMetrics(ctx.plan, row);
+  const guaranteed = metrics.guaranteedNet;
+  const spending = metrics.spending;
+  const gross = metrics.grossWithdrawal;
+  const taxWedge = metrics.dragAmount;
+  const coverage = metrics.coverageRatio;
+  const surplus = metrics.surplus > 0;
   const depletionAge = model?.kpis?.depletionAge;
 
   const sentence = surplus
-    ? `At age ${age}, you are fully covered. Surplus: ${formatCurrency(guaranteed - spending)}/yr.`
-    : `At age ${age}, your guaranteed income covers ${formatPct(coverage)} of retirement spending. You need about ${formatCurrency(gross)}/yr from RRSP/RRIF, and about ${formatCurrency(taxWedge)}/yr goes to tax.`;
+    ? `At age ${age}, you are fully covered. Surplus: ${formatCurrency(metrics.surplus)}/yr.`
+    : metrics.estimateTaxes
+      ? `At age ${age}, your guaranteed income covers ${formatPct(coverage)} of retirement spending. You need about ${formatCurrency(gross)}/yr from RRSP/RRIF, and about ${formatCurrency(taxWedge)}/yr goes to estimated tax and clawback.`
+      : `At age ${age}, your guaranteed income covers ${formatPct(coverage)} of retirement spending. You need about ${formatCurrency(gross)}/yr from RRSP/RRIF with tax estimates turned off.`;
 
   mountEl.innerHTML = `
     <article class="subsection insight-banner insight-verdict">
@@ -3315,9 +3389,9 @@ function renderRetirementInsight(ctx) {
       <p class="insight-line"><strong>${sentence}</strong></p>
       <p class="small-copy muted insight-terms">
         Guaranteed income ${tooltipButton("kpiGuaranteedIncome")} |
-        Coverage % ${tooltipButton("kpiGuaranteedIncome")} |
+        Coverage % ${tooltipButton("kpiCoveragePercent")} |
         Gross withdrawal ${tooltipButton("kpiGrossWithdrawal")} |
-        Tax wedge ${tooltipButton("learnTaxGrossUp")} |
+        Tax drag ${tooltipButton("taxDrag")} |
         <button class="text-link-btn" type="button" data-action="open-methodology">Methodology</button>
       </p>
       ${depletionAge ? `<span class="status-pill off-track">Savings run out around age ${depletionAge}</span>` : ""}
@@ -3359,13 +3433,13 @@ function renderGrossNetCallout(ctx) {
         </span>
         <span class="gross-net-chip tax">
           <span class="legend-dot tax"></span>
-          <strong>Tax wedge:</strong> ${formatCurrency(tax)}
+          <strong>Tax + clawback drag:</strong> ${formatCurrency(tax)}
         </span>
       </div>
       <p class="small-copy muted">
         Withdrawal required: <strong>${formatCurrency(gross)}</strong> |
         You keep: <strong>${formatCurrency(net)}</strong> |
-        Tax wedge: <strong>${formatCurrency(tax)}</strong> |
+        Tax + clawback drag: <strong>${formatCurrency(tax)}</strong> |
         Effective rate: <strong>${formatPct(row.effectiveTaxRate || 0)}</strong>
       </p>
       <label class="inline-check small-copy">
@@ -3475,6 +3549,7 @@ function renderScenarioCompareModal(ctx) {
 }
 
 /* FILE: src/ui/printSummary.js */
+
 function buildSummaryHtml(ctx) {
   const {
     state,
@@ -3486,6 +3561,9 @@ function buildSummaryHtml(ctx) {
     formatPct,
     methodologyUrl,
   } = ctx;
+  const retMetrics = getReportMetrics(state, rowRet);
+  const age65Metrics = getReportMetrics(state, row65);
+  const age71Metrics = getReportMetrics(state, row71);
   return `
     <section class="print-summary">
       <h1>Canadian Retirement Tax Simulator - Retirement Summary</h1>
@@ -3496,25 +3574,27 @@ function buildSummaryHtml(ctx) {
       }
       <p><strong>Province:</strong> ${state.profile.province} | <strong>Retirement age:</strong> ${state.profile.retirementAge} | <strong>Life expectancy:</strong> ${state.profile.lifeExpectancy}</p>
       <p><strong>Inflation:</strong> ${formatPct(state.assumptions.inflation)} | <strong>Risk profile:</strong> ${state.assumptions.riskProfile}</p>
+      <p><strong>Basis note:</strong> Annual retirement amounts below are shown in nominal dollars for the specific age/year shown. Your spending input starts in today's dollars and is inflated through the projection.</p>
       <h2>Core results</h2>
       <ul>
-        <li>Coverage at retirement: ${formatPct((rowRet.guaranteedNet || 0) / Math.max(1, rowRet.spending || 1))}</li>
-        <li>Spending target: ${formatCurrency(rowRet.spending || 0)}</li>
-        <li>Guaranteed income: ${formatCurrency(rowRet.guaranteedGross || 0)}</li>
-        <li>Net gap: ${formatCurrency(rowRet.netGap || 0)}</li>
-        <li>Gross withdrawal: ${formatCurrency(rowRet.withdrawal || 0)}</li>
-        <li>Tax wedge: ${formatCurrency((rowRet.taxOnWithdrawal || 0) + (rowRet.oasClawback || 0))}</li>
-        <li>OAS clawback: ${formatCurrency(rowRet.oasClawback || 0)}</li>
-        <li>RRIF minimum at 71: ${formatCurrency(row71.rrifMinimum || 0)}</li>
+        <li>Guaranteed-income coverage at retirement: ${formatPct(retMetrics.coverageRatio)}</li>
+        <li>Spending target for retirement year (after-tax, nominal): ${formatCurrency(retMetrics.spending)}</li>
+        <li>Guaranteed income for retirement year after estimated tax: ${formatCurrency(retMetrics.guaranteedNet)}</li>
+        <li>Guaranteed income for retirement year before tax: ${formatCurrency(retMetrics.guaranteedGross)}</li>
+        <li>After-tax gap from savings in retirement year: ${formatCurrency(retMetrics.netGap)}</li>
+        <li>Gross RRSP/RRIF withdrawal needed in retirement year: ${formatCurrency(retMetrics.grossWithdrawal)}</li>
+        <li>${retMetrics.estimateTaxes ? `Estimated tax + clawback drag: ${formatCurrency(retMetrics.dragAmount)}` : "Tax estimates: Off"}</li>
+        <li>Estimated OAS clawback in retirement year: ${formatCurrency(retMetrics.clawback)}</li>
+        <li>Mandatory RRIF minimum withdrawal at age 71: ${formatCurrency(row71.rrifMinimum || 0)}</li>
         <li>Depletion age: ${model.kpis.depletionAge ? `Age ${model.kpis.depletionAge}` : "No depletion"}</li>
       </ul>
       <h2>Key years</h2>
       <table>
-        <thead><tr><th>Year</th><th>Age</th><th>Spend</th><th>Guaranteed</th><th>Net gap</th><th>Gross</th><th>Tax wedge</th></tr></thead>
+        <thead><tr><th>Year</th><th>Age</th><th>Spend (after tax, nominal)</th><th>Guaranteed (after tax, nominal)</th><th>Net gap</th><th>Gross withdrawal</th><th>Tax + clawback drag</th></tr></thead>
         <tbody>
-          <tr><td>Retirement</td><td>${rowRet.age}</td><td>${formatCurrency(rowRet.spending || 0)}</td><td>${formatCurrency(rowRet.guaranteedGross || 0)}</td><td>${formatCurrency(rowRet.netGap || 0)}</td><td>${formatCurrency(rowRet.withdrawal || 0)}</td><td>${formatCurrency((rowRet.taxOnWithdrawal || 0) + (rowRet.oasClawback || 0))}</td></tr>
-          <tr><td>Age 65</td><td>${row65.age}</td><td>${formatCurrency(row65.spending || 0)}</td><td>${formatCurrency(row65.guaranteedGross || 0)}</td><td>${formatCurrency(row65.netGap || 0)}</td><td>${formatCurrency(row65.withdrawal || 0)}</td><td>${formatCurrency((row65.taxOnWithdrawal || 0) + (row65.oasClawback || 0))}</td></tr>
-          <tr><td>Age 71</td><td>${row71.age}</td><td>${formatCurrency(row71.spending || 0)}</td><td>${formatCurrency(row71.guaranteedGross || 0)}</td><td>${formatCurrency(row71.netGap || 0)}</td><td>${formatCurrency(row71.withdrawal || 0)}</td><td>${formatCurrency((row71.taxOnWithdrawal || 0) + (row71.oasClawback || 0))}</td></tr>
+          <tr><td>Retirement</td><td>${rowRet.age}</td><td>${formatCurrency(retMetrics.spending)}</td><td>${formatCurrency(retMetrics.guaranteedNet)}</td><td>${formatCurrency(retMetrics.netGap)}</td><td>${formatCurrency(retMetrics.grossWithdrawal)}</td><td>${formatCurrency(retMetrics.dragAmount)}</td></tr>
+          <tr><td>Age 65</td><td>${row65.age}</td><td>${formatCurrency(age65Metrics.spending)}</td><td>${formatCurrency(age65Metrics.guaranteedNet)}</td><td>${formatCurrency(age65Metrics.netGap)}</td><td>${formatCurrency(age65Metrics.grossWithdrawal)}</td><td>${formatCurrency(age65Metrics.dragAmount)}</td></tr>
+          <tr><td>Age 71</td><td>${row71.age}</td><td>${formatCurrency(age71Metrics.spending)}</td><td>${formatCurrency(age71Metrics.guaranteedNet)}</td><td>${formatCurrency(age71Metrics.netGap)}</td><td>${formatCurrency(age71Metrics.grossWithdrawal)}</td><td>${formatCurrency(age71Metrics.dragAmount)}</td></tr>
         </tbody>
       </table>
       <p><strong>Planning estimate only.</strong> Not tax, legal, or financial advice.</p>
@@ -4278,6 +4358,7 @@ function renderStrategySuggestions(ctx) {
 
 
 /* FILE: src/model/clientSummary.js */
+
 function buildClientSummaryData({ plan, model, selectedAge, rows, phases, risks }) {
   const allRows = Array.isArray(rows) && rows.length
     ? rows
@@ -4289,13 +4370,7 @@ function buildClientSummaryData({ plan, model, selectedAge, rows, phases, risks 
     || allRows.find((r) => Number(r.age) === fallbackAge)
     || allRows[0];
 
-  const guaranteed = Number(current.guaranteedNet || 0);
-  const spending = Number(current.spending || 0);
-  const netGap = Math.max(0, Number(current.netGap || 0));
-  const grossWithdrawal = Math.max(0, Number(current.withdrawal || 0));
-  const taxWedge = Math.max(0, Number((current.taxOnWithdrawal || 0) + (current.oasClawback || 0)));
-  const netSpendingAvailable = Math.max(0, guaranteed + Math.max(0, Number(current.netFromWithdrawal || 0)));
-  const coverageRatio = spending > 0 ? guaranteed / spending : 1;
+  const report = getReportMetrics(plan, current);
 
   const depletionAge = model?.kpis?.depletionAge || null;
   const rrifPhaseAge = plan.strategy.applyRrifMinimums
@@ -4306,14 +4381,18 @@ function buildClientSummaryData({ plan, model, selectedAge, rows, phases, risks 
   return {
     selected: current,
     metrics: {
-      spending,
-      guaranteed,
-      netGap,
-      grossWithdrawal,
-      taxWedge,
-      netSpendingAvailable,
-      coverageRatio,
-      effectiveRate: Number(current.effectiveTaxRate || 0),
+      spending: report.spending,
+      guaranteed: report.guaranteedNet,
+      guaranteedGross: report.guaranteedGross,
+      netGap: report.netGap,
+      grossWithdrawal: report.grossWithdrawal,
+      taxWedge: report.dragAmount,
+      incomeTax: report.incomeTax,
+      clawback: report.clawback,
+      netSpendingAvailable: report.totalSpendable,
+      coverageRatio: report.coverageRatio,
+      effectiveRate: report.effectiveTaxRate,
+      estimateTaxes: report.estimateTaxes,
     },
     warnings: {
       depletionAge,
@@ -4411,27 +4490,30 @@ function renderClientSummaryMode(ctx) {
         <h3>Retirement Readiness Snapshot</h3>
         <p><strong>At age ${row.age}, guaranteed income ${tooltipButton("kpiGuaranteedIncome")} covers <span class="client-summary-number">${formatPct(coveragePct)}</span> of your target spending ${tooltipButton("kpiSpendingTarget")}.</strong> ${hasSurplus
           ? `You are fully covered with an estimated surplus of <strong>${formatCurrency(surplus)}</strong> per year.`
-          : `You need about <strong>${formatCurrency(m.grossWithdrawal)}</strong>/yr from RRSP/RRIF ${tooltipButton("kpiGrossWithdrawal")}, and about <strong>${formatCurrency(m.taxWedge)}</strong>/yr goes to tax.`}
+          : m.estimateTaxes
+            ? `You need about <strong>${formatCurrency(m.grossWithdrawal)}</strong>/yr from RRSP/RRIF ${tooltipButton("kpiGrossWithdrawal")}, and about <strong>${formatCurrency(m.taxWedge)}</strong>/yr goes to estimated tax and clawback.`
+            : `You need about <strong>${formatCurrency(m.grossWithdrawal)}</strong>/yr from RRSP/RRIF ${tooltipButton("kpiGrossWithdrawal")}. Tax estimates are off in this scenario.`}
         </p>
         <div class="metric-grid metric-grid-wide">
           <article class="metric-card metric-card-primary">
-            <span class="label">Coverage</span>
+            <span class="label">Coverage ${tooltipButton("kpiCoveragePercent")}</span>
             <span class="value">${formatPct(coveragePct)}</span>
           </article>
           <article class="metric-card metric-card-primary">
-            <span class="label">Guaranteed income</span>
+            <span class="label">Guaranteed income ${tooltipButton("kpiGuaranteedIncome")}</span>
             <span class="value">${formatCurrency(m.guaranteed)}</span>
+            <span class="sub">${m.estimateTaxes ? "After estimated tax" : "Tax estimates off"}</span>
           </article>
           <article class="metric-card metric-card-primary">
-            <span class="label">Savings withdrawals</span>
+            <span class="label">Savings withdrawals ${tooltipButton("kpiGrossWithdrawal")}</span>
             <span class="value">${formatCurrency(m.grossWithdrawal)}</span>
           </article>
           <article class="metric-card metric-card-primary">
-            <span class="label">Estimated taxes</span>
-            <span class="value">${formatCurrency(m.taxWedge)}</span>
+            <span class="label">${m.estimateTaxes ? `Tax + clawback drag ${tooltipButton("taxDrag")}` : "Tax estimates"}</span>
+            <span class="value">${m.estimateTaxes ? formatCurrency(m.taxWedge) : "Off"}</span>
           </article>
           <article class="metric-card metric-card-primary">
-            <span class="label">Net spending available</span>
+            <span class="label">Net spending available ${tooltipButton("netSpendingAvailable")}</span>
             <span class="value">${formatCurrency(m.netSpendingAvailable)}</span>
           </article>
         </div>
@@ -4545,6 +4627,19 @@ function fmtListItems(items) {
   return items.map((item) => `<li>${esc(item)}</li>`).join("");
 }
 
+function renderLegend(items) {
+  return `
+    <div class="print-legend">
+      ${items.map((item) => `
+        <span class="print-legend-item">
+          <span class="print-legend-swatch" style="background:${item.color};"></span>
+          ${esc(item.label)}
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
 function buildClientSummaryHtml(ctx) {
   const {
     state,
@@ -4581,7 +4676,7 @@ function buildClientSummaryHtml(ctx) {
       `Balanced return: ${formatPct(state.assumptions.returns.balanced)}`,
       `Aggressive return: ${formatPct(state.assumptions.returns.aggressive)}`,
       `Scenario spread: ${formatPct(state.assumptions.scenarioSpread)}`,
-      `Tax brackets indexed with inflation: ${yesNo(state.assumptions.indexTaxBrackets)}`,
+      `Tax brackets indexed with inflation: ${yesNo(state.assumptions.taxBracketInflation)}`,
     ],
     savings: [
       `Current savings: ${formatCurrency(state.savings.currentTotal)}`,
@@ -4610,7 +4705,7 @@ function buildClientSummaryHtml(ctx) {
     ],
     strategy: [
       `Withdrawal strategy: ${state.strategy.withdrawal}`,
-      `Estimate taxes: ${yesNo(state.strategy.estimateTaxes)}`,
+      `Estimate taxes: ${yesNo(state.strategy.estimateTaxes !== false)}`,
       `OAS clawback modeling: ${yesNo(state.strategy.oasClawbackModeling)}`,
       `Apply RRIF minimums: ${yesNo(state.strategy.applyRrifMinimums)}`,
       `RRIF conversion age: ${state.strategy.rrifConversionAge}`,
@@ -4626,17 +4721,22 @@ function buildClientSummaryHtml(ctx) {
       <h1>Canadian Retirement Tax Simulator - Client Summary</h1>
       <p><strong>Prepared for:</strong> ${esc(prefs.preparedFor || "-")} | <strong>Scenario:</strong> ${esc(prefs.scenarioLabel || "Current plan")}</p>
       <p><strong>Prepared by:</strong> ${esc(prefs.preparedBy || "-")} | <strong>Date:</strong> ${esc(dateValue)}</p>
+      <p><strong>Basis note:</strong> Annual retirement amounts below are shown in nominal dollars for the specific age/year shown. Your spending input remains a today's-dollars assumption in the planner and is inflated in the projection.</p>
 
       <h2>Retirement Readiness Snapshot (Age ${row.age})</h2>
       <ul>
-        <li>Coverage: ${formatPct(m.coverageRatio)}</li>
-        <li>Guaranteed income: ${formatCurrency(m.guaranteed)}</li>
-        <li>Savings withdrawals needed (gross): ${formatCurrency(m.grossWithdrawal)}</li>
-        <li>Estimated taxes (tax wedge): ${formatCurrency(m.taxWedge)}</li>
-        <li>Net spending available: ${formatCurrency(m.netSpendingAvailable)}</li>
+        <li>Guaranteed-income coverage: ${formatPct(m.coverageRatio)}</li>
+        <li>Guaranteed income for this year after estimated tax: ${formatCurrency(m.guaranteed)}</li>
+        <li>Guaranteed income for this year before tax: ${formatCurrency(m.guaranteedGross)}</li>
+        <li>Gross RRSP/RRIF withdrawal needed for this year: ${formatCurrency(m.grossWithdrawal)}</li>
+        <li>${m.estimateTaxes ? `Estimated tax + clawback drag: ${formatCurrency(m.taxWedge)}` : "Tax estimates: Off"}</li>
+        <li>Net spending available for this year: ${formatCurrency(m.netSpendingAvailable)}</li>
       </ul>
       ${chartImages?.projection
-        ? `<figure class="print-chart"><img src="${chartImages.projection}" alt="Projection chart" /><figcaption>Projection chart (from current client summary view)</figcaption></figure>`
+        ? `<figure class="print-chart"><img src="${chartImages.projection}" alt="Projection chart" /><figcaption>Projection chart (from current client summary view)</figcaption>${renderLegend([
+          { label: "Portfolio balance", color: "#0f6abf" },
+          { label: "Stress band (best/worst)", color: "#7aa7d8" },
+        ])}</figure>`
         : ""
       }
 
@@ -4650,7 +4750,14 @@ function buildClientSummaryHtml(ctx) {
         }).join("")}
       </ul>
       ${chartImages?.incomeMap
-        ? `<figure class="print-chart"><img src="${chartImages.incomeMap}" alt="Retirement income map chart" /><figcaption>Retirement income map (from current client summary view)</figcaption></figure>`
+        ? `<figure class="print-chart"><img src="${chartImages.incomeMap}" alt="Retirement income map chart" /><figcaption>Retirement income map (from current client summary view)</figcaption>${renderLegend([
+          { label: "Pension", color: "#f59e0b" },
+          { label: "CPP", color: "#16a34a" },
+          { label: "OAS", color: "#0ea5a8" },
+          { label: "RRSP/RRIF", color: "#0f6abf" },
+          { label: "Tax wedge", color: "#d9485f" },
+          { label: "Spending target", color: "#111827" },
+        ])}</figure>`
         : ""
       }
 
@@ -4702,6 +4809,9 @@ function openClientSummaryPrintWindow(summaryHtml) {
         .print-chart{margin:10px 0 16px}
         .print-chart img{display:block;max-width:100%;height:auto;border:1px solid #dbe5f2;border-radius:8px}
         .print-chart figcaption{font-size:11px;color:#5f6b7d;margin-top:4px}
+        .print-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+        .print-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#334155}
+        .print-legend-swatch{width:10px;height:10px;border-radius:999px;display:inline-block;border:1px solid rgba(0,0,0,0.08)}
         @media print { body{color:#000;background:#fff} }
       </style>
     </head><body>${summaryHtml}</body></html>
@@ -4838,6 +4948,7 @@ function renderRrspMeltdownSimulator(ctx) {
 }
 
 /* FILE: src/ui/resultsStrip.js */
+
 function renderResultsStrip(ctx) {
   const {
     mountEl,
@@ -4852,14 +4963,15 @@ function renderResultsStrip(ctx) {
   } = ctx;
   if (!mountEl || !row) return;
 
-  const spending = Math.max(0, Number(row.spending || 0));
-  const guaranteed = Math.max(0, Number(row.guaranteedGross || 0));
-  const netGap = Math.max(0, Number(row.netGap || 0));
-  const gross = Math.max(0, Number(row.withdrawal || 0));
-  const taxWedge = Math.max(0, Number((row.taxOnWithdrawal || 0) + (row.oasClawback || 0)));
-  const coverageRatio = spending > 0 ? guaranteed / spending : 1;
+  const metrics = getReportMetrics(ctx.plan, row);
+  const spending = metrics.spending;
+  const guaranteed = metrics.guaranteedNet;
+  const netGap = metrics.netGap;
+  const gross = metrics.grossWithdrawal;
+  const taxWedge = metrics.dragAmount;
+  const coverageRatio = metrics.coverageRatio;
   const coveragePct = clamp(coverageRatio * 100, 0, 300);
-  const surplus = guaranteed > spending;
+  const surplus = metrics.surplus > 0;
   const barTotal = Math.max(1, guaranteed + Math.max(0, gross - taxWedge) + taxWedge);
   const guaranteedW = (guaranteed / barTotal) * 100;
   const netW = (Math.max(0, gross - taxWedge) / barTotal) * 100;
@@ -4883,7 +4995,7 @@ function renderResultsStrip(ctx) {
       <article class="metric-card">
         <span class="label">Guaranteed income ${tooltipButton("kpiGuaranteedIncome")}</span>
         <span class="value">${formatCurrency(guaranteed)}</span>
-        <span class="sub">Pension + CPP + OAS</span>
+        <span class="sub">${metrics.estimateTaxes ? "After estimated tax" : "Tax estimates off"}</span>
       </article>
       <article class="metric-card ${surplus ? "metric-good" : ""}">
         <span class="label">Net gap from savings ${tooltipButton("kpiNetGap")}</span>
@@ -4893,19 +5005,19 @@ function renderResultsStrip(ctx) {
       <article class="metric-card">
         <span class="label">Gross withdrawal needed ${tooltipButton("kpiGrossWithdrawal")}</span>
         <span class="value">${formatCurrency(gross)}</span>
-        <span class="sub">Tax wedge: ${formatCurrency(taxWedge)}</span>
+        <span class="sub">${metrics.estimateTaxes ? `Tax + clawback drag: ${formatCurrency(taxWedge)}` : "Tax estimates off"}</span>
       </article>
     </div>
     <div class="results-strip-meta">
       <span class="coverage-badge ${surplus ? "coverage-good" : ""}">
-        Income covers ${formatPct(Math.min(2.99, coverageRatio))}
+        Guaranteed income covers ${formatPct(Math.min(2.99, coverageRatio))}
       </span>
       <div class="results-mini-bar" role="img" aria-label="Income coverage mini bar">
         <span class="seg guaranteed" style="width:${guaranteedW.toFixed(1)}%"></span>
         <span class="seg netdraw" style="width:${netW.toFixed(1)}%"></span>
         <span class="seg tax" style="width:${taxW.toFixed(1)}%"></span>
       </div>
-      <p class="small-copy muted">Spending = Guaranteed + Net from savings. Gross draw = Net + Tax wedge.</p>
+      <p class="small-copy muted">All comparisons are on an after-tax spending basis. Gross draw = net withdrawal plus estimated tax/clawback drag.</p>
     </div>
   `;
 }
@@ -4995,6 +5107,7 @@ function buildSupportMomentCard(eventKey) {
 }
 
 /* FILE: src/ui/share.js */
+
 function safeNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -5101,10 +5214,11 @@ function buildShareSummary({ state, row, formatCurrency, formatPct, link, deplet
   const pension = safeNumber(row?.pensionGross || state.income.pension.amount, 0);
   const cpp = safeNumber(row?.cppGross || state.income.cpp.amountAt65, 0);
   const oas = safeNumber(row?.oasGross || state.income.oas.amountAt65, 0);
-  const guaranteed = safeNumber(row?.guaranteedGross, pension + cpp + oas);
-  const netGap = safeNumber(row?.netGap, 0);
-  const gross = safeNumber(row?.withdrawal, 0);
-  const tax = safeNumber((row?.taxOnWithdrawal || 0) + (row?.oasClawback || 0), 0);
+  const metrics = getReportMetrics(state, row || {});
+  const guaranteed = metrics.guaranteedNet;
+  const netGap = metrics.netGap;
+  const gross = metrics.grossWithdrawal;
+  const tax = metrics.dragAmount;
   const age = safeNumber(row?.age, state.profile.retirementAge);
   const scenario = String(state.uiState.selectedScenarioLabel || "Current plan");
   return [
@@ -5113,12 +5227,14 @@ function buildShareSummary({ state, row, formatCurrency, formatPct, link, deplet
     `Age: ${age}`,
     `Retirement age: ${state.profile.retirementAge}`,
     `After-tax spending target: ${formatCurrency(row?.spending || state.profile.desiredSpending)}`,
-    `Guaranteed income: ${formatCurrency(guaranteed)} (Pension ${formatCurrency(pension)} / CPP ${formatCurrency(cpp)} / OAS ${formatCurrency(oas)})`,
+    `Guaranteed income after estimated tax: ${formatCurrency(guaranteed)} (Gross sources: Pension ${formatCurrency(pension)} / CPP ${formatCurrency(cpp)} / OAS ${formatCurrency(oas)})`,
     `Net gap from savings: ${formatCurrency(netGap)}`,
     `Gross RRSP/RRIF withdrawal required: ${formatCurrency(gross)}`,
-    `Tax wedge: ${formatCurrency(tax)} (effective rate ${formatPct(row?.effectiveTaxRate || 0)})`,
-    `OAS clawback: ${formatCurrency(row?.oasClawback || 0)}${state.strategy.oasClawbackModeling ? "" : " (modeling off)"}`,
-    row?.netGap > 0 ? `Status: Gap remains (${formatCurrency(row.netGap)})` : `Status: Surplus/covered`,
+    metrics.estimateTaxes
+      ? `Estimated tax + clawback drag: ${formatCurrency(tax)} (effective rate ${formatPct(metrics.effectiveTaxRate)})`
+      : "Tax estimates: Off",
+    `OAS clawback: ${formatCurrency(metrics.clawback)}${state.strategy.oasClawbackModeling && metrics.estimateTaxes ? "" : " (modeling off)"}`,
+    metrics.netGap > 0 ? `Status: Gap remains (${formatCurrency(metrics.netGap)})` : `Status: Surplus/covered`,
     depletionAge ? `Depletion age: ${depletionAge}` : "Depletion age: none in projection",
     `Link: ${link}`,
   ].join("\n");
@@ -6129,6 +6245,7 @@ function getPlanEditorConfigView(key, ctx) {
 }
 
 /* FILE: src/ui/views/dashboardView.js */
+
 function renderDashboardView(ctx) {
   const {
     state,
@@ -6232,21 +6349,22 @@ function renderDashboardView(ctx) {
     const row = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge)
       || findRowByAge(model.base.rows, state.profile.retirementAge);
     if (!row) return;
-    const taxWedge = row.taxOnWithdrawal + row.oasClawback;
-    const netKeep = Math.max(0, row.withdrawal - taxWedge);
-    const gross = Math.max(1, row.withdrawal);
+    const report = getReportMetrics(state, row);
+    const taxWedge = report.dragAmount;
+    const netKeep = Math.max(0, report.netWithdrawal);
+    const gross = Math.max(1, report.grossWithdrawal);
     const wedgePct = (taxWedge / gross) * 100;
     if (el.kpiContext) {
       el.kpiContext.textContent = `At a glance for age ${row.age}. Planning estimate only.`;
     }
     const kpis = [
       { label: "After-tax spending", value: formatCurrency(row.spending), sub: "Spending target", tip: "kpiSpendingTarget" },
-      { label: "Guaranteed income", value: formatCurrency(row.guaranteedGross), sub: "Pension + CPP + OAS", tip: "kpiGuaranteedIncome" },
-      { label: "Net gap from savings", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "After-tax gap" : "No gap (surplus)", tip: "kpiNetGap" },
+      { label: "Guaranteed income", value: formatCurrency(report.guaranteedNet), sub: report.estimateTaxes ? "After estimated tax" : "Tax estimates off", tip: "kpiGuaranteedIncome" },
+      { label: "Net gap from savings", value: report.netGap > 0 ? formatCurrency(report.netGap) : formatCurrency(0), sub: report.netGap > 0 ? "After-tax gap" : "No gap (surplus)", tip: "kpiNetGap" },
       {
         label: "Gross withdrawal needed",
-        value: formatCurrency(row.withdrawal),
-        sub: `Tax wedge: ${formatCurrency(taxWedge)}`,
+        value: formatCurrency(report.grossWithdrawal),
+        sub: report.estimateTaxes ? `Tax + clawback drag: ${formatCurrency(taxWedge)}` : "Tax estimates off",
         tip: "kpiGrossWithdrawal",
         mini: true,
       },
@@ -6272,7 +6390,8 @@ function renderDashboardView(ctx) {
     if (!el.retirementScoreCard) return;
     const row = findRowByAge(model.base.rows, state.profile.retirementAge);
     if (!row) return;
-    const coverageRatio = row.spending > 0 ? clamp((row.guaranteedNet / row.spending), 0, 1.2) : 1;
+    const report = getReportMetrics(state, row);
+    const coverageRatio = row.spending > 0 ? clamp(report.coverageRatio, 0, 1.2) : 1;
     const coverageScore = Math.round(clamp(coverageRatio * 100, 0, 100));
     const depletionScore = model.kpis.depletionAge
       ? Math.round(clamp(((model.kpis.depletionAge - state.profile.retirementAge) / Math.max(1, state.profile.lifeExpectancy - state.profile.retirementAge)) * 100, 0, 100))
@@ -6389,7 +6508,7 @@ function renderDashboardView(ctx) {
           </div>
           <div class="withdrawal-metrics">
             <div><strong>Spending target (after-tax) ${tooltipButton("kpiSpendingTarget")}</strong><span>${formatCurrency(row.spending)}</span></div>
-            <div><strong>Guaranteed income total ${tooltipButton("kpiGuaranteedIncome")}</strong><span>${formatCurrency(row.guaranteedGross)}</span></div>
+            <div><strong>Guaranteed income after estimated tax ${tooltipButton("kpiGuaranteedIncome")}</strong><span>${formatCurrency(row.guaranteedNet)}</span></div>
             <div><strong>Net gap funded by savings ${tooltipButton("kpiNetGap")}</strong><span>${formatCurrency(row.netGap)}</span></div>
             <div><strong>Gross withdrawal required ${tooltipButton("kpiGrossWithdrawal")}</strong><span>${formatCurrency(row.withdrawal)}</span></div>
             <div><strong>Tax on withdrawal ${tooltipButton("learnTaxGrossUp")}</strong><span>${formatCurrency(row.taxOnWithdrawal)}</span></div>
@@ -6599,6 +6718,7 @@ function renderAdvancedView(ctx) {
 
     ${accordionSection("tax", "Tax estimate", "Provides planning-level yearly tax estimates using federal + provincial brackets.", `
       <p class="muted">Planning estimate only. Uses province-aware bracket math and can escalate brackets with inflation.</p>
+      <label class="inline-check"><input type="checkbox" data-bind="strategy.estimateTaxes" ${state.strategy.estimateTaxes !== false ? "checked" : ""} />Estimate taxes and withdrawal drag</label>
       <div class="preview-kpi">
         <div class="preview-kpi-item"><strong>Current effective tax rate</strong><span>${formatPct(model.tax.currentEffectiveRate)}</span></div>
         <div class="preview-kpi-item"><strong>First retirement-year effective tax rate</strong><span>${formatPct(model.tax.firstRetirementEffectiveRate)}</span></div>
@@ -7816,6 +7936,7 @@ function renderDashboardResultsStrip() {
   const row = findRowByAgeLocal(rows, selected) || rows[0];
   renderResultsStrip({
     mountEl: el.resultsStrip,
+    plan: state,
     row,
     selectedAge: selected,
     minAge,
@@ -7840,6 +7961,7 @@ function renderRetirementGapModule() {
   const row = findRowByAgeLocal(rows, selected) || rows[0];
   renderRetirementGapHeadline({
     mountEl: el.retirementGapHeadline,
+    plan: state,
     row,
     model: ui.lastModel,
     selectedAge: selected,
@@ -7861,6 +7983,7 @@ function renderRetirementInsightModule() {
   }
   renderRetirementInsight({
     mountEl: el.retirementInsight,
+    plan: state,
     row,
     model: ui.lastModel,
     age: row.age,
@@ -8596,11 +8719,21 @@ function openScenarioCompare() {
   };
   const strategyMetrics = (ui.lastModel.strategyComparisons || []).map((s) => {
     const snap = s.snapshotsByAge?.[65] || s.snapshotsByAge?.[state.profile.retirementAge] || null;
-    const netGap = Math.max(0, (snap?.spend || 0) - Math.max(0, (snap?.guaranteedGross || 0) - (snap?.tax || 0) - (snap?.clawback || 0)));
+    const snapAge = Number(snap?.age || state.profile.retirementAge || 65);
+    const yearOffset = Math.max(0, snapAge - (APP.currentYear - Number(state.profile.birthYear || APP.currentYear)));
+    const guaranteedGross = Number(snap?.guaranteedGross || 0);
+    const guaranteedTax = state.strategy.estimateTaxes === false
+      ? 0
+      : estimateTotalTax(state, guaranteedGross, yearOffset);
+    const guaranteedClawback = state.strategy.estimateTaxes === false || !state.strategy.oasClawbackModeling
+      ? 0
+      : estimateOasClawback(state, guaranteedGross, guaranteedGross > 0 ? guaranteedGross : 0, yearOffset);
+    const guaranteedNet = Math.max(0, guaranteedGross - guaranteedTax - guaranteedClawback);
+    const netGap = Math.max(0, (snap?.spend || 0) - guaranteedNet);
     return {
       label: s.label,
       metrics: {
-        coveragePct: snap?.spend > 0 ? (snap.guaranteedGross / snap.spend) : 1,
+        coveragePct: snap?.spend > 0 ? (guaranteedNet / snap.spend) : 1,
         netGap65: netGap,
         gross65: snap?.accountWithdrawals?.total || 0,
         taxWedge65: (snap?.tax || 0) + (snap?.clawback || 0),

@@ -5,6 +5,7 @@ import {
   RRIF_MIN_WITHDRAWAL,
 } from "./src/model/constants.js";
 import {
+  estimateOasClawback,
   estimateTotalTax,
 } from "./src/model/calculations.js";
 import { buildPlanModel } from "./src/model/projection.js";
@@ -1210,6 +1211,7 @@ function renderDashboardResultsStrip() {
   const row = findRowByAgeLocal(rows, selected) || rows[0];
   renderResultsStrip({
     mountEl: el.resultsStrip,
+    plan: state,
     row,
     selectedAge: selected,
     minAge,
@@ -1234,6 +1236,7 @@ function renderRetirementGapModule() {
   const row = findRowByAgeLocal(rows, selected) || rows[0];
   renderRetirementGapHeadline({
     mountEl: el.retirementGapHeadline,
+    plan: state,
     row,
     model: ui.lastModel,
     selectedAge: selected,
@@ -1255,6 +1258,7 @@ function renderRetirementInsightModule() {
   }
   renderRetirementInsight({
     mountEl: el.retirementInsight,
+    plan: state,
     row,
     model: ui.lastModel,
     age: row.age,
@@ -1990,11 +1994,21 @@ function openScenarioCompare() {
   };
   const strategyMetrics = (ui.lastModel.strategyComparisons || []).map((s) => {
     const snap = s.snapshotsByAge?.[65] || s.snapshotsByAge?.[state.profile.retirementAge] || null;
-    const netGap = Math.max(0, (snap?.spend || 0) - Math.max(0, (snap?.guaranteedGross || 0) - (snap?.tax || 0) - (snap?.clawback || 0)));
+    const snapAge = Number(snap?.age || state.profile.retirementAge || 65);
+    const yearOffset = Math.max(0, snapAge - (APP.currentYear - Number(state.profile.birthYear || APP.currentYear)));
+    const guaranteedGross = Number(snap?.guaranteedGross || 0);
+    const guaranteedTax = state.strategy.estimateTaxes === false
+      ? 0
+      : estimateTotalTax(state, guaranteedGross, yearOffset);
+    const guaranteedClawback = state.strategy.estimateTaxes === false || !state.strategy.oasClawbackModeling
+      ? 0
+      : estimateOasClawback(state, guaranteedGross, guaranteedGross > 0 ? guaranteedGross : 0, yearOffset);
+    const guaranteedNet = Math.max(0, guaranteedGross - guaranteedTax - guaranteedClawback);
+    const netGap = Math.max(0, (snap?.spend || 0) - guaranteedNet);
     return {
       label: s.label,
       metrics: {
-        coveragePct: snap?.spend > 0 ? (snap.guaranteedGross / snap.spend) : 1,
+        coveragePct: snap?.spend > 0 ? (guaranteedNet / snap.spend) : 1,
         netGap65: netGap,
         gross65: snap?.accountWithdrawals?.total || 0,
         taxWedge65: (snap?.tax || 0) + (snap?.clawback || 0),

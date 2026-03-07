@@ -19,6 +19,19 @@ function fmtListItems(items) {
   return items.map((item) => `<li>${esc(item)}</li>`).join("");
 }
 
+function renderLegend(items) {
+  return `
+    <div class="print-legend">
+      ${items.map((item) => `
+        <span class="print-legend-item">
+          <span class="print-legend-swatch" style="background:${item.color};"></span>
+          ${esc(item.label)}
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
 export function buildClientSummaryHtml(ctx) {
   const {
     state,
@@ -55,7 +68,7 @@ export function buildClientSummaryHtml(ctx) {
       `Balanced return: ${formatPct(state.assumptions.returns.balanced)}`,
       `Aggressive return: ${formatPct(state.assumptions.returns.aggressive)}`,
       `Scenario spread: ${formatPct(state.assumptions.scenarioSpread)}`,
-      `Tax brackets indexed with inflation: ${yesNo(state.assumptions.indexTaxBrackets)}`,
+      `Tax brackets indexed with inflation: ${yesNo(state.assumptions.taxBracketInflation)}`,
     ],
     savings: [
       `Current savings: ${formatCurrency(state.savings.currentTotal)}`,
@@ -84,7 +97,7 @@ export function buildClientSummaryHtml(ctx) {
     ],
     strategy: [
       `Withdrawal strategy: ${state.strategy.withdrawal}`,
-      `Estimate taxes: ${yesNo(state.strategy.estimateTaxes)}`,
+      `Estimate taxes: ${yesNo(state.strategy.estimateTaxes !== false)}`,
       `OAS clawback modeling: ${yesNo(state.strategy.oasClawbackModeling)}`,
       `Apply RRIF minimums: ${yesNo(state.strategy.applyRrifMinimums)}`,
       `RRIF conversion age: ${state.strategy.rrifConversionAge}`,
@@ -100,17 +113,22 @@ export function buildClientSummaryHtml(ctx) {
       <h1>Canadian Retirement Tax Simulator - Client Summary</h1>
       <p><strong>Prepared for:</strong> ${esc(prefs.preparedFor || "-")} | <strong>Scenario:</strong> ${esc(prefs.scenarioLabel || "Current plan")}</p>
       <p><strong>Prepared by:</strong> ${esc(prefs.preparedBy || "-")} | <strong>Date:</strong> ${esc(dateValue)}</p>
+      <p><strong>Basis note:</strong> Annual retirement amounts below are shown in nominal dollars for the specific age/year shown. Your spending input remains a today's-dollars assumption in the planner and is inflated in the projection.</p>
 
       <h2>Retirement Readiness Snapshot (Age ${row.age})</h2>
       <ul>
-        <li>Coverage: ${formatPct(m.coverageRatio)}</li>
-        <li>Guaranteed income: ${formatCurrency(m.guaranteed)}</li>
-        <li>Savings withdrawals needed (gross): ${formatCurrency(m.grossWithdrawal)}</li>
-        <li>Estimated taxes (tax wedge): ${formatCurrency(m.taxWedge)}</li>
-        <li>Net spending available: ${formatCurrency(m.netSpendingAvailable)}</li>
+        <li>Guaranteed-income coverage: ${formatPct(m.coverageRatio)}</li>
+        <li>Guaranteed income for this year after estimated tax: ${formatCurrency(m.guaranteed)}</li>
+        <li>Guaranteed income for this year before tax: ${formatCurrency(m.guaranteedGross)}</li>
+        <li>Gross RRSP/RRIF withdrawal needed for this year: ${formatCurrency(m.grossWithdrawal)}</li>
+        <li>${m.estimateTaxes ? `Estimated tax + clawback drag: ${formatCurrency(m.taxWedge)}` : "Tax estimates: Off"}</li>
+        <li>Net spending available for this year: ${formatCurrency(m.netSpendingAvailable)}</li>
       </ul>
       ${chartImages?.projection
-        ? `<figure class="print-chart"><img src="${chartImages.projection}" alt="Projection chart" /><figcaption>Projection chart (from current client summary view)</figcaption></figure>`
+        ? `<figure class="print-chart"><img src="${chartImages.projection}" alt="Projection chart" /><figcaption>Projection chart (from current client summary view)</figcaption>${renderLegend([
+          { label: "Portfolio balance", color: "#0f6abf" },
+          { label: "Stress band (best/worst)", color: "#7aa7d8" },
+        ])}</figure>`
         : ""
       }
 
@@ -124,7 +142,14 @@ export function buildClientSummaryHtml(ctx) {
         }).join("")}
       </ul>
       ${chartImages?.incomeMap
-        ? `<figure class="print-chart"><img src="${chartImages.incomeMap}" alt="Retirement income map chart" /><figcaption>Retirement income map (from current client summary view)</figcaption></figure>`
+        ? `<figure class="print-chart"><img src="${chartImages.incomeMap}" alt="Retirement income map chart" /><figcaption>Retirement income map (from current client summary view)</figcaption>${renderLegend([
+          { label: "Pension", color: "#f59e0b" },
+          { label: "CPP", color: "#16a34a" },
+          { label: "OAS", color: "#0ea5a8" },
+          { label: "RRSP/RRIF", color: "#0f6abf" },
+          { label: "Tax wedge", color: "#d9485f" },
+          { label: "Spending target", color: "#111827" },
+        ])}</figure>`
         : ""
       }
 
@@ -176,6 +201,9 @@ export function openClientSummaryPrintWindow(summaryHtml) {
         .print-chart{margin:10px 0 16px}
         .print-chart img{display:block;max-width:100%;height:auto;border:1px solid #dbe5f2;border-radius:8px}
         .print-chart figcaption{font-size:11px;color:#5f6b7d;margin-top:4px}
+        .print-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+        .print-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#334155}
+        .print-legend-swatch{width:10px;height:10px;border-radius:999px;display:inline-block;border:1px solid rgba(0,0,0,0.08)}
         @media print { body{color:#000;background:#fff} }
       </style>
     </head><body>${summaryHtml}</body></html>

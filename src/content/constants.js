@@ -229,10 +229,17 @@ export const TOOLTIPS = {
   },
   kpiGuaranteedIncome: {
     term: "Guaranteed income",
-    plain: "Combined pension, CPP, and OAS for the year.",
-    why: "This income reduces how much must come from savings.",
+    plain: "Combined pension, CPP, and OAS available for spending in the year. In summary views this is shown after estimated tax when tax estimates are enabled.",
+    why: "This is the portion of spending covered before savings withdrawals are needed.",
     range: "Depends on benefit amounts and start ages.",
-    example: "If guaranteed income covers most spending, withdrawals are lower.",
+    example: "If after-tax guaranteed income covers most spending, required withdrawals are lower.",
+  },
+  kpiCoveragePercent: {
+    term: "Guaranteed-income coverage",
+    plain: "The share of your after-tax spending target covered by after-tax guaranteed income alone.",
+    why: "It shows how dependent the plan is on savings withdrawals.",
+    range: "100% means guaranteed income alone covers the full spending target on the same after-tax basis.",
+    example: "If after-tax guaranteed income is $45k and spending target is $60k, coverage is 75%.",
   },
   kpiNetGap: {
     term: "Net gap from savings",
@@ -247,6 +254,20 @@ export const TOOLTIPS = {
     why: "Withdrawals are taxable, so gross is often higher than net needed.",
     range: "Depends on taxable income and tax rate in that year.",
     example: "A $20k net gap may require a $26k gross withdrawal.",
+  },
+  netSpendingAvailable: {
+    term: "Net spending available",
+    plain: "Total spendable cash flow after estimated tax and clawback for the selected year.",
+    why: "This is the amount available to actually fund spending.",
+    range: "Usually equals guaranteed income after tax plus net withdrawals.",
+    example: "If guaranteed income nets $45k and net withdrawals add $15k, net spending available is $60k.",
+  },
+  taxDrag: {
+    term: "Tax and clawback drag",
+    plain: "The portion of gross withdrawals that does not become spendable cash because of estimated income tax and any modeled OAS clawback.",
+    why: "This explains why gross withdrawals can be larger than the net spending gap.",
+    range: "Zero when tax estimates are disabled or no taxable withdrawal is required.",
+    example: "A $28k gross withdrawal with $6k tax/clawback drag leaves about $22k net to spend.",
   },
   registeredAssumption: {
     term: "Registered-only assumption",

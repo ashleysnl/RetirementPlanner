@@ -14,6 +14,7 @@ MODULES=(
   "src/model/meltdown.js"
   "src/model/diff.js"
   "src/model/risks.js"
+  "src/model/reportMetrics.js"
   "src/model/yearBreakdown.js"
   "src/model/phases.js"
   "src/model/peakTax.js"

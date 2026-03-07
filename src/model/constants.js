@@ -1,6 +1,6 @@
 export const APP = {
   storageKey: "retirementPlanner.plan.v2",
-  version: 3,
+  version: 4,
   currentYear: new Date().getFullYear(),
   defaultProvince: "NL",
 };

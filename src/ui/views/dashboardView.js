@@ -1,3 +1,5 @@
+import { getReportMetrics } from "../../model/reportMetrics.js";
+
 export function renderDashboardView(ctx) {
   const {
     state,
@@ -101,21 +103,22 @@ export function renderDashboardView(ctx) {
     const row = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge)
       || findRowByAge(model.base.rows, state.profile.retirementAge);
     if (!row) return;
-    const taxWedge = row.taxOnWithdrawal + row.oasClawback;
-    const netKeep = Math.max(0, row.withdrawal - taxWedge);
-    const gross = Math.max(1, row.withdrawal);
+    const report = getReportMetrics(state, row);
+    const taxWedge = report.dragAmount;
+    const netKeep = Math.max(0, report.netWithdrawal);
+    const gross = Math.max(1, report.grossWithdrawal);
     const wedgePct = (taxWedge / gross) * 100;
     if (el.kpiContext) {
       el.kpiContext.textContent = `At a glance for age ${row.age}. Planning estimate only.`;
     }
     const kpis = [
       { label: "After-tax spending", value: formatCurrency(row.spending), sub: "Spending target", tip: "kpiSpendingTarget" },
-      { label: "Guaranteed income", value: formatCurrency(row.guaranteedGross), sub: "Pension + CPP + OAS", tip: "kpiGuaranteedIncome" },
-      { label: "Net gap from savings", value: row.netGap > 0 ? formatCurrency(row.netGap) : formatCurrency(0), sub: row.netGap > 0 ? "After-tax gap" : "No gap (surplus)", tip: "kpiNetGap" },
+      { label: "Guaranteed income", value: formatCurrency(report.guaranteedNet), sub: report.estimateTaxes ? "After estimated tax" : "Tax estimates off", tip: "kpiGuaranteedIncome" },
+      { label: "Net gap from savings", value: report.netGap > 0 ? formatCurrency(report.netGap) : formatCurrency(0), sub: report.netGap > 0 ? "After-tax gap" : "No gap (surplus)", tip: "kpiNetGap" },
       {
         label: "Gross withdrawal needed",
-        value: formatCurrency(row.withdrawal),
-        sub: `Tax wedge: ${formatCurrency(taxWedge)}`,
+        value: formatCurrency(report.grossWithdrawal),
+        sub: report.estimateTaxes ? `Tax + clawback drag: ${formatCurrency(taxWedge)}` : "Tax estimates off",
         tip: "kpiGrossWithdrawal",
         mini: true,
       },
@@ -141,7 +144,8 @@ export function renderDashboardView(ctx) {
     if (!el.retirementScoreCard) return;
     const row = findRowByAge(model.base.rows, state.profile.retirementAge);
     if (!row) return;
-    const coverageRatio = row.spending > 0 ? clamp((row.guaranteedNet / row.spending), 0, 1.2) : 1;
+    const report = getReportMetrics(state, row);
+    const coverageRatio = row.spending > 0 ? clamp(report.coverageRatio, 0, 1.2) : 1;
     const coverageScore = Math.round(clamp(coverageRatio * 100, 0, 100));
     const depletionScore = model.kpis.depletionAge
       ? Math.round(clamp(((model.kpis.depletionAge - state.profile.retirementAge) / Math.max(1, state.profile.lifeExpectancy - state.profile.retirementAge)) * 100, 0, 100))
@@ -258,7 +262,7 @@ export function renderDashboardView(ctx) {
           </div>
           <div class="withdrawal-metrics">
             <div><strong>Spending target (after-tax) ${tooltipButton("kpiSpendingTarget")}</strong><span>${formatCurrency(row.spending)}</span></div>
-            <div><strong>Guaranteed income total ${tooltipButton("kpiGuaranteedIncome")}</strong><span>${formatCurrency(row.guaranteedGross)}</span></div>
+            <div><strong>Guaranteed income after estimated tax ${tooltipButton("kpiGuaranteedIncome")}</strong><span>${formatCurrency(row.guaranteedNet)}</span></div>
             <div><strong>Net gap funded by savings ${tooltipButton("kpiNetGap")}</strong><span>${formatCurrency(row.netGap)}</span></div>
             <div><strong>Gross withdrawal required ${tooltipButton("kpiGrossWithdrawal")}</strong><span>${formatCurrency(row.withdrawal)}</span></div>
             <div><strong>Tax on withdrawal ${tooltipButton("learnTaxGrossUp")}</strong><span>${formatCurrency(row.taxOnWithdrawal)}</span></div>

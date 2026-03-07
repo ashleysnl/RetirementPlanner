@@ -84,27 +84,30 @@ export function renderClientSummaryMode(ctx) {
         <h3>Retirement Readiness Snapshot</h3>
         <p><strong>At age ${row.age}, guaranteed income ${tooltipButton("kpiGuaranteedIncome")} covers <span class="client-summary-number">${formatPct(coveragePct)}</span> of your target spending ${tooltipButton("kpiSpendingTarget")}.</strong> ${hasSurplus
           ? `You are fully covered with an estimated surplus of <strong>${formatCurrency(surplus)}</strong> per year.`
-          : `You need about <strong>${formatCurrency(m.grossWithdrawal)}</strong>/yr from RRSP/RRIF ${tooltipButton("kpiGrossWithdrawal")}, and about <strong>${formatCurrency(m.taxWedge)}</strong>/yr goes to tax.`}
+          : m.estimateTaxes
+            ? `You need about <strong>${formatCurrency(m.grossWithdrawal)}</strong>/yr from RRSP/RRIF ${tooltipButton("kpiGrossWithdrawal")}, and about <strong>${formatCurrency(m.taxWedge)}</strong>/yr goes to estimated tax and clawback.`
+            : `You need about <strong>${formatCurrency(m.grossWithdrawal)}</strong>/yr from RRSP/RRIF ${tooltipButton("kpiGrossWithdrawal")}. Tax estimates are off in this scenario.`}
         </p>
         <div class="metric-grid metric-grid-wide">
           <article class="metric-card metric-card-primary">
-            <span class="label">Coverage</span>
+            <span class="label">Coverage ${tooltipButton("kpiCoveragePercent")}</span>
             <span class="value">${formatPct(coveragePct)}</span>
           </article>
           <article class="metric-card metric-card-primary">
-            <span class="label">Guaranteed income</span>
+            <span class="label">Guaranteed income ${tooltipButton("kpiGuaranteedIncome")}</span>
             <span class="value">${formatCurrency(m.guaranteed)}</span>
+            <span class="sub">${m.estimateTaxes ? "After estimated tax" : "Tax estimates off"}</span>
           </article>
           <article class="metric-card metric-card-primary">
-            <span class="label">Savings withdrawals</span>
+            <span class="label">Savings withdrawals ${tooltipButton("kpiGrossWithdrawal")}</span>
             <span class="value">${formatCurrency(m.grossWithdrawal)}</span>
           </article>
           <article class="metric-card metric-card-primary">
-            <span class="label">Estimated taxes</span>
-            <span class="value">${formatCurrency(m.taxWedge)}</span>
+            <span class="label">${m.estimateTaxes ? `Tax + clawback drag ${tooltipButton("taxDrag")}` : "Tax estimates"}</span>
+            <span class="value">${m.estimateTaxes ? formatCurrency(m.taxWedge) : "Off"}</span>
           </article>
           <article class="metric-card metric-card-primary">
-            <span class="label">Net spending available</span>
+            <span class="label">Net spending available ${tooltipButton("netSpendingAvailable")}</span>
             <span class="value">${formatCurrency(m.netSpendingAvailable)}</span>
           </article>
         </div>

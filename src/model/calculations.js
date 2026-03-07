@@ -13,6 +13,7 @@ export function adjustedOAS(amountAt65, startAge) {
 }
 
 export function estimateOasClawback(plan, taxableIncome, oasAmount, yearOffset) {
+  if (plan?.strategy?.estimateTaxes === false) return 0;
   if (!oasAmount) return 0;
   const thresholdBase = 93000;
   const threshold = plan.assumptions.taxBracketInflation
@@ -23,6 +24,7 @@ export function estimateOasClawback(plan, taxableIncome, oasAmount, yearOffset) 
 }
 
 export function estimateEffectiveTaxRate(plan, income, yearOffset) {
+  if (plan?.strategy?.estimateTaxes === false) return 0;
   const taxable = Math.max(0, income);
   if (taxable <= 0) return 0;
 
@@ -32,6 +34,7 @@ export function estimateEffectiveTaxRate(plan, income, yearOffset) {
 }
 
 export function estimateTotalTax(plan, income, yearOffset) {
+  if (plan?.strategy?.estimateTaxes === false) return 0;
   const taxable = Math.max(0, income);
   const federal = computeBracketTax(taxable, TAX_BRACKETS.federal, plan, yearOffset);
   const provincialBase = TAX_BRACKETS.provincial[plan.profile.province] || TAX_BRACKETS.provincial.NL;

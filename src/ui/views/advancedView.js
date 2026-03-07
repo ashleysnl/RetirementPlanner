@@ -175,6 +175,7 @@ export function renderAdvancedView(ctx) {
 
     ${accordionSection("tax", "Tax estimate", "Provides planning-level yearly tax estimates using federal + provincial brackets.", `
       <p class="muted">Planning estimate only. Uses province-aware bracket math and can escalate brackets with inflation.</p>
+      <label class="inline-check"><input type="checkbox" data-bind="strategy.estimateTaxes" ${state.strategy.estimateTaxes !== false ? "checked" : ""} />Estimate taxes and withdrawal drag</label>
       <div class="preview-kpi">
         <div class="preview-kpi-item"><strong>Current effective tax rate</strong><span>${formatPct(model.tax.currentEffectiveRate)}</span></div>
         <div class="preview-kpi-item"><strong>First retirement-year effective tax rate</strong><span>${formatPct(model.tax.firstRetirementEffectiveRate)}</span></div>
