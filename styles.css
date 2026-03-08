@@ -1213,6 +1213,30 @@ body.mobile-layout .bottom-tabs {
   gap: 8px;
 }
 
+.advisor-section {
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+}
+
+.advisor-summary-grid,
+.advisor-card-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.advisor-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 10px;
+}
+
+.advisor-card-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.advisor-card,
+.advisor-summary-card {
+  background: #fff;
+}
+
 .projection-interpretation {
   background: linear-gradient(180deg, #fbfdff, #ffffff);
 }
@@ -2131,7 +2155,9 @@ textarea {
   }
 
   .readiness-grid,
-  .action-hub-grid {
+  .action-hub-grid,
+  .advisor-summary-grid,
+  .advisor-card-grid {
     grid-template-columns: 1fr;
   }
 

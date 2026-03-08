@@ -57,6 +57,7 @@ export function renderDashboardView(ctx) {
   renderScenarioToolbar();
   renderQuickControls();
   renderProjectionInterpretation();
+  renderAdvisorSection();
   renderPlanHealthHero();
   renderKeyInsights();
   renderIncomeStack();
@@ -247,6 +248,135 @@ export function renderDashboardView(ctx) {
     `;
   }
 
+  function renderAdvisorSection() {
+    if (!el.advisorSectionModule) return;
+    const retirementRow = findRowByAge(model.base.rows, state.profile.retirementAge) || model.base.rows[0];
+    if (!retirementRow) {
+      el.advisorSectionModule.innerHTML = "";
+      return;
+    }
+
+    const report = getReportMetrics(state, retirementRow);
+    const depletionAge = model.kpis.depletionAge;
+    const suggestions = [];
+
+    const addSuggestion = (item) => {
+      if (!item || suggestions.some((existing) => existing.key === item.key)) return;
+      suggestions.push(item);
+    };
+
+    if (depletionAge && depletionAge < state.profile.lifeExpectancy) {
+      addSuggestion({
+        key: "retire-later-2",
+        title: "Retire 2 years later",
+        why: `Adds saving years and may push depletion later than age ${depletionAge}.`,
+        impact: "Usually the fastest way to improve plan sustainability.",
+        button: { type: "action", action: "preview-strategy", value: "retire-later-2", label: "Preview impact" },
+      });
+      addSuggestion({
+        key: "spend-down-10",
+        title: "Reduce annual spending by 10%",
+        why: "Lowers the withdrawal load in every retirement year.",
+        impact: "Can improve both coverage and longevity without changing retirement timing.",
+        button: { type: "action", action: "preview-strategy", value: "spend-down-10", label: "Try this" },
+      });
+    }
+
+    if (report.netGap > 0) {
+      addSuggestion({
+        key: "returns",
+        title: "Stress test lower returns",
+        why: "Your plan still depends on savings in early retirement.",
+        impact: "Shows whether the current gap stays manageable under a weaker market.",
+        button: { type: "action", action: "set-dashboard-scenario", value: "returns", label: "View lower returns" },
+      });
+    }
+
+    const dragAmount = Number((retirementRow.taxOnWithdrawal || 0) + (retirementRow.oasClawback || 0));
+    if (dragAmount > Math.max(10000, report.grossWithdrawal * 0.25)) {
+      addSuggestion({
+        key: "meltdown",
+        title: "Review earlier RRSP withdrawals",
+        why: "Large gross withdrawals suggest tax drag is eating into spendable income.",
+        impact: "Earlier withdrawals may reduce later RRIF pressure and clawback exposure.",
+        button: { type: "action", action: "preview-strategy", value: "meltdown", label: "Preview RRSP strategy" },
+      });
+    }
+
+    if (retirementRow.oasClawback > 0 || planStatus.biggestRisk?.key === "clawback") {
+      addSuggestion({
+        key: "clawback-tool",
+        title: "Review OAS clawback exposure",
+        why: "Later taxable income is high enough to reduce OAS.",
+        impact: "Use the focused clawback tool, then bring the learning back into the full plan.",
+        button: { type: "href", href: "./oas-clawback-calculator.html", label: "Open OAS calculator" },
+      });
+    }
+
+    if (state.income.cpp.startAge < 70 || planStatus.biggestRisk?.key === "tax-drag") {
+      addSuggestion({
+        key: "delay-cpp",
+        title: "Compare CPP timing",
+        why: "Benefit timing changes both guaranteed income and later tax pressure.",
+        impact: "Helpful when early coverage is tight or late-retirement taxes rise.",
+        button: { type: "action", action: "preview-strategy", value: "delay-cpp", label: "Preview later CPP" },
+      });
+    }
+
+    if (!suggestions.length || planStatus.status === "On Track") {
+      addSuggestion({
+        key: "inflation",
+        title: "Check a high-inflation case",
+        why: "A strong base plan should still be pressure-tested.",
+        impact: "Helps confirm your margin of safety if living costs rise faster than expected.",
+        button: { type: "action", action: "set-dashboard-scenario", value: "inflation", label: "Stress test plan" },
+      });
+      addSuggestion({
+        key: "compare",
+        title: "Compare another scenario",
+        why: "Small changes to retirement age or spending often matter more than expected.",
+        impact: "See tradeoffs side by side before changing your base plan.",
+        button: { type: "action", action: "open-scenario-compare", label: "Compare scenarios" },
+      });
+    }
+
+    el.advisorSectionModule.innerHTML = `
+      <section class="subsection advisor-section">
+        <div class="section-head-tight">
+          <div>
+            <h3>What should I change?</h3>
+            <p class="muted">Use these planning experiments to improve the current result before opening advanced settings.</p>
+          </div>
+        </div>
+        <div class="comparison-card-grid advisor-summary-grid">
+          <article class="comparison-card advisor-summary-card">
+            <strong>Biggest risk</strong>
+            <p>${escapeHtml(planStatus.biggestRisk?.title || "No immediate critical issue stands out in the current base view.")}</p>
+            <p class="small-copy muted">${escapeHtml(planStatus.biggestRisk?.detail || "Keep validating the plan under alternate scenarios.")}</p>
+          </article>
+          <article class="comparison-card advisor-summary-card">
+            <strong>Best next move</strong>
+            <p>${escapeHtml(planStatus.nextBestAction?.detail || "Use the suggestions below to test the next most important change.")}</p>
+          </article>
+        </div>
+        <div class="advisor-card-grid">
+          ${suggestions.slice(0, beginnerMode ? 3 : 5).map((item) => `
+            <article class="comparison-card advisor-card">
+              <strong>${escapeHtml(item.title)}</strong>
+              <p>${escapeHtml(item.why)}</p>
+              <p class="small-copy muted">${escapeHtml(item.impact)}</p>
+              <div class="landing-actions">
+                ${item.button?.type === "href"
+                  ? `<a class="btn btn-secondary" href="${escapeHtml(item.button.href)}">${escapeHtml(item.button.label)}</a>`
+                  : `<button class="btn btn-secondary" type="button" data-action="${escapeHtml(item.button?.action || "open-scenario-compare")}" ${item.button?.value ? `data-value="${escapeHtml(item.button.value)}"` : ""}>${escapeHtml(item.button?.label || "Preview impact")}</button>`}
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
   function renderKpiCards() {
     const row = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge)
       || findRowByAge(model.base.rows, state.profile.retirementAge);
@@ -385,10 +515,6 @@ export function renderDashboardView(ctx) {
     const selectedRow = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge) || retireRow;
     const peakTax = findPeakTaxYear(state, model);
     const replacement = retireRow.spending > 0 ? (retireRow.guaranteedNet + retireRow.netFromWithdrawal) / retireRow.spending : 1;
-    const action = planStatus.nextBestAction;
-    const actionHtml = action?.href
-      ? `<a class="btn btn-secondary" href="${escapeHtml(action.href)}">${escapeHtml(action.label)}</a>`
-      : `<button class="btn btn-secondary" type="button" data-action="${escapeHtml(action?.action || "open-scenario-compare")}">${escapeHtml(action?.label || "Compare scenarios")}</button>`;
     const insights = [
       {
         title: "Guaranteed income floor",
@@ -426,26 +552,8 @@ export function renderDashboardView(ctx) {
       <section class="subsection">
         <div class="section-head-tight">
           <div>
-            <h3>Biggest Risk & Next Best Action</h3>
-            <p class="muted">A quick planner-style read on what matters most right now.</p>
-          </div>
-        </div>
-        <div class="comparison-card-grid">
-          <article class="comparison-card">
-            <strong>Biggest risk</strong>
-            <p>${escapeHtml(planStatus.biggestRisk?.title || "No immediate critical risk detected.")}</p>
-            <p class="small-copy muted">${escapeHtml(planStatus.biggestRisk?.detail || "Keep validating the plan under alternate scenarios.")}</p>
-          </article>
-          <article class="comparison-card">
-            <strong>Next best action</strong>
-            <p>${escapeHtml(action?.detail || "Compare scenarios to pressure-test your plan.")}</p>
-            <div class="landing-actions">${actionHtml}</div>
-          </article>
-        </div>
-        <div class="section-head-tight section-head-insights">
-          <div>
-            <h3>Key Insights</h3>
-            <p class="muted">Plain-English interpretation of what the current plan is saying.</p>
+            <h3>Supporting insights</h3>
+            <p class="muted">Plain-English interpretation of what is driving the current result.</p>
           </div>
         </div>
         <div class="insight-card-grid">

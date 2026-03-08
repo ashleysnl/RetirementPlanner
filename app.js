@@ -140,6 +140,7 @@ const el = {
   canIRetireModule: document.getElementById("canIRetireModule"),
   readinessSummaryModule: document.getElementById("readinessSummaryModule"),
   planHealthHeroModule: document.getElementById("planHealthHeroModule"),
+  advisorSectionModule: document.getElementById("advisorSectionModule"),
   keyInsightsModule: document.getElementById("keyInsightsModule"),
   quickControlsModule: document.getElementById("quickControlsModule"),
   projectionInterpretationModule: document.getElementById("projectionInterpretationModule"),
