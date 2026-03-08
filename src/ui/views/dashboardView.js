@@ -1,6 +1,37 @@
 import { getReportMetrics } from "../../model/reportMetrics.js";
 import { findPeakTaxYear } from "../../model/peakTax.js";
 import { buildPlanStatus } from "../../model/planStatus.js";
+import { buildPlanModel } from "../../model/projection.js";
+import { buildChangeSummary } from "../../model/diff.js";
+
+function clonePlan(input) {
+  if (typeof structuredClone === "function") return structuredClone(input);
+  return JSON.parse(JSON.stringify(input));
+}
+
+function buildStrategyPreviewPlan(currentPlan, key) {
+  const next = clonePlan(currentPlan);
+  if (key === "delay-cpp") {
+    next.income.cpp.startAge = 70;
+    if (next.profile.hasSpouse && next.income.spouse?.enabled) next.income.spouse.cppStartAge = 70;
+  }
+  if (key === "meltdown") {
+    next.strategy.meltdownEnabled = true;
+    next.strategy.meltdownAmount = Math.max(10000, Number(next.strategy.meltdownAmount || 0));
+    next.strategy.meltdownStartAge = Math.min(next.profile.retirementAge, 63);
+    next.strategy.meltdownEndAge = Math.max(next.strategy.meltdownStartAge + 1, 70);
+  }
+  if (key === "spend-down-10") {
+    next.profile.desiredSpending = Math.max(12000, Number(next.profile.desiredSpending || 0) * 0.9);
+  }
+  if (key === "retire-later-2") {
+    next.profile.retirementAge = Math.min(75, Number(next.profile.retirementAge || 65) + 2);
+  }
+  if (key === "save-more-5000") {
+    next.savings.annualContribution = Math.max(0, Number(next.savings.annualContribution || 0) + 5000);
+  }
+  return next;
+}
 
 export function renderDashboardView(ctx) {
   const {
@@ -8,6 +39,7 @@ export function renderDashboardView(ctx) {
     ui,
     el,
     app,
+    supportUrl,
     provinces,
     officialReferences,
     formatCurrency,
@@ -74,6 +106,7 @@ export function renderDashboardView(ctx) {
   renderDashboardReferences();
   renderRetirementScore();
   renderDashboardStatus();
+  syncDashboardDisclosure();
 
   if (el.nextActions) {
     const actions = buildNextActions(model);
@@ -107,6 +140,19 @@ export function renderDashboardView(ctx) {
 
     el.dashboardStatus.className = css;
     el.dashboardStatus.textContent = `Plan health: ${label}`;
+  }
+
+  function syncDashboardDisclosure() {
+    const coverageDetails = document.getElementById("coverageDetails");
+    const keyYearsDetails = document.getElementById("keyYearsDetails");
+    const optimizationDetails = document.getElementById("optimizationDetails");
+    const actionHubDetails = document.getElementById("actionHubDetails");
+    const methodologyDetails = document.getElementById("methodologyDetails");
+    if (coverageDetails) coverageDetails.open = true;
+    if (keyYearsDetails) keyYearsDetails.open = !beginnerMode;
+    if (optimizationDetails) optimizationDetails.open = !beginnerMode;
+    if (actionHubDetails) actionHubDetails.open = false;
+    if (methodologyDetails) methodologyDetails.open = false;
   }
 
   function renderDashboardReferences() {
@@ -259,6 +305,21 @@ export function renderDashboardView(ctx) {
     const report = getReportMetrics(state, retirementRow);
     const depletionAge = model.kpis.depletionAge;
     const suggestions = [];
+    const buildPreviewMetrics = (key) => {
+      const previewPlan = buildStrategyPreviewPlan(state, key);
+      const previewModel = buildPlanModel(previewPlan);
+      const summary = buildChangeSummary(model, previewModel, previewPlan);
+      return {
+        plan: previewPlan,
+        model: previewModel,
+        summary,
+      };
+    };
+    const laterRetirementPreview = buildPreviewMetrics("retire-later-2");
+    const lowerSpendingPreview = buildPreviewMetrics("spend-down-10");
+    const cppPreview = buildPreviewMetrics("delay-cpp");
+    const meltdownPreview = buildPreviewMetrics("meltdown");
+    const saveMorePreview = buildPreviewMetrics("save-more-5000");
 
     const addSuggestion = (item) => {
       if (!item || suggestions.some((existing) => existing.key === item.key)) return;
@@ -270,14 +331,18 @@ export function renderDashboardView(ctx) {
         key: "retire-later-2",
         title: "Retire 2 years later",
         why: `Adds saving years and may push depletion later than age ${depletionAge}.`,
-        impact: "Usually the fastest way to improve plan sustainability.",
+        impact: laterRetirementPreview.model.kpis.depletionAge
+          ? `Preview: savings last to about age ${laterRetirementPreview.model.kpis.depletionAge}.`
+          : `Preview: savings last through age ${laterRetirementPreview.plan.profile.lifeExpectancy}.`,
         button: { type: "action", action: "preview-strategy", value: "retire-later-2", label: "Preview impact" },
       });
       addSuggestion({
         key: "spend-down-10",
         title: "Reduce annual spending by 10%",
         why: "Lowers the withdrawal load in every retirement year.",
-        impact: "Can improve both coverage and longevity without changing retirement timing.",
+        impact: lowerSpendingPreview.summary?.bullets?.[5]
+          ? lowerSpendingPreview.summary.bullets[5].replace("Depletion age:", "Preview:")
+          : "Can improve both coverage and longevity without changing retirement timing.",
         button: { type: "action", action: "preview-strategy", value: "spend-down-10", label: "Try this" },
       });
     }
@@ -292,13 +357,28 @@ export function renderDashboardView(ctx) {
       });
     }
 
+    const savingYears = Math.max(0, state.profile.retirementAge - state.profile.age);
+    if (savingYears >= 3 && (depletionAge || report.netGap > 0)) {
+      const currentRetirementRow = findRowByAge(model.base.rows, state.profile.retirementAge) || retirementRow;
+      const previewRetirementRow = findRowByAge(saveMorePreview.model.base.rows, saveMorePreview.plan.profile.retirementAge) || currentRetirementRow;
+      addSuggestion({
+        key: "save-more-5000",
+        title: "Save $5,000 more per year before retirement",
+        why: "Extra pre-retirement saving increases your retirement balance before withdrawals begin.",
+        impact: `Preview: retirement savings rise by ${formatCurrency(Math.max(0, (previewRetirementRow.startBalance || 0) - (currentRetirementRow.startBalance || 0)))}.`,
+        button: { type: "action", action: "preview-strategy", value: "save-more-5000", label: "Preview impact" },
+      });
+    }
+
     const dragAmount = Number((retirementRow.taxOnWithdrawal || 0) + (retirementRow.oasClawback || 0));
     if (dragAmount > Math.max(10000, report.grossWithdrawal * 0.25)) {
       addSuggestion({
         key: "meltdown",
         title: "Review earlier RRSP withdrawals",
         why: "Large gross withdrawals suggest tax drag is eating into spendable income.",
-        impact: "Earlier withdrawals may reduce later RRIF pressure and clawback exposure.",
+        impact: meltdownPreview.summary?.bullets?.[2]
+          ? meltdownPreview.summary.bullets[2].replace("Tax wedge at age 65:", "Preview:")
+          : "Earlier withdrawals may reduce later RRIF pressure and clawback exposure.",
         button: { type: "action", action: "preview-strategy", value: "meltdown", label: "Preview RRSP strategy" },
       });
     }
@@ -318,7 +398,9 @@ export function renderDashboardView(ctx) {
         key: "delay-cpp",
         title: "Compare CPP timing",
         why: "Benefit timing changes both guaranteed income and later tax pressure.",
-        impact: "Helpful when early coverage is tight or late-retirement taxes rise.",
+        impact: cppPreview.summary?.bullets?.[4]
+          ? cppPreview.summary.bullets[4].replace("Coverage at age 65:", "Preview:")
+          : "Helpful when early coverage is tight or late-retirement taxes rise.",
         button: { type: "action", action: "preview-strategy", value: "delay-cpp", label: "Preview later CPP" },
       });
     }
@@ -344,9 +426,10 @@ export function renderDashboardView(ctx) {
       <section class="subsection advisor-section">
         <div class="section-head-tight">
           <div>
-            <h3>What should I change?</h3>
+            <h3>How to improve your plan</h3>
             <p class="muted">Use these planning experiments to improve the current result before opening advanced settings.</p>
           </div>
+          <a class="small-copy muted advisor-support-note" href="${escapeHtml(supportUrl || "https://buymeacoffee.com/ashleysnl")}" target="_blank" rel="noopener noreferrer">☕ This free tool is community-supported.</a>
         </div>
         <div class="comparison-card-grid advisor-summary-grid">
           <article class="comparison-card advisor-summary-card">
@@ -462,6 +545,10 @@ export function renderDashboardView(ctx) {
 
   function renderPlanHealthHero() {
     if (!el.planHealthHeroModule) return;
+    if (beginnerMode) {
+      el.planHealthHeroModule.innerHTML = "";
+      return;
+    }
     const row = findRowByAge(model.base.rows, state.profile.retirementAge) || model.base.rows[0];
     if (!row) {
       el.planHealthHeroModule.innerHTML = "";

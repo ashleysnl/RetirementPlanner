@@ -170,9 +170,11 @@
             <p>Results first, interpretation second, advanced detail when you need it.</p>
             <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">New to retirement planning? Learn the basics first →</button></p>
             <div id="dashboardStatus" class="status-pill"></div>
-            <div class="landing-actions no-print">
-              <button class="btn btn-secondary" type="button" data-action="set-experience-mode" data-value="beginner">Beginner Mode</button>
-              <button class="btn btn-secondary" type="button" data-action="set-experience-mode" data-value="advanced">Advanced Mode</button>
+            <div class="panel-mode-row no-print">
+              <div class="mode-switch" aria-label="Experience mode">
+                <button class="mode-switch-btn" type="button" data-action="set-experience-mode" data-value="beginner">Beginner Mode</button>
+                <button class="mode-switch-btn" type="button" data-action="set-experience-mode" data-value="advanced">Advanced Mode</button>
+              </div>
               <button id="clientSummaryToggleBtn" class="btn btn-secondary" type="button">Client Summary Mode</button>
               <button id="exitClientSummaryBtn" class="btn btn-secondary" type="button" hidden>Exit Client Summary</button>
             </div>
@@ -226,7 +228,7 @@
               <div id="planHealthHeroModule"></div>
             </div>
 
-            <details class="subsection dashboard-detail-accordion" open>
+            <details id="coverageDetails" class="subsection dashboard-detail-accordion" open>
               <summary>Income coverage and taxes</summary>
               <div id="incomeMapModule"></div>
               <div id="taxWedgeMini"></div>
@@ -268,7 +270,7 @@
               </div>
             </details>
 
-            <details class="subsection dashboard-detail-accordion">
+            <details id="keyYearsDetails" class="subsection dashboard-detail-accordion">
               <summary>Key years and explanations</summary>
               <div id="timelineModule"></div>
               <div class="subsection">
@@ -281,7 +283,7 @@
               </div>
             </details>
 
-            <details class="subsection dashboard-detail-accordion">
+            <details id="optimizationDetails" class="subsection dashboard-detail-accordion">
               <summary>Stress, risks, and optimization</summary>
               <div id="keyRisksModule"></div>
               <div id="strategySuggestionsModule"></div>
@@ -296,12 +298,12 @@
               </div>
             </details>
 
-            <details class="subsection dashboard-detail-accordion">
+            <details id="actionHubDetails" class="subsection dashboard-detail-accordion">
               <summary>Share / Export / Compare</summary>
               <div id="dashboardActionHub"></div>
             </details>
 
-            <details class="subsection dashboard-detail-accordion">
+            <details id="methodologyDetails" class="subsection dashboard-detail-accordion">
               <summary>How this planner works</summary>
               <div id="commonMistakesModule"></div>
               <div id="methodologySummaryModule"></div>
@@ -458,7 +460,7 @@
     </nav>
 
     <a id="supportButton" class="support-fab no-print" href="https://buymeacoffee.com/ashleysnl" target="_self" rel="noopener noreferrer" aria-label="Support development">
-      ☕ Support
+      ☕ Support this free tool
     </a>
 
     <footer class="app-footer no-print" aria-label="Footer">

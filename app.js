@@ -1243,6 +1243,7 @@ function renderDashboard() {
     ui,
     el,
     app: APP,
+    supportUrl: SUPPORT_URL,
     provinces: PROVINCES,
     officialReferences: OFFICIAL_REFERENCES,
     formatCurrency,
@@ -2341,6 +2342,9 @@ function buildStrategyPreviewPlan(currentPlan, key) {
   }
   if (key === "retire-later-2") {
     next.profile.retirementAge = Math.min(75, Number(next.profile.retirementAge || 65) + 2);
+  }
+  if (key === "save-more-5000") {
+    next.savings.annualContribution = Math.max(0, Number(next.savings.annualContribution || 0) + 5000);
   }
   return next;
 }

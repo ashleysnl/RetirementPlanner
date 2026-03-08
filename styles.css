@@ -152,6 +152,13 @@ summary:focus-visible,
   box-shadow: 0 4px 14px rgba(15, 106, 191, 0.08);
 }
 
+.panel-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .offline-badge {
   display: inline-flex;
   width: fit-content;
@@ -1120,7 +1127,7 @@ body.mobile-layout .bottom-tabs {
   grid-template-columns: minmax(300px, 0.92fr) minmax(0, 1.48fr);
   gap: 14px;
   align-items: start;
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .dashboard-control-rail,
@@ -1136,7 +1143,9 @@ body.mobile-layout .bottom-tabs {
 
 .dashboard-hero-chart {
   margin-top: 0;
-  padding: 14px;
+  padding: 18px;
+  border-color: #cfe1f7;
+  box-shadow: 0 12px 32px rgba(15, 36, 58, 0.08);
 }
 
 .readiness-summary,
@@ -1241,8 +1250,32 @@ body.mobile-layout .bottom-tabs {
   background: linear-gradient(180deg, #fbfdff, #ffffff);
 }
 
+.projection-interpretation .plain-list {
+  display: grid;
+  gap: 6px;
+}
+
 .dashboard-detail-accordion > summary {
   font-size: 0.96rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-detail-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-detail-accordion > summary::after {
+  content: "+";
+  color: #54708f;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.dashboard-detail-accordion[open] > summary::after {
+  content: "\2212";
 }
 
 .coverage-toolbar {
@@ -1258,6 +1291,15 @@ body.mobile-layout .bottom-tabs {
 
 .support-action-card {
   background: linear-gradient(180deg, #f7fbff, #ffffff);
+}
+
+.advisor-support-note {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #dce8f6;
+  border-radius: 999px;
+  background: #fff;
+  padding: 6px 10px;
 }
 
 .risk-list.compact .risk-row {
@@ -1934,6 +1976,7 @@ textarea {
   text-decoration: none;
   font-weight: 700;
   box-shadow: 0 10px 24px rgba(16, 33, 58, 0.18);
+  max-width: calc(100vw - 32px);
 }
 
 .associate-links {
@@ -2154,11 +2197,29 @@ textarea {
     order: 2;
   }
 
+  .panel-mode-row {
+    align-items: stretch;
+  }
+
+  .panel-mode-row .mode-switch {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .panel-mode-row .mode-switch-btn {
+    flex: 1 1 0;
+    text-align: center;
+  }
+
   .readiness-grid,
   .action-hub-grid,
   .advisor-summary-grid,
   .advisor-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .advisor-support-note {
+    width: fit-content;
   }
 
   .scenario-toolbar,
@@ -2227,6 +2288,8 @@ textarea {
 
   .support-fab {
     bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+    font-size: 0.84rem;
+    padding: 9px 12px;
   }
 
   .hero {
