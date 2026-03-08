@@ -181,119 +181,132 @@
           <div id="clientSummaryModeMount" hidden></div>
 
           <div id="plannerDashboardContent">
-            <div id="canIRetireModule"></div>
-            <div id="planHealthHeroModule"></div>
-            <div id="keyInsightsModule"></div>
-            <div id="incomeStackModule"></div>
-            <div id="plannerComparisonModule"></div>
-            <div id="retirementGapHeadline"></div>
-            <div id="retirementInsight"></div>
-            <div id="supportMomentMount"></div>
-            <div id="incomeMapModule"></div>
-            <div id="whatChangedPanel"></div>
             <div id="presetBanner" class="subsection" hidden></div>
             <div id="sharedScenarioBanner" class="subsection" hidden></div>
-            <div id="resultsStrip" class="subsection"></div>
-            <div id="taxWedgeMini"></div>
-            <div id="coverageScoreModule"></div>
-            <div id="timelineModule"></div>
-            <div id="keyRisksModule"></div>
-            <div id="strategySuggestionsModule"></div>
-            <div id="timingSimulator"></div>
-            <div id="meltdownSimulator"></div>
-            <div id="commonMistakesModule"></div>
-            <div id="methodologySummaryModule"></div>
 
-            <div class="subsection">
-              <h3>Key numbers</h3>
-              <p id="kpiContext" class="small-copy muted"></p>
-              <div id="kpiGrid" class="metric-grid metric-grid-wide"></div>
+            <div class="dashboard-primary-stack">
+              <div id="canIRetireModule"></div>
+              <div id="readinessSummaryModule"></div>
+            </div>
+
+            <div class="dashboard-hero-layout">
+              <aside class="dashboard-control-rail">
+                <div id="quickControlsModule"></div>
+                <div id="projectionInterpretationModule"></div>
+                <div id="keyInsightsModule"></div>
+                <div id="supportMomentMount"></div>
+              </aside>
+
+              <section class="dashboard-output-rail">
+                <div class="chart-wrap dashboard-hero-chart">
+                  <div class="chart-head-row">
+                    <div>
+                      <h3>Retirement savings projection</h3>
+                      <p class="small-copy muted">Your base plan first, with optional stress views and a visible longevity check.</p>
+                    </div>
+                    <div id="scenarioToolbar" class="scenario-toolbar no-print"></div>
+                  </div>
+                  <div class="chart-canvas-wrap">
+                    <canvas id="mainChart" width="1000" height="340" aria-label="Projected portfolio balance chart" role="img"></canvas>
+                    <div id="balanceHover" class="chart-hover" hidden></div>
+                  </div>
+                  <div id="chartLegend" class="legend-row"></div>
+                </div>
+              </section>
+            </div>
+
+            <div class="dashboard-secondary-stack">
+              <div id="resultsStrip" class="subsection dashboard-one-view"></div>
+              <div id="incomeStackModule"></div>
+              <div id="retirementGapHeadline"></div>
+              <div id="retirementInsight"></div>
+              <div id="whatChangedPanel"></div>
+              <div id="planHealthHeroModule"></div>
+            </div>
+
+            <details class="subsection dashboard-detail-accordion" open>
+              <summary>Income coverage and taxes</summary>
+              <div id="incomeMapModule"></div>
+              <div id="taxWedgeMini"></div>
+              <div class="chart-wrap">
+                <div class="chart-head-row">
+                  <div>
+                    <h3>Income coverage</h3>
+                    <p class="small-copy muted">See how guaranteed income, taxable withdrawals, and your spending target interact.</p>
+                  </div>
+                  <div class="coverage-toolbar no-print">
+                    <label class="inline-check small-copy">
+                      <input id="dollarModeToggle" type="checkbox" />
+                      Show in today's dollars
+                    </label>
+                    <label class="inline-check small-copy">
+                      <input id="coverageTableToggle" type="checkbox" />
+                      View as table
+                    </label>
+                  </div>
+                </div>
+                <p class="muted small-copy">Assumption: For this view, all savings withdrawals are modeled as taxable registered withdrawals (RRSP/RRIF). <button class="tooltip-trigger" type="button" aria-label="Help: registered-only assumption" data-tooltip-key="registeredAssumption">ⓘ</button></p>
+                <div class="scrubber-row">
+                  <label for="yearScrubber" class="small-copy">Pick age</label>
+                  <input id="yearScrubber" type="range" min="55" max="95" step="1" />
+                  <strong id="yearScrubberValue">Age 65</strong>
+                </div>
+                <div class="chart-canvas-wrap">
+                  <canvas id="coverageChart" width="1000" height="340" aria-label="Income and spending coverage chart" role="img"></canvas>
+                  <div id="coverageHover" class="chart-hover" hidden></div>
+                </div>
+                <div id="coverageLegend" class="legend-row"></div>
+                <details class="subsection explain-note">
+                  <summary>ⓘ What this chart means</summary>
+                  <p class="muted small-copy">Your spending target is after-tax. Pension/CPP/OAS are taxable, and RRSP/RRIF withdrawals are taxable. That is why gross withdrawal can be higher than the net gap, and why tax drag matters more later in retirement.</p>
+                </details>
+                <div id="coverageTableWrap" class="table-scroll" hidden>
+                  <table id="coverageTable" class="data-table" aria-label="Income coverage table"></table>
+                </div>
+              </div>
+            </details>
+
+            <details class="subsection dashboard-detail-accordion">
+              <summary>Key years and explanations</summary>
+              <div id="timelineModule"></div>
+              <div class="subsection">
+                <h3 id="walkthroughHeading">Explain for Age 65</h3>
+                <div id="walkthroughStrip" class="walkthrough-strip" aria-live="polite"></div>
+              </div>
+              <div class="subsection">
+                <h3>Key years</h3>
+                <div id="yearCards" class="withdrawal-explain" aria-live="polite"></div>
+              </div>
+            </details>
+
+            <details class="subsection dashboard-detail-accordion">
+              <summary>Stress, risks, and optimization</summary>
+              <div id="keyRisksModule"></div>
+              <div id="strategySuggestionsModule"></div>
+              <div id="coverageScoreModule"></div>
               <div id="peakTaxYearModule"></div>
-            </div>
+              <div id="plannerComparisonModule"></div>
+              <div id="timingSimulator"></div>
+              <div id="meltdownSimulator"></div>
+              <div class="subsection">
+                <h3>What to do next</h3>
+                <ul id="nextActions" class="plain-list"></ul>
+              </div>
+            </details>
 
-            <div id="retirementScoreCard" class="subsection" hidden></div>
+            <details class="subsection dashboard-detail-accordion">
+              <summary>Share / Export / Compare</summary>
+              <div id="dashboardActionHub"></div>
+            </details>
 
-            <div class="chart-wrap">
-              <div class="chart-head-row">
-                <h3>Retirement savings projection</h3>
-                <label class="inline-check small-copy no-print">
-                  <input id="dashboardStressToggle" type="checkbox" checked />
-                  Show stress band
-                </label>
-              </div>
-              <div class="chart-canvas-wrap">
-                <canvas id="mainChart" width="1000" height="340" aria-label="Projected portfolio balance chart" role="img"></canvas>
-                <div id="balanceHover" class="chart-hover" hidden></div>
-              </div>
-              <div id="chartLegend" class="legend-row"></div>
-            </div>
-
-            <div class="chart-wrap">
-              <div class="chart-head-row">
-                <h3>Income coverage</h3>
-                <label class="inline-check small-copy no-print">
-                  <input id="dollarModeToggle" type="checkbox" />
-                  Show in today's dollars
-                </label>
-                <label class="inline-check small-copy no-print">
-                  <input id="coverageTableToggle" type="checkbox" />
-                  View as table
-                </label>
-              </div>
-              <p class="muted small-copy">Assumption: For this view, all savings withdrawals are modeled as taxable registered withdrawals (RRSP/RRIF). <button class="tooltip-trigger" type="button" aria-label="Help: registered-only assumption" data-tooltip-key="registeredAssumption">ⓘ</button></p>
-              <div class="scrubber-row">
-                <label for="yearScrubber" class="small-copy">Pick age</label>
-                <input id="yearScrubber" type="range" min="55" max="95" step="1" />
-                <strong id="yearScrubberValue">Age 65</strong>
-              </div>
-              <div class="chart-canvas-wrap">
-                <canvas id="coverageChart" width="1000" height="340" aria-label="Income and spending coverage chart" role="img"></canvas>
-                <div id="coverageHover" class="chart-hover" hidden></div>
-              </div>
-              <div id="coverageLegend" class="legend-row"></div>
-              <details class="subsection explain-note">
-                <summary>ⓘ Why gross can be higher than net</summary>
-                <p class="muted small-copy">Your spending target is after-tax. Pension/CPP/OAS are taxable, and RRSP/RRIF withdrawals are taxable. That is why gross withdrawal can be higher than the net gap.</p>
+            <details class="subsection dashboard-detail-accordion">
+              <summary>How this planner works</summary>
+              <div id="commonMistakesModule"></div>
+              <div id="methodologySummaryModule"></div>
+              <details class="subsection" id="basicsPanel">
+                <summary>Planner assumptions in brief</summary>
+                <div id="basicsSummary" class="muted"></div>
               </details>
-              <div id="coverageTableWrap" class="table-scroll" hidden>
-                <table id="coverageTable" class="data-table" aria-label="Income coverage table"></table>
-              </div>
-            </div>
-
-            <div class="subsection">
-              <h3 id="walkthroughHeading">Explain for Age 65</h3>
-              <div id="walkthroughStrip" class="walkthrough-strip" aria-live="polite"></div>
-            </div>
-
-            <div class="subsection">
-              <h3>Key years</h3>
-              <div id="yearCards" class="withdrawal-explain" aria-live="polite"></div>
-            </div>
-
-            <div class="subsection">
-              <h3>Next step</h3>
-              <ul id="nextActions" class="plain-list"></ul>
-            </div>
-
-            <div class="subsection">
-              <h3>Shareable results</h3>
-              <p class="small-copy muted">Share this planner with someone who needs a clearer retirement income picture.</p>
-              <p class="small-copy muted">If this was helpful, consider supporting the tool ☕</p>
-              <div class="landing-actions">
-                <button id="copyShareLinkBtn" class="btn btn-secondary" type="button">Copy share link</button>
-                <button id="copyMinimalLinkBtn" class="btn btn-secondary" type="button">Copy minimal link</button>
-                <button id="copySummaryBtn" class="btn btn-secondary" type="button">Copy summary</button>
-                <button id="copyScenarioShareBtn" class="btn btn-secondary" type="button">Share this scenario</button>
-                <button id="copyScenarioSummaryBtn" class="btn btn-secondary" type="button">Copy scenario summary</button>
-                <button id="compareScenariosBtn" class="btn btn-secondary" type="button">Compare scenarios</button>
-                <button id="downloadSummaryBtn" class="btn btn-secondary" type="button">Download retirement summary</button>
-                <button id="downloadClientSummaryBtn" class="btn btn-secondary" type="button">Print client summary</button>
-              </div>
-            </div>
-
-            <details class="subsection" id="basicsPanel">
-              <summary>Basics</summary>
-              <div id="basicsSummary" class="muted"></div>
             </details>
           </div>
         </section>

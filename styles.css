@@ -1109,6 +1109,133 @@ body.mobile-layout .bottom-tabs {
   margin-bottom: 4px;
 }
 
+.dashboard-primary-stack,
+.dashboard-secondary-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-hero-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.92fr) minmax(0, 1.48fr);
+  gap: 14px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.dashboard-control-rail,
+.dashboard-output-rail {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-output-rail {
+  position: sticky;
+  top: 14px;
+}
+
+.dashboard-hero-chart {
+  margin-top: 0;
+  padding: 14px;
+}
+
+.readiness-summary,
+.dashboard-one-view {
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+}
+
+.readiness-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.readiness-card {
+  border: 1px solid #dce7f7;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.readiness-card .label {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.readiness-card strong {
+  display: block;
+  font-size: 1.08rem;
+  color: #132033;
+}
+
+.readiness-card .sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.scenario-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.scenario-toolbar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.scenario-chip {
+  border: 1px solid #dce8f6;
+  border-radius: 999px;
+  background: #fff;
+  color: #12406a;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scenario-chip.active {
+  border-color: rgba(15, 106, 191, 0.45);
+  background: rgba(15, 106, 191, 0.1);
+}
+
+.quick-control-list,
+.action-hub-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.projection-interpretation {
+  background: linear-gradient(180deg, #fbfdff, #ffffff);
+}
+
+.dashboard-detail-accordion > summary {
+  font-size: 0.96rem;
+}
+
+.coverage-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.action-hub-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.support-action-card {
+  background: linear-gradient(180deg, #f7fbff, #ffffff);
+}
+
 .risk-list.compact .risk-row {
   padding: 8px 10px;
 }
@@ -1990,6 +2117,34 @@ textarea {
 }
 
 @media (max-width: 900px) {
+  .dashboard-hero-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-output-rail {
+    position: static;
+    order: 1;
+  }
+
+  .dashboard-control-rail {
+    order: 2;
+  }
+
+  .readiness-grid,
+  .action-hub-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scenario-toolbar,
+  .scenario-toolbar-inner {
+    justify-content: flex-start;
+  }
+
+  .coverage-toolbar {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .plan-summary-list {
     grid-template-columns: 1fr;
   }

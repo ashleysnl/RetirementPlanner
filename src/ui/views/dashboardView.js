@@ -25,13 +25,15 @@ export function renderDashboardView(ctx) {
     amountForDisplay,
     getOasRiskLevel,
     buildNextActions,
+    dashboardModel,
   } = ctx;
 
-  const model = ui.lastModel;
+  const model = dashboardModel || ui.lastModel;
   if (!model) return;
   const beginnerMode = state.uiState.experienceMode !== "advanced";
   const planStatus = buildPlanStatus(state, model);
   const planScore = planStatus.score;
+  const dashboardScenario = state.uiState.dashboardScenario || "base";
 
   const retireRows = model.base.rows.filter((row) => row.age >= state.profile.retirementAge);
   const minAge = retireRows[0]?.age ?? state.profile.retirementAge;
@@ -51,10 +53,15 @@ export function renderDashboardView(ctx) {
 
   renderKpiCards();
   renderCanIRetire();
+  renderReadinessSummary();
+  renderScenarioToolbar();
+  renderQuickControls();
+  renderProjectionInterpretation();
   renderPlanHealthHero();
   renderKeyInsights();
   renderIncomeStack();
   renderComparisonModule();
+  renderActionHub();
   renderBalanceLegend();
   drawMainChart(model.base.rows, model.best.rows, model.worst.rows);
   renderCoverageLegend();
@@ -109,6 +116,135 @@ export function renderDashboardView(ctx) {
         ${escapeHtml(item.label)}
       </a>
     `).join("");
+  }
+
+  function renderScenarioToolbar() {
+    if (!el.scenarioToolbar) return;
+    const scenarios = [
+      { key: "base", label: "Base case" },
+      { key: "inflation", label: "High inflation" },
+      { key: "returns", label: "Lower returns" },
+      { key: "longevity", label: "Longer life" },
+      { key: "custom", label: "Custom stress test" },
+    ];
+    el.scenarioToolbar.innerHTML = `
+      <div class="scenario-toolbar-inner">
+        ${scenarios.map((item) => {
+          const active = dashboardScenario === item.key;
+          const tag = item.key === "custom" ? "button" : "button";
+          return `<${tag} class="scenario-chip ${active ? "active" : ""}" type="button" data-action="set-dashboard-scenario" data-value="${item.key}" aria-pressed="${active ? "true" : "false"}">${item.label}</${tag}>`;
+        }).join("")}
+        <label class="inline-check small-copy">
+          <input id="dashboardStressToggle" type="checkbox" ${ui.showStressBand ? "checked" : ""} />
+          Show stress band
+        </label>
+      </div>
+    `;
+  }
+
+  function renderReadinessSummary() {
+    if (!el.readinessSummaryModule) return;
+    const row = findRowByAge(model.base.rows, state.profile.retirementAge) || model.base.rows[0];
+    if (!row) {
+      el.readinessSummaryModule.innerHTML = "";
+      return;
+    }
+    const report = getReportMetrics(state, row);
+    const balanceAtRetirement = Math.max(0, Number(row.startBalance || row.endBalance || 0));
+    const moneyLasts = model.kpis.depletionAge ? `Age ${model.kpis.depletionAge}` : `Beyond ${state.profile.lifeExpectancy}`;
+    const risk = getOasRiskLevel(row.oasClawback || 0);
+    const cards = [
+      { label: "Target retirement age", value: `Age ${state.profile.retirementAge}`, sub: dashboardScenario === "base" ? "Current plan" : `Scenario: ${dashboardScenario.replace("-", " ")}` },
+      { label: "Projected retirement income", value: formatCurrency(report.totalSpendable), sub: report.estimateTaxes ? "Net spendable income" : "Before tax estimate" },
+      { label: "Savings at retirement", value: formatCurrency(balanceAtRetirement), sub: "Projected portfolio" },
+      { label: "How long money lasts", value: moneyLasts, sub: model.kpis.depletionAge ? "Depletion estimate" : "Planning horizon covered" },
+      { label: "OAS clawback risk", value: risk, sub: report.clawback > 0 ? formatCurrency(report.clawback) : "No current clawback" },
+    ];
+    el.readinessSummaryModule.innerHTML = `
+      <section class="subsection readiness-summary">
+        <div class="section-head-tight">
+          <div>
+            <h3>Retirement Readiness</h3>
+            <p class="muted">Your plan in one view, using the currently selected scenario.</p>
+          </div>
+        </div>
+        <div class="readiness-grid">
+          ${cards.map((card) => `
+            <article class="readiness-card">
+              <span class="label">${escapeHtml(card.label)}</span>
+              <strong>${escapeHtml(card.value)}</strong>
+              <span class="sub">${escapeHtml(card.sub)}</span>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderQuickControls() {
+    if (!el.quickControlsModule) return;
+    el.quickControlsModule.innerHTML = `
+      <section class="subsection dashboard-quick-controls">
+        <div class="section-head-tight">
+          <div>
+            <h3>Most important inputs</h3>
+            <p class="muted">These settings usually move the result the most.</p>
+          </div>
+        </div>
+        <div class="quick-control-list">
+          <button class="plan-row-btn" type="button" data-nav-target="plan">
+            <span class="plan-row-main"><strong>Retirement age</strong><span class="muted small-copy">Age ${state.profile.retirementAge}</span></span>
+            <span class="plan-row-edit">Edit</span>
+          </button>
+          <button class="plan-row-btn" type="button" data-nav-target="plan">
+            <span class="plan-row-main"><strong>Spending goal</strong><span class="muted small-copy">${formatCurrency(state.profile.desiredSpending)} today</span></span>
+            <span class="plan-row-edit">Edit</span>
+          </button>
+          <button class="plan-row-btn" type="button" data-nav-target="plan">
+            <span class="plan-row-main"><strong>Savings & contributions</strong><span class="muted small-copy">${formatCurrency(state.savings.currentTotal)} + ${formatCurrency(state.savings.annualContribution)}/yr</span></span>
+            <span class="plan-row-edit">Edit</span>
+          </button>
+          <button class="plan-row-btn" type="button" data-nav-target="plan">
+            <span class="plan-row-main"><strong>CPP / OAS / pension</strong><span class="muted small-copy">Income timing and amounts</span></span>
+            <span class="plan-row-edit">Review</span>
+          </button>
+        </div>
+        <div class="landing-actions">
+          <button class="btn btn-secondary" type="button" data-nav-target="plan">Open plan inputs</button>
+          <button class="btn btn-secondary" type="button" data-action="open-advanced">Advanced settings</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderProjectionInterpretation() {
+    if (!el.projectionInterpretationModule) return;
+    const row = findRowByAge(model.base.rows, state.profile.retirementAge) || model.base.rows[0];
+    if (!row) {
+      el.projectionInterpretationModule.innerHTML = "";
+      return;
+    }
+    const report = getReportMetrics(state, row);
+    const takeaways = [
+      planStatus.summary,
+      model.kpis.depletionAge
+        ? `Savings are projected to run out around age ${model.kpis.depletionAge}.`
+        : `Savings are projected to last through age ${state.profile.lifeExpectancy}.`,
+      report.netGap > 0
+        ? `You still need ${formatCurrency(report.netGap)} after tax from savings in the first retirement year.`
+        : "Guaranteed income appears to cover the first retirement-year spending target.",
+      report.dragAmount > 0
+        ? `Taxes and clawback reduce spendable income by about ${formatCurrency(report.dragAmount)} in that first retirement year.`
+        : "Tax drag is not the primary issue in the current first-year view.",
+    ];
+    el.projectionInterpretationModule.innerHTML = `
+      <section class="subsection projection-interpretation">
+        <h3>What this projection means</h3>
+        <ul class="plain-list small-copy muted">
+          ${takeaways.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </section>
+    `;
   }
 
   function renderKpiCards() {
@@ -402,6 +538,48 @@ export function renderDashboardView(ctx) {
           </article>
         </div>
       </section>
+    `;
+  }
+
+  function renderActionHub() {
+    if (!el.dashboardActionHub) return;
+    el.dashboardActionHub.innerHTML = `
+      <div class="action-hub-grid">
+        <article class="comparison-card">
+          <strong>Share</strong>
+          <p class="small-copy muted">Copy a link or plain-English summary for a spouse, client, or advisor.</p>
+          <div class="landing-actions">
+            <button class="btn btn-secondary" type="button" data-action="copy-share-link">Copy share link</button>
+            <button class="btn btn-secondary" type="button" data-action="copy-minimal-link">Copy minimal link</button>
+            <button class="btn btn-secondary" type="button" data-action="copy-plan-summary">Copy summary</button>
+          </div>
+        </article>
+        <article class="comparison-card">
+          <strong>Compare</strong>
+          <p class="small-copy muted">Save this plan as a scenario or open side-by-side comparison.</p>
+          <div class="landing-actions">
+            <button class="btn btn-secondary" type="button" data-action="save-current-scenario">Save scenario</button>
+            <button class="btn btn-secondary" type="button" data-action="open-scenario-compare">Compare scenarios</button>
+            <button class="btn btn-secondary" type="button" data-action="copy-scenario-share">Share this scenario</button>
+          </div>
+        </article>
+        <article class="comparison-card">
+          <strong>Export</strong>
+          <p class="small-copy muted">Download a standard summary or print the client-ready report.</p>
+          <div class="landing-actions">
+            <button class="btn btn-secondary" type="button" data-action="download-summary">Download retirement summary</button>
+            <button class="btn btn-secondary" type="button" data-action="print-client-summary">Print client summary</button>
+            <button class="btn btn-secondary" type="button" data-action="copy-scenario-summary">Copy scenario summary</button>
+          </div>
+        </article>
+        <article class="comparison-card support-action-card">
+          <strong>Support this free tool</strong>
+          <p class="small-copy muted">If this planner saved you time or helped clarify retirement decisions, consider supporting future updates.</p>
+          <div class="landing-actions">
+            <a class="btn btn-secondary" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Support</a>
+          </div>
+        </article>
+      </div>
     `;
   }
 

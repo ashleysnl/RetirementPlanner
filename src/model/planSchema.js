@@ -188,6 +188,7 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
       experienceMode: "beginner",
       wizardStep: 1,
       showScenarioCompare: false,
+      dashboardScenario: "base",
       showAdvancedControls: false,
       advancedSearch: "",
       supportDismissedUntil: 0,
@@ -370,6 +371,9 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
   state.strategy.meltdownIncomeCeiling = Math.max(0, Number(state.strategy.meltdownIncomeCeiling || 0));
   state.uiState.learn = normalizeLearnState(state.uiState.learn);
   state.uiState.showAdvancedControls = Boolean(state.uiState.showAdvancedControls);
+  state.uiState.dashboardScenario = ["base", "inflation", "returns", "longevity", "custom"].includes(state.uiState.dashboardScenario)
+    ? state.uiState.dashboardScenario
+    : "base";
   state.uiState.experienceMode = state.uiState.experienceMode === "advanced" ? "advanced" : "beginner";
   state.uiState.advancedSearch = String(state.uiState.advancedSearch || "");
   state.uiState.supportDismissedUntil = Math.max(0, Number(state.uiState.supportDismissedUntil || 0));

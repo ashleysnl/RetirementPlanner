@@ -138,10 +138,15 @@ const el = {
   navPanels: Array.from(document.querySelectorAll(".nav-panel")),
 
   canIRetireModule: document.getElementById("canIRetireModule"),
+  readinessSummaryModule: document.getElementById("readinessSummaryModule"),
   planHealthHeroModule: document.getElementById("planHealthHeroModule"),
   keyInsightsModule: document.getElementById("keyInsightsModule"),
+  quickControlsModule: document.getElementById("quickControlsModule"),
+  projectionInterpretationModule: document.getElementById("projectionInterpretationModule"),
   incomeStackModule: document.getElementById("incomeStackModule"),
   plannerComparisonModule: document.getElementById("plannerComparisonModule"),
+  dashboardActionHub: document.getElementById("dashboardActionHub"),
+  scenarioToolbar: document.getElementById("scenarioToolbar"),
   kpiGrid: document.getElementById("kpiGrid"),
   kpiContext: document.getElementById("kpiContext"),
   retirementGapHeadline: document.getElementById("retirementGapHeadline"),
@@ -437,25 +442,34 @@ function bindEvents() {
     savePlan();
   });
 
-  el.dashboardStressToggle?.addEventListener("change", () => {
-    ui.showStressBand = !!el.dashboardStressToggle.checked;
-    renderDashboard();
+  document.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === "dashboardStressToggle" && target instanceof HTMLInputElement) {
+      ui.showStressBand = !!target.checked;
+      renderDashboard();
+      return;
+    }
+    if (target.id === "dollarModeToggle" && target instanceof HTMLInputElement) {
+      ui.showTodaysDollars = !!target.checked;
+      renderDashboard();
+      return;
+    }
+    if (target.id === "coverageTableToggle" && target instanceof HTMLInputElement) {
+      ui.showCoverageTable = !!target.checked;
+      renderDashboard();
+    }
   });
 
-  el.dollarModeToggle?.addEventListener("change", () => {
-    ui.showTodaysDollars = !!el.dollarModeToggle.checked;
-    renderDashboard();
-  });
-  el.coverageTableToggle?.addEventListener("change", () => {
-    ui.showCoverageTable = !!el.coverageTableToggle.checked;
-    renderDashboard();
-  });
-
-  el.yearScrubber?.addEventListener("input", () => {
-    ui.selectedAge = Number(el.yearScrubber.value);
-    state.uiState.timelineSelectedAge = ui.selectedAge;
-    if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${ui.selectedAge}`;
-    renderDashboard();
+  document.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === "yearScrubber" && target instanceof HTMLInputElement) {
+      ui.selectedAge = Number(target.value);
+      state.uiState.timelineSelectedAge = ui.selectedAge;
+      if (el.yearScrubberValue) el.yearScrubberValue.textContent = `Age ${ui.selectedAge}`;
+      renderDashboard();
+    }
   });
 
   el.coverageChart?.addEventListener("mousemove", handleCoverageChartPointer);
@@ -635,6 +649,18 @@ function handleDocumentClick(event) {
       toast(value === "advanced" ? "Advanced Mode enabled." : "Beginner Mode enabled.");
       return;
     }
+    if (action === "set-dashboard-scenario") {
+      const value = actionBtn.getAttribute("data-value") || "base";
+      if (value === "custom") {
+        setActiveNav("tools");
+        return;
+      }
+      state.uiState.dashboardScenario = ["base", "inflation", "returns", "longevity"].includes(value) ? value : "base";
+      savePlan();
+      renderDashboard();
+      toast(state.uiState.dashboardScenario === "base" ? "Base case shown." : "Scenario view updated.");
+      return;
+    }
     if (action === "edit-plan-row") {
       const key = actionBtn.getAttribute("data-value") || "";
       if (!key) return;
@@ -653,6 +679,30 @@ function handleDocumentClick(event) {
     }
     if (action === "launch-planner") {
       setActiveNav("start");
+      return;
+    }
+    if (action === "copy-share-link") {
+      copyShare(false);
+      return;
+    }
+    if (action === "copy-minimal-link") {
+      copyShare(true);
+      return;
+    }
+    if (action === "copy-plan-summary") {
+      copySummary();
+      return;
+    }
+    if (action === "copy-scenario-share") {
+      copyScenarioShare();
+      return;
+    }
+    if (action === "copy-scenario-summary") {
+      copyScenarioSummary();
+      return;
+    }
+    if (action === "download-summary") {
+      openPrintSummary();
       return;
     }
     if (action === "open-advanced") {
@@ -1152,8 +1202,41 @@ function scrollDashboardToTop() {
   }
 }
 
+function getDashboardScenario() {
+  return state.uiState.dashboardScenario || "base";
+}
+
+function buildDashboardScenarioPlan() {
+  const scenario = getDashboardScenario();
+  if (scenario === "base" || scenario === "custom") return state;
+  const preview = clonePlan(state);
+  if (scenario === "inflation") {
+    preview.assumptions.inflation = Math.min(0.06, Number(preview.assumptions.inflation || 0.02) + 0.015);
+  } else if (scenario === "returns") {
+    preview.assumptions.returns.conservative = Math.max(0.01, Number(preview.assumptions.returns.conservative || 0) - 0.015);
+    preview.assumptions.returns.balanced = Math.max(0.015, Number(preview.assumptions.returns.balanced || 0) - 0.015);
+    preview.assumptions.returns.aggressive = Math.max(0.02, Number(preview.assumptions.returns.aggressive || 0) - 0.015);
+  } else if (scenario === "longevity") {
+    preview.profile.lifeExpectancy = Math.min(105, Number(preview.profile.lifeExpectancy || 90) + 5);
+  }
+  return preview;
+}
+
+function getActiveDashboardPlan() {
+  const scenario = getDashboardScenario();
+  if (scenario === "base" || scenario === "custom") return state;
+  return buildDashboardScenarioPlan();
+}
+
+function getActiveDashboardModel() {
+  const scenario = getDashboardScenario();
+  if (!ui.lastModel || scenario === "base" || scenario === "custom") return ui.lastModel;
+  return buildPlanModel(buildDashboardScenarioPlan());
+}
+
 function renderDashboard() {
   syncClientSummaryModeUi();
+  const dashboardModel = getActiveDashboardModel();
   renderDashboardView({
     state,
     ui,
@@ -1176,6 +1259,7 @@ function renderDashboard() {
     amountForDisplay: amountForDisplayLocal,
     getOasRiskLevel: getOasRiskLevelLocal,
     buildNextActions: buildNextActionsLocal,
+    dashboardModel,
   });
   renderDashboardResultsStrip();
   renderRetirementGapModule();
@@ -1214,7 +1298,8 @@ function setClientSummaryMode(enabled) {
 }
 
 function dashboardRetirementRows() {
-  return (ui.lastModel?.base?.rows || []).filter((row) => row.age >= state.profile.retirementAge);
+  const dashboardModel = getActiveDashboardModel();
+  return (dashboardModel?.base?.rows || []).filter((row) => row.age >= state.profile.retirementAge);
 }
 
 function selectedDashboardAgeBounds() {
@@ -1232,7 +1317,8 @@ function getDashboardSelectedRow() {
 }
 
 function renderDashboardResultsStrip() {
-  if (!el.resultsStrip || !ui.lastModel) return;
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.resultsStrip || !dashboardModel) return;
   const rows = dashboardRetirementRows();
   if (!rows.length) {
     el.resultsStrip.innerHTML = "";
@@ -1260,7 +1346,8 @@ function renderDashboardResultsStrip() {
 }
 
 function renderRetirementGapModule() {
-  if (!el.retirementGapHeadline || !ui.lastModel) return;
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.retirementGapHeadline || !dashboardModel) return;
   const rows = dashboardRetirementRows();
   if (!rows.length) {
     el.retirementGapHeadline.innerHTML = "";
@@ -1273,7 +1360,7 @@ function renderRetirementGapModule() {
     mountEl: el.retirementGapHeadline,
     plan: state,
     row,
-    model: ui.lastModel,
+    model: dashboardModel,
     selectedAge: selected,
     minAge,
     maxAge,
@@ -1285,7 +1372,8 @@ function renderRetirementGapModule() {
 }
 
 function renderRetirementInsightModule() {
-  if (!el.retirementInsight || !ui.lastModel) return;
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.retirementInsight || !dashboardModel) return;
   const row = getDashboardSelectedRow();
   if (!row) {
     el.retirementInsight.innerHTML = "";
@@ -1295,7 +1383,7 @@ function renderRetirementInsightModule() {
     mountEl: el.retirementInsight,
     plan: state,
     row,
-    model: ui.lastModel,
+    model: dashboardModel,
     age: row.age,
     tooltipButton,
     formatCurrency,
@@ -1322,13 +1410,14 @@ function renderTaxWedgeMiniModule() {
 }
 
 function renderIncomeMapModule() {
-  if (!el.incomeMapModule || !ui.lastModel) return;
+  if (!el.incomeMapModule || !getActiveDashboardModel()) return;
   renderIncomeMapAtMount(el.incomeMapModule);
 }
 
 function renderIncomeMapAtMount(mountEl) {
-  if (!mountEl || !ui.lastModel) return;
-  const breakdown = buildYearBreakdown(state, ui.lastModel);
+  const dashboardModel = getActiveDashboardModel();
+  if (!mountEl || !dashboardModel) return;
+  const breakdown = buildYearBreakdown(state, dashboardModel);
   const phases = buildRetirementPhases(state, breakdown);
   const rendered = renderIncomeMap({
     mountEl,
@@ -1364,12 +1453,13 @@ function renderWhatChangedModule() {
 }
 
 function renderCoverageScoreModule() {
-  if (!el.coverageScoreModule || !ui.lastModel) return;
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.coverageScoreModule || !dashboardModel) return;
   if (state.uiState.experienceMode !== "advanced") {
     el.coverageScoreModule.innerHTML = "";
     return;
   }
-  const score = computeCoverageScore(state, ui.lastModel);
+  const score = computeCoverageScore(state, dashboardModel);
   renderCoverageScore({
     mountEl: el.coverageScoreModule,
     score,
@@ -1380,8 +1470,9 @@ function renderCoverageScoreModule() {
 }
 
 function renderPeakTaxYearModule() {
-  if (!el.peakTaxYearModule || !ui.lastModel) return;
-  const peak = findPeakTaxYear(state, ui.lastModel);
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.peakTaxYearModule || !dashboardModel) return;
+  const peak = findPeakTaxYear(state, dashboardModel);
   renderPeakTaxYear({
     mountEl: el.peakTaxYearModule,
     peak,
@@ -1412,9 +1503,10 @@ function renderTimelineModule() {
 }
 
 function renderKeyRisksModule() {
-  if (!el.keyRisksModule || !ui.lastModel) return;
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.keyRisksModule || !dashboardModel) return;
   const selected = getDashboardSelectedRow();
-  const risks = buildRiskDiagnostics(state, ui.lastModel, selected?.age || state.profile.retirementAge);
+  const risks = buildRiskDiagnostics(state, dashboardModel, selected?.age || state.profile.retirementAge);
   renderKeyRisks({
     mountEl: el.keyRisksModule,
     risks,
@@ -1497,7 +1589,8 @@ function renderDashboardPresetBanner() {
 }
 
 function renderDashboardSupportMoment() {
-  if (!el.supportMomentMount || !ui.lastModel) return;
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.supportMomentMount || !dashboardModel) return;
   if (state.uiState.clientSummary?.enabled) {
     el.supportMomentMount.innerHTML = "";
     return;
@@ -1506,11 +1599,11 @@ function renderDashboardSupportMoment() {
   const row = getDashboardSelectedRow();
   let trigger = "";
   if (state.uiState.justCompletedWizard) {
-    trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "wizardComplete", sessionShown: ui.supportShownThisSession });
+    trigger = maybeTriggerSupportMoment({ state, model: dashboardModel, row, trigger: "wizardComplete", sessionShown: ui.supportShownThisSession });
     state.uiState.justCompletedWizard = false;
   }
-  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstGrossUp", sessionShown: ui.supportShownThisSession });
-  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: ui.lastModel, row, trigger: "firstClawback", sessionShown: ui.supportShownThisSession });
+  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: dashboardModel, row, trigger: "firstGrossUp", sessionShown: ui.supportShownThisSession });
+  if (!trigger) trigger = maybeTriggerSupportMoment({ state, model: dashboardModel, row, trigger: "firstClawback", sessionShown: ui.supportShownThisSession });
   if (trigger) {
     ui.activeSupportMoment = trigger;
     ui.supportShownThisSession = true;
@@ -1545,15 +1638,16 @@ function triggerSupportMoment(trigger) {
 }
 
 function renderClientSummaryModeModule() {
-  if (!el.clientSummaryModeMount || !ui.lastModel) return;
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.clientSummaryModeMount || !dashboardModel) return;
   const enabled = Boolean(state.uiState.clientSummary?.enabled);
-  const rows = buildYearBreakdown(state, ui.lastModel);
+  const rows = buildYearBreakdown(state, dashboardModel);
   const phases = buildRetirementPhases(state, rows);
   const selected = getDashboardSelectedRow();
-  const risks = buildRiskDiagnostics(state, ui.lastModel, selected?.age || state.profile.retirementAge);
+  const risks = buildRiskDiagnostics(state, dashboardModel, selected?.age || state.profile.retirementAge);
   const summary = buildClientSummaryData({
     plan: state,
-    model: ui.lastModel,
+    model: dashboardModel,
     selectedAge: selected?.age || state.profile.retirementAge,
     rows,
     phases,
@@ -1581,13 +1675,14 @@ function renderClientSummaryModeModule() {
 }
 
 function renderClientSummaryProjectionChart() {
-  if (!ui.lastModel) return;
+  const dashboardModel = getActiveDashboardModel();
+  if (!dashboardModel) return;
   const canvas = document.getElementById("clientSummaryProjectionChart");
   const legendEl = document.getElementById("clientSummaryProjectionLegend");
   if (!canvas) return;
-  const rows = ui.lastModel.base.rows.slice();
-  const best = ui.lastModel.best.rows.slice();
-  const worst = ui.lastModel.worst.rows.slice();
+  const rows = dashboardModel.base.rows.slice();
+  const best = dashboardModel.best.rows.slice();
+  const worst = dashboardModel.worst.rows.slice();
   drawPortfolioChart({
     canvas,
     rows,
@@ -1630,6 +1725,7 @@ function handleCoverageChartPointer(event) {
 }
 
 function drawCoverageChart(model, selectedAge) {
+  const dashboardPlan = getActiveDashboardPlan();
   const rows = model.base.rows.filter((row) => row.age >= state.profile.retirementAge);
   drawIncomeCoverageChart({
     canvas: el.coverageChart,
@@ -1639,17 +1735,18 @@ function drawCoverageChart(model, selectedAge) {
     showGrossWithdrawals: ui.showGrossWithdrawals,
     emphasizeTaxes: Boolean(state.uiState.emphasizeTaxes ?? true),
     currentYear: APP.currentYear,
-    inflationRate: state.assumptions.inflation,
+    inflationRate: dashboardPlan.assumptions.inflation,
     formatCurrency,
     formatCompactCurrency,
   });
 }
 
 function amountForDisplayLocal(row, amount) {
+  const dashboardPlan = getActiveDashboardPlan();
   return amountForDisplayHelper(row, amount, {
     showTodaysDollars: ui.showTodaysDollars,
     currentYear: APP.currentYear,
-    inflationRate: state.assumptions.inflation,
+    inflationRate: dashboardPlan.assumptions.inflation,
   });
 }
 
@@ -1926,6 +2023,7 @@ async function copyShare(minimal = false) {
 
 async function copySummary() {
   const row = getDashboardSelectedRow();
+  const dashboardModel = getActiveDashboardModel();
   const link = buildShareUrl(shareBaseUrl(), state, false);
   const summary = buildShareSummary({
     state,
@@ -1933,7 +2031,7 @@ async function copySummary() {
     formatCurrency,
     formatPct,
     link,
-    depletionAge: ui.lastModel?.kpis?.depletionAge || null,
+    depletionAge: dashboardModel?.kpis?.depletionAge || null,
   });
   const copied = await writeClipboardText(summary);
   if (copied) {
@@ -1960,6 +2058,7 @@ async function copyScenarioShare(id = "") {
 
 async function copyScenarioSummary() {
   const row = getDashboardSelectedRow();
+  const dashboardModel = getActiveDashboardModel();
   const link = buildShareUrl(shareBaseUrl(), state, false);
   const summary = buildShareSummary({
     state,
@@ -1967,7 +2066,7 @@ async function copyScenarioSummary() {
     formatCurrency,
     formatPct,
     link,
-    depletionAge: ui.lastModel?.kpis?.depletionAge || null,
+    depletionAge: dashboardModel?.kpis?.depletionAge || null,
   });
   const copied = await writeClipboardText(summary);
   if (copied) toast("Scenario summary copied.");
@@ -2069,17 +2168,18 @@ function openScenarioCompare() {
 }
 
 function openPrintSummary() {
-  if (!el.printSummaryModal || !el.printSummaryContent || !ui.lastModel) return;
-  const rowRet = findRowByAgeLocal(ui.lastModel.base.rows, state.profile.retirementAge) || ui.lastModel.base.rows[0];
-  const row65 = findRowByAgeLocal(ui.lastModel.base.rows, 65) || rowRet;
-  const row71 = findRowByAgeLocal(ui.lastModel.base.rows, 71) || rowRet;
+  const dashboardModel = getActiveDashboardModel();
+  if (!el.printSummaryModal || !el.printSummaryContent || !dashboardModel) return;
+  const rowRet = findRowByAgeLocal(dashboardModel.base.rows, state.profile.retirementAge) || dashboardModel.base.rows[0];
+  const row65 = findRowByAgeLocal(dashboardModel.base.rows, 65) || rowRet;
+  const row71 = findRowByAgeLocal(dashboardModel.base.rows, 71) || rowRet;
   const chartImages = capturePlannerCharts();
   const html = buildSummaryHtml({
     state,
     rowRet,
     row65,
     row71,
-    model: ui.lastModel,
+    model: dashboardModel,
     formatCurrency,
     formatPct,
     methodologyUrl: `${shareBaseUrl()}#methodology`,
@@ -2095,17 +2195,18 @@ function openPrintSummary() {
 }
 
 function printSummaryNow() {
-  if (!ui.lastModel) return;
-  const rowRet = findRowByAgeLocal(ui.lastModel.base.rows, state.profile.retirementAge) || ui.lastModel.base.rows[0];
-  const row65 = findRowByAgeLocal(ui.lastModel.base.rows, 65) || rowRet;
-  const row71 = findRowByAgeLocal(ui.lastModel.base.rows, 71) || rowRet;
+  const dashboardModel = getActiveDashboardModel();
+  if (!dashboardModel) return;
+  const rowRet = findRowByAgeLocal(dashboardModel.base.rows, state.profile.retirementAge) || dashboardModel.base.rows[0];
+  const row65 = findRowByAgeLocal(dashboardModel.base.rows, 65) || rowRet;
+  const row71 = findRowByAgeLocal(dashboardModel.base.rows, 71) || rowRet;
   const chartImages = capturePlannerCharts();
   const html = buildSummaryHtml({
     state,
     rowRet,
     row65,
     row71,
-    model: ui.lastModel,
+    model: dashboardModel,
     formatCurrency,
     formatPct,
     methodologyUrl: `${shareBaseUrl()}#methodology`,
@@ -2121,14 +2222,15 @@ function printSummaryNow() {
 }
 
 function printClientSummaryNow() {
-  if (!ui.lastModel) return;
-  const rows = buildYearBreakdown(state, ui.lastModel);
+  const dashboardModel = getActiveDashboardModel();
+  if (!dashboardModel) return;
+  const rows = buildYearBreakdown(state, dashboardModel);
   const phases = buildRetirementPhases(state, rows);
   const selected = getDashboardSelectedRow();
-  const risks = buildRiskDiagnostics(state, ui.lastModel, selected?.age || state.profile.retirementAge);
+  const risks = buildRiskDiagnostics(state, dashboardModel, selected?.age || state.profile.retirementAge);
   const summary = buildClientSummaryData({
     plan: state,
-    model: ui.lastModel,
+    model: dashboardModel,
     selectedAge: selected?.age || state.profile.retirementAge,
     rows,
     phases,
