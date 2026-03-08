@@ -214,7 +214,7 @@ export function renderDashboardView(ctx) {
       return;
     }
     const report = getReportMetrics(state, row);
-    const balanceAtRetirement = Math.max(0, Number(row.startBalance || row.endBalance || 0));
+    const balanceAtRetirement = Math.max(0, Number(row.balanceStart || row.balance || 0));
     const moneyLasts = model.kpis.depletionAge ? `Age ${model.kpis.depletionAge}` : `Beyond ${state.profile.lifeExpectancy}`;
     const risk = getOasRiskLevel(row.oasClawback || 0);
     const cards = [
@@ -408,7 +408,7 @@ export function renderDashboardView(ctx) {
         key: "save-more-5000",
         title: "Save $5,000 more per year before retirement",
         why: "Extra pre-retirement saving increases your retirement balance before withdrawals begin.",
-        impact: `Preview: retirement savings rise by ${formatCurrency(Math.max(0, (previewRetirementRow.startBalance || 0) - (currentRetirementRow.startBalance || 0)))}${saveMoreYears != null ? ` and may add ${saveMoreYears >= 0 ? "+" : ""}${saveMoreYears} years of runway.` : "."}`,
+        impact: `Preview: retirement savings rise by ${formatCurrency(Math.max(0, (previewRetirementRow.balanceStart || previewRetirementRow.balance || 0) - (currentRetirementRow.balanceStart || currentRetirementRow.balance || 0)))}${saveMoreYears != null ? ` and may add ${saveMoreYears >= 0 ? "+" : ""}${saveMoreYears} years of runway.` : "."}`,
         button: { type: "action", action: "preview-strategy", value: "save-more-5000", label: "Preview impact" },
       });
     }

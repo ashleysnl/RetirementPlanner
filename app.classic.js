@@ -1471,21 +1471,54 @@ function renameScenarioSnapshot(state, id, name) {
 
 /* FILE: src/model/planStore.js */
 function loadPlanFromStorage(storageKey, normalizePlan, createDefaultPlan) {
+  const storages = [];
   try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) return createDefaultPlan();
-    const parsed = JSON.parse(raw);
-    return normalizePlan(parsed);
-  } catch {
-    return createDefaultPlan();
+    if (typeof localStorage !== "undefined") storages.push(localStorage);
+  } catch {}
+  try {
+    if (typeof sessionStorage !== "undefined") storages.push(sessionStorage);
+  } catch {}
+
+  for (const storage of storages) {
+    try {
+      const raw = storage.getItem(storageKey);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      return normalizePlan(parsed);
+    } catch {
+      // try next storage
+    }
   }
+
+  return createDefaultPlan();
 }
 
 function savePlanToStorage(storageKey, plan) {
+  const serialized = JSON.stringify(plan);
+  let saved = false;
   try {
-    localStorage.setItem(storageKey, JSON.stringify(plan));
-  } catch {
-    // Ignore storage write failures (private mode, quota, blocked storage).
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(storageKey, serialized);
+      if (localStorage.getItem(storageKey) === serialized) saved = true;
+    }
+  } catch {}
+
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem(storageKey, serialized);
+      if (sessionStorage.getItem(storageKey) === serialized) saved = true;
+    }
+  } catch {}
+
+  return saved;
+}
+
+function clearPlanFromStorage(storageKey) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem(storageKey);
+  } catch {}
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(storageKey);
   }
 }
 
@@ -7563,7 +7596,7 @@ function renderDashboardView(ctx) {
       return;
     }
     const report = getReportMetrics(state, row);
-    const balanceAtRetirement = Math.max(0, Number(row.startBalance || row.endBalance || 0));
+    const balanceAtRetirement = Math.max(0, Number(row.balanceStart || row.balance || 0));
     const moneyLasts = model.kpis.depletionAge ? `Age ${model.kpis.depletionAge}` : `Beyond ${state.profile.lifeExpectancy}`;
     const risk = getOasRiskLevel(row.oasClawback || 0);
     const cards = [
@@ -7757,7 +7790,7 @@ function renderDashboardView(ctx) {
         key: "save-more-5000",
         title: "Save $5,000 more per year before retirement",
         why: "Extra pre-retirement saving increases your retirement balance before withdrawals begin.",
-        impact: `Preview: retirement savings rise by ${formatCurrency(Math.max(0, (previewRetirementRow.startBalance || 0) - (currentRetirementRow.startBalance || 0)))}${saveMoreYears != null ? ` and may add ${saveMoreYears >= 0 ? "+" : ""}${saveMoreYears} years of runway.` : "."}`,
+        impact: `Preview: retirement savings rise by ${formatCurrency(Math.max(0, (previewRetirementRow.balanceStart || previewRetirementRow.balance || 0) - (currentRetirementRow.balanceStart || currentRetirementRow.balance || 0)))}${saveMoreYears != null ? ` and may add ${saveMoreYears >= 0 ? "+" : ""}${saveMoreYears} years of runway.` : "."}`,
         button: { type: "action", action: "preview-strategy", value: "save-more-5000", label: "Preview impact" },
       });
     }
@@ -10671,7 +10704,10 @@ function loadPlan() {
 
 function savePlan() {
   try {
-    savePlanToStorage(APP.storageKey, state);
+    const saved = savePlanToStorage(APP.storageKey, state);
+    if (!saved) {
+      toast("Could not persist this plan on this device.");
+    }
   } catch {
     toast("Could not save to local storage.");
   }

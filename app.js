@@ -2046,7 +2046,10 @@ function loadPlan() {
 
 function savePlan() {
   try {
-    savePlanToStorage(APP.storageKey, state);
+    const saved = savePlanToStorage(APP.storageKey, state);
+    if (!saved) {
+      toast("Could not persist this plan on this device.");
+    }
   } catch {
     toast("Could not save to local storage.");
   }
