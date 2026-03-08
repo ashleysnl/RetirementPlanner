@@ -2051,7 +2051,11 @@ async function importJsonFromFile() {
     onPlanLoaded: (normalized) => {
     state = normalized;
     state.uiState.firstRun = false;
-    ui.activeNav = state.uiState.activeNav || "dashboard";
+    state.uiState.hasStarted = true;
+    state.uiState.activeNav = "dashboard";
+    state.uiState.dashboardScenario = "base";
+    state.uiState.lastChangeSummary = null;
+    ui.activeNav = "dashboard";
     savePlan();
     renderAll();
     },

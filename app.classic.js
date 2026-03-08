@@ -2649,9 +2649,70 @@ function escapeHtml(value) {
 }
 
 /* FILE: src/ui/actions/planActions.js */
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function buildPortableUiState(uiState = {}) {
+  return {
+    hasStarted: Boolean(uiState.hasStarted),
+    experienceMode: uiState.experienceMode === "advanced" ? "advanced" : "beginner",
+    wizardStep: Number.isFinite(Number(uiState.wizardStep)) ? Number(uiState.wizardStep) : 1,
+    showAdvancedControls: Boolean(uiState.showAdvancedControls),
+    showScenarioCompare: Boolean(uiState.showScenarioCompare),
+    showGrossWithdrawals: Boolean(uiState.showGrossWithdrawals ?? true),
+    emphasizeTaxes: Boolean(uiState.emphasizeTaxes ?? true),
+    timelineSelectedAge: Number.isFinite(Number(uiState.timelineSelectedAge)) ? Number(uiState.timelineSelectedAge) : null,
+    incomeMap: cloneJson(uiState.incomeMap || {}),
+    timingSim: cloneJson(uiState.timingSim || {}),
+    clientSummary: cloneJson(uiState.clientSummary || {}),
+    learn: cloneJson(uiState.learn || {}),
+    learningProgress: cloneJson(uiState.learningProgress || {}),
+    unlocked: cloneJson(uiState.unlocked || {}),
+  };
+}
+
+function buildPortablePlan(state) {
+  return {
+    version: state.version,
+    profile: cloneJson(state.profile || {}),
+    assumptions: cloneJson(state.assumptions || {}),
+    savings: cloneJson(state.savings || {}),
+    income: cloneJson(state.income || {}),
+    accounts: cloneJson(state.accounts || {}),
+    strategy: cloneJson(state.strategy || {}),
+    uiState: buildPortableUiState(state.uiState || {}),
+    notes: typeof state.notes === "string" ? state.notes : "",
+  };
+}
+
+function sanitizeImportedPlan(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  const sanitized = buildPortablePlan(parsed);
+  sanitized.uiState = {
+    ...sanitized.uiState,
+    firstRun: false,
+    hasStarted: true,
+    activeNav: "dashboard",
+    dashboardScenario: "base",
+    advancedSearch: "",
+    justCompletedWizard: false,
+    selectedScenarioLabel: "",
+    lastChangeSummary: null,
+    scenarios: [],
+    supportShownEvents: {
+      wizardComplete: false,
+      firstGrossUp: false,
+      firstClawback: false,
+      reportGenerated: false,
+    },
+  };
+  return sanitized;
+}
+
 function exportPlanJson(state, toast) {
   const exportObject = {
-    ...state,
+    ...buildPortablePlan(state),
     exportedAt: new Date().toISOString(),
   };
 
@@ -2679,7 +2740,7 @@ async function importPlanFromFileInput({
   try {
     const text = await file.text();
     const parsed = JSON.parse(text);
-    const normalized = normalizePlan(parsed);
+    const normalized = normalizePlan(sanitizeImportedPlan(parsed));
     onPlanLoaded(normalized);
     if (typeof toast === "function") toast("Plan imported.");
   } catch (error) {
@@ -10500,7 +10561,11 @@ async function importJsonFromFile() {
     onPlanLoaded: (normalized) => {
     state = normalized;
     state.uiState.firstRun = false;
-    ui.activeNav = state.uiState.activeNav || "dashboard";
+    state.uiState.hasStarted = true;
+    state.uiState.activeNav = "dashboard";
+    state.uiState.dashboardScenario = "base";
+    state.uiState.lastChangeSummary = null;
+    ui.activeNav = "dashboard";
     savePlan();
     renderAll();
     },
