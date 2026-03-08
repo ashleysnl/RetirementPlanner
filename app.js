@@ -157,6 +157,7 @@ const el = {
   presetBanner: document.getElementById("presetBanner"),
   resultsStrip: document.getElementById("resultsStrip"),
   taxWedgeMini: document.getElementById("taxWedgeMini"),
+  coverageMixModule: document.getElementById("coverageMixModule"),
   coverageScoreModule: document.getElementById("coverageScoreModule"),
   timelineModule: document.getElementById("timelineModule"),
   keyRisksModule: document.getElementById("keyRisksModule"),

@@ -1246,6 +1246,10 @@ body.mobile-layout .bottom-tabs {
   background: #fff;
 }
 
+.advisor-footer-note {
+  margin: 12px 0 2px;
+}
+
 .projection-interpretation {
   background: linear-gradient(180deg, #fbfdff, #ffffff);
 }
@@ -1300,6 +1304,73 @@ body.mobile-layout .bottom-tabs {
   border-radius: 999px;
   background: #fff;
   padding: 6px 10px;
+}
+
+.coverage-mix {
+  background: linear-gradient(180deg, #fbfdff, #ffffff);
+}
+
+.coverage-mix-bar {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid #dce7f7;
+  border-radius: 999px;
+  min-height: 16px;
+  background: #f5f8fd;
+}
+
+.coverage-mix-bar span {
+  display: block;
+  min-height: 16px;
+}
+
+.coverage-mix-bar .pension,
+.mix-dot.pension {
+  background: #f59e0b;
+}
+
+.coverage-mix-bar .cpp,
+.mix-dot.cpp {
+  background: #16a34a;
+}
+
+.coverage-mix-bar .oas,
+.mix-dot.oas {
+  background: #0ea5a8;
+}
+
+.coverage-mix-bar .withdrawals,
+.mix-dot.withdrawals {
+  background: #0f6abf;
+}
+
+.coverage-mix-bar .tax,
+.mix-dot.tax {
+  background: #d9485f;
+}
+
+.coverage-mix-legend {
+  margin: 10px 0 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.coverage-mix-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #30445f;
+  font-size: 0.84rem;
+}
+
+.mix-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
 }
 
 .risk-list.compact .risk-row {
@@ -2220,6 +2291,10 @@ textarea {
 
   .advisor-support-note {
     width: fit-content;
+  }
+
+  .coverage-mix-legend {
+    grid-template-columns: 1fr;
   }
 
   .scenario-toolbar,

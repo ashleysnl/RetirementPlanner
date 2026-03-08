@@ -7267,6 +7267,7 @@ function renderDashboardView(ctx) {
   renderIncomeStack();
   renderComparisonModule();
   renderActionHub();
+  renderCoverageMix();
   renderBalanceLegend();
   drawMainChart(model.base.rows, model.best.rows, model.worst.rows);
   renderCoverageLegend();
@@ -7497,24 +7498,27 @@ function renderDashboardView(ctx) {
       if (!item || suggestions.some((existing) => existing.key === item.key)) return;
       suggestions.push(item);
     };
+    const currentCoveragePct = Math.round((report.coverageRatio || 0) * 100);
 
     if (depletionAge && depletionAge < state.profile.lifeExpectancy) {
+      const laterYears = laterRetirementPreview.model.kpis.depletionAge && depletionAge
+        ? laterRetirementPreview.model.kpis.depletionAge - depletionAge
+        : null;
       addSuggestion({
         key: "retire-later-2",
         title: "Retire 2 years later",
         why: `Adds saving years and may push depletion later than age ${depletionAge}.`,
         impact: laterRetirementPreview.model.kpis.depletionAge
-          ? `Preview: savings last to about age ${laterRetirementPreview.model.kpis.depletionAge}.`
+          ? `Preview: savings last to about age ${laterRetirementPreview.model.kpis.depletionAge}${laterYears != null ? ` (${laterYears >= 0 ? "+" : ""}${laterYears} years)` : ""}.`
           : `Preview: savings last through age ${laterRetirementPreview.plan.profile.lifeExpectancy}.`,
         button: { type: "action", action: "preview-strategy", value: "retire-later-2", label: "Preview impact" },
       });
+      const previewCoveragePct = Math.round((((findRowByAge(lowerSpendingPreview.model.base.rows, lowerSpendingPreview.plan.profile.retirementAge) || retirementRow).guaranteedNet / Math.max(1, (findRowByAge(lowerSpendingPreview.model.base.rows, lowerSpendingPreview.plan.profile.retirementAge) || retirementRow).spending)) || 0) * 100);
       addSuggestion({
         key: "spend-down-10",
         title: "Reduce annual spending by 10%",
         why: "Lowers the withdrawal load in every retirement year.",
-        impact: lowerSpendingPreview.summary?.bullets?.[5]
-          ? lowerSpendingPreview.summary.bullets[5].replace("Depletion age:", "Preview:")
-          : "Can improve both coverage and longevity without changing retirement timing.",
+        impact: `Preview: early-retirement coverage improves from ${currentCoveragePct}% to about ${previewCoveragePct}%.`,
         button: { type: "action", action: "preview-strategy", value: "spend-down-10", label: "Try this" },
       });
     }
@@ -7524,7 +7528,7 @@ function renderDashboardView(ctx) {
         key: "returns",
         title: "Stress test lower returns",
         why: "Your plan still depends on savings in early retirement.",
-        impact: "Shows whether the current gap stays manageable under a weaker market.",
+        impact: "Preview the lower-return scenario to see whether savings still last through your planning horizon.",
         button: { type: "action", action: "set-dashboard-scenario", value: "returns", label: "View lower returns" },
       });
     }
@@ -7533,11 +7537,14 @@ function renderDashboardView(ctx) {
     if (savingYears >= 3 && (depletionAge || report.netGap > 0)) {
       const currentRetirementRow = findRowByAge(model.base.rows, state.profile.retirementAge) || retirementRow;
       const previewRetirementRow = findRowByAge(saveMorePreview.model.base.rows, saveMorePreview.plan.profile.retirementAge) || currentRetirementRow;
+      const saveMoreYears = saveMorePreview.model.kpis.depletionAge && depletionAge
+        ? saveMorePreview.model.kpis.depletionAge - depletionAge
+        : null;
       addSuggestion({
         key: "save-more-5000",
         title: "Save $5,000 more per year before retirement",
         why: "Extra pre-retirement saving increases your retirement balance before withdrawals begin.",
-        impact: `Preview: retirement savings rise by ${formatCurrency(Math.max(0, (previewRetirementRow.startBalance || 0) - (currentRetirementRow.startBalance || 0)))}.`,
+        impact: `Preview: retirement savings rise by ${formatCurrency(Math.max(0, (previewRetirementRow.startBalance || 0) - (currentRetirementRow.startBalance || 0)))}${saveMoreYears != null ? ` and may add ${saveMoreYears >= 0 ? "+" : ""}${saveMoreYears} years of runway.` : "."}`,
         button: { type: "action", action: "preview-strategy", value: "save-more-5000", label: "Preview impact" },
       });
     }
@@ -7549,7 +7556,7 @@ function renderDashboardView(ctx) {
         title: "Review earlier RRSP withdrawals",
         why: "Large gross withdrawals suggest tax drag is eating into spendable income.",
         impact: meltdownPreview.summary?.bullets?.[2]
-          ? meltdownPreview.summary.bullets[2].replace("Tax wedge at age 65:", "Preview:")
+          ? meltdownPreview.summary.bullets[2].replace("Tax wedge at age 65:", "Preview tax wedge at age 65:")
           : "Earlier withdrawals may reduce later RRIF pressure and clawback exposure.",
         button: { type: "action", action: "preview-strategy", value: "meltdown", label: "Preview RRSP strategy" },
       });
@@ -7570,9 +7577,14 @@ function renderDashboardView(ctx) {
         key: "delay-cpp",
         title: "Compare CPP timing",
         why: "Benefit timing changes both guaranteed income and later tax pressure.",
-        impact: cppPreview.summary?.bullets?.[4]
-          ? cppPreview.summary.bullets[4].replace("Coverage at age 65:", "Preview:")
-          : "Helpful when early coverage is tight or late-retirement taxes rise.",
+        impact: (() => {
+          const base71 = findRowByAge(model.base.rows, 71) || retirementRow;
+          const preview71 = findRowByAge(cppPreview.model.base.rows, 71) || base71;
+          const delta = Number((preview71.cppNet || 0) - (base71.cppNet || 0));
+          return delta !== 0
+            ? `Preview: net CPP at age 71 changes by about ${formatCurrency(delta)} a year.`
+            : "Helpful when early coverage is tight or late-retirement taxes rise.";
+        })(),
         button: { type: "action", action: "preview-strategy", value: "delay-cpp", label: "Preview later CPP" },
       });
     }
@@ -7628,6 +7640,45 @@ function renderDashboardView(ctx) {
             </article>
           `).join("")}
         </div>
+        <p class="small-copy muted advisor-footer-note">If this helped you plan your retirement, support helps keep Canadian tax rules, RRIF logic, and planner updates current.</p>
+      </section>
+    `;
+  }
+
+  function renderCoverageMix() {
+    if (!el.coverageMixModule) return;
+    const row = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge) || model.base.rows[0];
+    if (!row) {
+      el.coverageMixModule.innerHTML = "";
+      return;
+    }
+    const pension = Number(row.pensionNet || 0) + Number(row.spousePensionNet || 0);
+    const cpp = Number(row.cppNet || 0) + Number(row.spouseCppNet || 0);
+    const oas = Number(row.oasNet || 0) + Number(row.spouseOasNet || 0);
+    const savings = Number(row.netFromWithdrawal || 0);
+    const taxImpact = Number(row.taxOnWithdrawal || 0) + Number(row.oasClawback || 0);
+    const total = Math.max(1, pension + cpp + oas + savings + taxImpact);
+    const segments = [
+      { label: "Pension", value: pension, className: "pension" },
+      { label: "CPP", value: cpp, className: "cpp" },
+      { label: "OAS", value: oas, className: "oas" },
+      { label: "Savings withdrawals", value: savings, className: "withdrawals" },
+      { label: "Tax impact", value: taxImpact, className: "tax" },
+    ].filter((item) => item.value > 0);
+    el.coverageMixModule.innerHTML = `
+      <section class="subsection coverage-mix">
+        <div class="section-head-tight">
+          <div>
+            <h3>Income source mix</h3>
+            <p class="muted">A quick read on what funds spending at age ${row.age}.</p>
+          </div>
+        </div>
+        <div class="coverage-mix-bar" role="img" aria-label="Income source mix for the selected age">
+          ${segments.map((item) => `<span class="${escapeHtml(item.className)}" style="width:${((item.value / total) * 100).toFixed(1)}%"></span>`).join("")}
+        </div>
+        <ul class="coverage-mix-legend">
+          ${segments.map((item) => `<li><span class="mix-dot ${escapeHtml(item.className)}"></span><strong>${escapeHtml(item.label)}:</strong> ${formatCurrency(item.value)}</li>`).join("")}
+        </ul>
       </section>
     `;
   }
@@ -8484,6 +8535,7 @@ const el = {
   presetBanner: document.getElementById("presetBanner"),
   resultsStrip: document.getElementById("resultsStrip"),
   taxWedgeMini: document.getElementById("taxWedgeMini"),
+  coverageMixModule: document.getElementById("coverageMixModule"),
   coverageScoreModule: document.getElementById("coverageScoreModule"),
   timelineModule: document.getElementById("timelineModule"),
   keyRisksModule: document.getElementById("keyRisksModule"),
