@@ -7205,6 +7205,22 @@ function buildStrategyPreviewPlan(currentPlan, key) {
   return next;
 }
 
+function buildDashboardScenarioPreviewPlan(currentPlan, key) {
+  const next = clonePlan(currentPlan);
+  if (key === "inflation") {
+    next.assumptions.inflation = Math.min(0.06, Number(next.assumptions.inflation || 0.02) + 0.015);
+  }
+  if (key === "returns") {
+    next.assumptions.returns.conservative = Math.max(0.01, Number(next.assumptions.returns.conservative || 0) - 0.015);
+    next.assumptions.returns.balanced = Math.max(0.015, Number(next.assumptions.returns.balanced || 0) - 0.015);
+    next.assumptions.returns.aggressive = Math.max(0.02, Number(next.assumptions.returns.aggressive || 0) - 0.015);
+  }
+  if (key === "longevity") {
+    next.profile.lifeExpectancy = Math.min(105, Number(next.profile.lifeExpectancy || 90) + 5);
+  }
+  return next;
+}
+
 function renderDashboardView(ctx) {
   const {
     state,
@@ -7321,7 +7337,7 @@ function renderDashboardView(ctx) {
     const optimizationDetails = document.getElementById("optimizationDetails");
     const actionHubDetails = document.getElementById("actionHubDetails");
     const methodologyDetails = document.getElementById("methodologyDetails");
-    if (coverageDetails) coverageDetails.open = true;
+    if (coverageDetails) coverageDetails.open = false;
     if (keyYearsDetails) keyYearsDetails.open = !beginnerMode;
     if (optimizationDetails) optimizationDetails.open = !beginnerMode;
     if (actionHubDetails) actionHubDetails.open = false;
@@ -7488,11 +7504,22 @@ function renderDashboardView(ctx) {
         summary,
       };
     };
+    const buildScenarioMetrics = (key) => {
+      const previewPlan = buildDashboardScenarioPreviewPlan(state, key);
+      const previewModel = buildPlanModel(previewPlan);
+      return {
+        plan: previewPlan,
+        model: previewModel,
+      };
+    };
     const laterRetirementPreview = buildPreviewMetrics("retire-later-2");
     const lowerSpendingPreview = buildPreviewMetrics("spend-down-10");
     const cppPreview = buildPreviewMetrics("delay-cpp");
     const meltdownPreview = buildPreviewMetrics("meltdown");
     const saveMorePreview = buildPreviewMetrics("save-more-5000");
+    const lowerReturnsPreview = buildScenarioMetrics("returns");
+    const longerLifePreview = buildScenarioMetrics("longevity");
+    const highInflationPreview = buildScenarioMetrics("inflation");
 
     const addSuggestion = (item) => {
       if (!item || suggestions.some((existing) => existing.key === item.key)) return;
@@ -7528,7 +7555,9 @@ function renderDashboardView(ctx) {
         key: "returns",
         title: "Stress test lower returns",
         why: "Your plan still depends on savings in early retirement.",
-        impact: "Preview the lower-return scenario to see whether savings still last through your planning horizon.",
+        impact: lowerReturnsPreview.model.kpis.depletionAge
+          ? `Preview: under lower returns, savings last to about age ${lowerReturnsPreview.model.kpis.depletionAge}.`
+          : `Preview: under lower returns, savings still last through age ${lowerReturnsPreview.plan.profile.lifeExpectancy}.`,
         button: { type: "action", action: "set-dashboard-scenario", value: "returns", label: "View lower returns" },
       });
     }
@@ -7594,8 +7623,19 @@ function renderDashboardView(ctx) {
         key: "inflation",
         title: "Check a high-inflation case",
         why: "A strong base plan should still be pressure-tested.",
-        impact: "Helps confirm your margin of safety if living costs rise faster than expected.",
+        impact: highInflationPreview.model.kpis.depletionAge
+          ? `Preview: with higher inflation, savings last to about age ${highInflationPreview.model.kpis.depletionAge}.`
+          : `Preview: with higher inflation, savings still last through age ${highInflationPreview.plan.profile.lifeExpectancy}.`,
         button: { type: "action", action: "set-dashboard-scenario", value: "inflation", label: "Stress test plan" },
+      });
+      addSuggestion({
+        key: "longevity",
+        title: "Test a longer-life scenario",
+        why: "Longer retirement can quietly increase drawdown pressure even when the base case looks strong.",
+        impact: longerLifePreview.model.kpis.depletionAge
+          ? `Preview: with 5 extra planning years, savings last to about age ${longerLifePreview.model.kpis.depletionAge}.`
+          : `Preview: even with a longer life, savings still cover the full planning horizon to age ${longerLifePreview.plan.profile.lifeExpectancy}.`,
+        button: { type: "action", action: "set-dashboard-scenario", value: "longevity", label: "Test longer life" },
       });
       addSuggestion({
         key: "compare",
@@ -7636,6 +7676,10 @@ function renderDashboardView(ctx) {
                 ${item.button?.type === "href"
                   ? `<a class="btn btn-secondary" href="${escapeHtml(item.button.href)}">${escapeHtml(item.button.label)}</a>`
                   : `<button class="btn btn-secondary" type="button" data-action="${escapeHtml(item.button?.action || "open-scenario-compare")}" ${item.button?.value ? `data-value="${escapeHtml(item.button.value)}"` : ""}>${escapeHtml(item.button?.label || "Preview impact")}</button>`}
+                ${ui.pendingStrategyKey === item.key ? `
+                  <button class="btn btn-primary" type="button" data-action="apply-strategy-preview">Apply</button>
+                  <button class="btn btn-secondary" type="button" data-action="undo-strategy-preview">Undo</button>
+                ` : ""}
               </div>
             </article>
           `).join("")}
@@ -7672,6 +7716,7 @@ function renderDashboardView(ctx) {
             <h3>Income source mix</h3>
             <p class="muted">A quick read on what funds spending at age ${row.age}.</p>
           </div>
+          <span class="coverage-badge">${formatCurrency(row.spending)} spending target</span>
         </div>
         <div class="coverage-mix-bar" role="img" aria-label="Income source mix for the selected age">
           ${segments.map((item) => `<span class="${escapeHtml(item.className)}" style="width:${((item.value / total) * 100).toFixed(1)}%"></span>`).join("")}
