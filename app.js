@@ -2021,7 +2021,16 @@ async function importJsonFromFile() {
     ui.activeNav = "dashboard";
     savePlan();
     renderAll();
-    toast(`Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`);
+    const message = `Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`;
+    toast(message);
+    if (ui.isMobileLayout) {
+      alert(message);
+    }
+    },
+    onImportError: (message) => {
+      if (ui.isMobileLayout) {
+        alert(`Import error:\n${message}`);
+      }
     },
     toast,
   });

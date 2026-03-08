@@ -2693,6 +2693,16 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function shouldUseBlockingImportMessage() {
+  try {
+    return typeof window !== "undefined"
+      && typeof window.matchMedia === "function"
+      && window.matchMedia("(max-width: 1100px)").matches;
+  } catch {
+    return false;
+  }
+}
+
 function stripBom(text) {
   return typeof text === "string" ? text.replace(/^\uFEFF/, "") : "";
 }
@@ -2835,6 +2845,7 @@ async function importPlanFromFileInput({
   normalizePlan,
   onPlanLoaded,
   toast,
+  onImportError,
 }) {
   const file = fileInput?.files?.[0];
   if (!file) return;
@@ -2849,6 +2860,8 @@ async function importPlanFromFileInput({
   } catch (error) {
     const message = error instanceof Error ? error.message : "Import failed.";
     if (typeof toast === "function") toast(`Import error: ${message}`);
+    if (typeof onImportError === "function") onImportError(message);
+    else if (shouldUseBlockingImportMessage()) alert(`Import error:\n${message}`);
   } finally {
     if (fileInput) fileInput.value = "";
   }
@@ -10633,7 +10646,16 @@ async function importJsonFromFile() {
     ui.activeNav = "dashboard";
     savePlan();
     renderAll();
-    toast(`Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`);
+    const message = `Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`;
+    toast(message);
+    if (ui.isMobileLayout) {
+      alert(message);
+    }
+    },
+    onImportError: (message) => {
+      if (ui.isMobileLayout) {
+        alert(`Import error:\n${message}`);
+      }
     },
     toast,
   });
