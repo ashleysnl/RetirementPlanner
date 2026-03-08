@@ -7449,6 +7449,13 @@ function renderDashboardView(ctx) {
           <button class="btn btn-secondary" type="button" data-nav-target="plan">Open plan inputs</button>
           <button class="btn btn-secondary" type="button" data-action="open-advanced">Advanced settings</button>
         </div>
+        ${beginnerMode ? `
+          <p class="small-copy muted quick-controls-note">New here? Start with Guided Setup or Learn the basics before changing advanced assumptions.</p>
+          <div class="landing-actions">
+            <button class="btn btn-secondary" type="button" data-nav-target="start">Guided Setup</button>
+            <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics</button>
+          </div>
+        ` : ""}
       </section>
     `;
   }
@@ -7618,6 +7625,16 @@ function renderDashboardView(ctx) {
       });
     }
 
+    if (report.netGap > 0 && ((state.income.cpp.startAge || 65) <= 65 || (state.income.oas.startAge || 65) <= 65)) {
+      addSuggestion({
+        key: "timing-review",
+        title: "Review age-65 income timing",
+        why: "Benefit start dates can change early-retirement taxes and withdrawal pressure.",
+        impact: "Open the timing simulator to test how changing CPP or OAS start ages shifts guaranteed income and taxes.",
+        button: { type: "action", action: "focus-timing-sim", label: "Jump to timing review" },
+      });
+    }
+
     if (!suggestions.length || planStatus.status === "On Track") {
       addSuggestion({
         key: "inflation",
@@ -7684,6 +7701,15 @@ function renderDashboardView(ctx) {
             </article>
           `).join("")}
         </div>
+        ${ui.pendingStrategyKey ? `
+          <div class="subsection advisor-preview-band">
+            <strong>Preview ready:</strong> ${escapeHtml(ui.pendingStrategyKey.replaceAll("-", " "))}
+            <div class="landing-actions">
+              <button class="btn btn-primary" type="button" data-action="apply-strategy-preview">Apply preview</button>
+              <button class="btn btn-secondary" type="button" data-action="undo-strategy-preview">Undo preview</button>
+            </div>
+          </div>
+        ` : ""}
         <p class="small-copy muted advisor-footer-note">If this helped you plan your retirement, support helps keep Canadian tax rules, RRIF logic, and planner updates current.</p>
       </section>
     `;

@@ -1246,6 +1246,11 @@ body.mobile-layout .bottom-tabs {
   background: #fff;
 }
 
+.advisor-preview-band {
+  margin-top: 10px;
+  background: linear-gradient(180deg, #f7fbff, #ffffff);
+}
+
 .advisor-footer-note {
   margin: 12px 0 2px;
 }
@@ -1304,6 +1309,10 @@ body.mobile-layout .bottom-tabs {
   border-radius: 999px;
   background: #fff;
   padding: 6px 10px;
+}
+
+.quick-controls-note {
+  margin: 10px 0 0;
 }
 
 .coverage-mix {
@@ -1378,7 +1387,7 @@ body.mobile-layout .bottom-tabs {
 }
 
 .chart-wrap {
-  margin-top: 12px;
+  margin-top: 14px;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 10px;
