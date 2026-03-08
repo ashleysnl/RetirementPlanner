@@ -30,68 +30,52 @@
   <div class="page-shell">
     <header class="hero" aria-label="Planner header">
       <div class="hero-content">
-        <p class="eyebrow">Canadian Retirement Planner • Local-first • Educational • Updated for 2026</p>
-        <h1 id="appTitle">Canadian Retirement Planner</h1>
-        <p class="hero-subtitle">Tax-aware planning for CPP, OAS, pensions, RRSP/RRIF withdrawals, and retirement income decisions.</p>
-        <p class="hero-proof">No accounts. No cloud sync. Your plan stays on this device. Planning estimate only.</p>
-      </div>
-        <div class="hero-actions no-print" aria-label="Plan actions">
-          <span class="offline-badge">Local-first</span>
-          <div id="experienceModeSwitch" class="mode-switch" aria-label="Experience mode">
-            <button class="mode-switch-btn active" type="button" data-action="set-experience-mode" data-value="beginner">Beginner Mode</button>
-            <button class="mode-switch-btn" type="button" data-action="set-experience-mode" data-value="advanced">Advanced Mode</button>
-          </div>
+        <p class="eyebrow">Canadian Retirement Planner</p>
+        <h1 id="appTitle">Plan Your Retirement Income in Canada</h1>
+        <p class="hero-subtitle">Plan retirement income with CPP, OAS, pensions, RRSP/RRIF withdrawals, and taxes built in.</p>
+        <div class="hero-actions no-print" aria-label="Hero actions">
+          <button id="startSimpleBtn" class="btn btn-primary" type="button">Start Your Retirement Plan</button>
           <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics</button>
-          <button id="exportJsonBtn" class="btn btn-secondary" type="button">Save plan</button>
-          <button id="importJsonBtn" class="btn btn-secondary" type="button">Load plan</button>
-          <button id="loadDemoBtn" class="btn btn-secondary" type="button">Load Demo</button>
-          <button id="resetBtn" class="btn btn-secondary" type="button">Reset</button>
-          <button id="openGlossaryBtn" class="btn btn-secondary" type="button">Glossary</button>
+        </div>
+        <p class="hero-proof">Local-first • No account required • Planning estimate only</p>
+        <div class="hero-benefits" aria-label="Planner benefits">
+          <span class="hero-benefit">Retirement gap</span>
+          <span class="hero-benefit">Taxes on withdrawals</span>
+          <span class="hero-benefit">OAS clawback risk</span>
+        </div>
       </div>
     </header>
 
     <main>
       <section id="landingPanel" class="panel landing-panel" aria-labelledby="landingTitle">
-        <h2 id="landingTitle">Canadian Retirement Planner</h2>
-        <p class="muted">Model retirement income, taxes, OAS clawback, and RRIF withdrawals in one place.</p>
-        <p class="small-copy muted">The flagship planner for Canadians coordinating CPP, OAS, pensions, savings withdrawals, and retirement timing decisions.</p>
-        <div class="landing-actions no-print">
-          <button id="startSimpleBtn" class="btn btn-primary" type="button">Start Simple Plan (60 seconds)</button>
-          <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics first</button>
-          <button id="landingDemoBtn" class="btn btn-secondary" type="button">Load demo plan</button>
-          <button id="landingImportBtn" class="btn btn-secondary" type="button">Load plan</button>
-        </div>
-        <div class="preview-kpi">
-          <div class="preview-kpi-item"><strong>Retirement Gap</strong><span>What still needs to come from savings</span></div>
-          <div class="preview-kpi-item"><strong>Taxes on Withdrawals</strong><span>See how taxes reduce spendable income</span></div>
-          <div class="preview-kpi-item"><strong>OAS Clawback Risk</strong><span>Estimate + explanation</span></div>
-        </div>
-        <p class="small-copy muted">
-          Focused calculators:
-          <a href="./oas-clawback-calculator.html">OAS clawback calculator</a> |
-          <a href="./rrif-withdrawal-calculator.html">RRIF withdrawal calculator</a> |
-          <a href="./cpp-timing-calculator-canada.html">CPP timing</a> |
-          <a href="./retirement-tax-calculator-canada.html">Retirement tax</a>
-        </p>
+        <h2 id="landingTitle">Why use the full planner?</h2>
+        <p class="muted">Focused calculators help with one question. The full planner shows how CPP, OAS, pensions, taxes, savings withdrawals, and retirement timing work together.</p>
         <div class="subsection flagship-card">
-          <h3>Why use the full planner?</h3>
-          <p class="muted">CPP, OAS, pensions, taxes, clawback, and RRSP/RRIF withdrawals interact. A focused calculator shows one issue. The full planner shows how they work together.</p>
+          <h3>Start with the full plan</h3>
+          <p class="muted">Use the full planner first if you want the clearest answer on retirement income, taxes, clawback, and sustainability in one place.</p>
+        </div>
+        <div class="subsection">
+          <h3>Focused Retirement Calculators</h3>
+          <p class="small-copy muted">
+            <a href="./oas-clawback-calculator.html">OAS clawback calculator</a> |
+            <a href="./rrif-withdrawal-calculator.html">RRIF withdrawal calculator</a> |
+            <a href="./cpp-timing-calculator-canada.html">CPP timing calculator</a> |
+            <a href="./retirement-tax-calculator-canada.html">Retirement tax calculator</a>
+          </p>
+        </div>
+        <div class="subsection">
+          <h3>New to retirement planning?</h3>
+          <p class="small-copy muted">Learn the basics first, then come back to the planner when you are ready to model your own numbers.</p>
           <div class="landing-actions no-print">
-            <button id="startSimpleBtnSecondary" class="btn btn-primary" type="button" data-nav-target="start">Start Simple Plan</button>
-            <button class="btn btn-secondary" type="button" data-nav-target="dashboard">Open Full Planner</button>
+            <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics first</button>
           </div>
         </div>
         <div class="subsection">
-          <h3>Focused calculator pages</h3>
-          <p class="small-copy muted">
-            <a href="./canadian-retirement-income-calculator.html">Canadian retirement income calculator</a> |
-            <a href="./cpp-timing-calculator-canada.html">CPP timing calculator Canada</a> |
-            <a href="./oas-clawback-calculator.html">OAS clawback calculator</a> |
-            <a href="./retirement-tax-calculator-canada.html">Retirement tax calculator Canada</a> |
-            <a href="./rrif-minimum-withdrawal-calculator.html">RRIF minimum withdrawal calculator</a> |
-            <a href="./rrif-withdrawal-calculator.html">RRIF withdrawal calculator</a> |
-            <a href="./rrsp-withdrawal-strategy-canada.html">RRSP withdrawal strategy Canada</a>
-          </p>
+          <h3>Try an example or open a saved plan</h3>
+          <div class="landing-actions no-print">
+            <button id="landingDemoBtn" class="btn btn-secondary" type="button">Load demo plan</button>
+            <button id="landingImportBtn" class="btn btn-secondary" type="button">Load plan</button>
+          </div>
         </div>
         <p class="small-copy muted">No accounts. Data stays on your device. Planning estimate only — not financial advice.</p>
       </section>
@@ -119,6 +103,7 @@
             <button class="btn btn-primary" type="button" data-nav-target="start">Start Simple Plan (60 seconds)</button>
             <button class="btn btn-secondary" id="loadDemoBtnHome" type="button">Load Demo</button>
             <button class="btn btn-secondary" id="importJsonBtnHome" type="button">Import Plan</button>
+            <button class="btn btn-secondary" id="resetBtnHome" type="button">Reset</button>
           </div>
           <div class="preview-kpi">
             <div class="preview-kpi-item"><strong>Retirement Gap</strong><span>What must come from savings</span></div>

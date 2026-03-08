@@ -126,6 +126,7 @@ const el = {
   importJsonBtnSecondary: document.getElementById("importJsonBtnSecondary"),
   loadDemoBtn: document.getElementById("loadDemoBtn"),
   loadDemoBtnHome: document.getElementById("loadDemoBtnHome"),
+  resetBtnHome: document.getElementById("resetBtnHome"),
   loadDemoBtnSecondary: document.getElementById("loadDemoBtnSecondary"),
   resetBtn: document.getElementById("resetBtn"),
   resetBtnSecondary: document.getElementById("resetBtnSecondary"),
@@ -385,7 +386,22 @@ function bindEvents() {
     renderAll();
     toast("Demo plan loaded.");
   });
-  el.loadDemoBtnHome?.addEventListener("click", () => el.loadDemoBtn?.click());
+  el.loadDemoBtnHome?.addEventListener("click", () => {
+    state = createDemoPlanLocal();
+    ui.activeNav = "dashboard";
+    savePlan();
+    renderAll();
+    toast("Demo plan loaded.");
+  });
+  el.resetBtnHome?.addEventListener("click", () => {
+    const ok = confirm("Reset your local plan to defaults?");
+    if (!ok) return;
+    state = createDefaultPlanLocal();
+    ui.activeNav = "start";
+    savePlan();
+    renderAll();
+    toast("Plan reset.");
+  });
 
   el.exportJsonBtn?.addEventListener("click", exportJson);
   el.exportJsonBtnSecondary?.addEventListener("click", exportJson);
@@ -394,8 +410,22 @@ function bindEvents() {
   el.importJsonBtnHome?.addEventListener("click", () => el.importJsonFile?.click());
   el.landingImportBtn?.addEventListener("click", () => el.importJsonFile?.click());
   el.importJsonFile?.addEventListener("change", importJsonFromFile);
-  el.loadDemoBtnSecondary?.addEventListener("click", () => el.loadDemoBtn?.click());
-  el.resetBtnSecondary?.addEventListener("click", () => el.resetBtn?.click());
+  el.loadDemoBtnSecondary?.addEventListener("click", () => {
+    state = createDemoPlanLocal();
+    ui.activeNav = "dashboard";
+    savePlan();
+    renderAll();
+    toast("Demo plan loaded.");
+  });
+  el.resetBtnSecondary?.addEventListener("click", () => {
+    const ok = confirm("Reset your local plan to defaults?");
+    if (!ok) return;
+    state = createDefaultPlanLocal();
+    ui.activeNav = "start";
+    savePlan();
+    renderAll();
+    toast("Plan reset.");
+  });
 
   el.resetBtn?.addEventListener("click", () => {
     const ok = confirm("Reset your local plan to defaults?");
