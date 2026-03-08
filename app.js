@@ -40,7 +40,7 @@ import { drawPortfolioChart, drawIncomeCoverageChart } from "./src/ui/charts.js"
 import { renderTooltipPopover, clearTooltipLayer, renderGlossaryHtml } from "./src/ui/tooltips.js";
 import { drawLearnLineChart as drawLearnLineChartUi, drawLearnMultiLineChart as drawLearnMultiLineChartUi } from "./src/ui/learnCharts.js";
 import { bindTooltipTriggers, renderCoverageHover, renderBalanceHover } from "./src/ui/interactions.js";
-import { exportPlanJson, importPlanFromFileInput } from "./src/ui/actions/planActions.js";
+import { exportPlanJson, importPlanFromFileInput, promptImportPlan } from "./src/ui/actions/planActions.js";
 import { navFromHash as navFromHashUi, syncNavHash as syncNavHashUi, normalizeNavTarget as normalizeNavTargetUi } from "./src/ui/navigation.js";
 import { renderResultsStrip } from "./src/ui/resultsStrip.js";
 import {
@@ -403,11 +403,11 @@ function bindEvents() {
   el.exportJsonBtn?.addEventListener("click", exportJson);
   el.exportJsonBtnSecondary?.addEventListener("click", exportJson);
   el.exportJsonBtnToolsTop?.addEventListener("click", exportJson);
-  el.importJsonBtn?.addEventListener("click", () => el.importJsonFile?.click());
-  el.importJsonBtnSecondary?.addEventListener("click", () => el.importJsonFile?.click());
-  el.importJsonBtnToolsTop?.addEventListener("click", () => el.importJsonFile?.click());
-  el.importJsonBtnHome?.addEventListener("click", () => el.importJsonFile?.click());
-  el.landingImportBtn?.addEventListener("click", () => el.importJsonFile?.click());
+  el.importJsonBtn?.addEventListener("click", openImportPicker);
+  el.importJsonBtnSecondary?.addEventListener("click", openImportPicker);
+  el.importJsonBtnToolsTop?.addEventListener("click", openImportPicker);
+  el.importJsonBtnHome?.addEventListener("click", openImportPicker);
+  el.landingImportBtn?.addEventListener("click", openImportPicker);
   el.importJsonFile?.addEventListener("change", importJsonFromFile);
   el.loadDemoBtnSecondary?.addEventListener("click", () => {
     state = createDemoPlanLocal();
@@ -660,7 +660,7 @@ function handleDocumentClick(event) {
       return;
     }
     if (action === "tools-load-plan") {
-      el.importJsonFile?.click();
+      openImportPicker();
       return;
     }
     if (action === "tools-reset-plan") {
@@ -2007,25 +2007,53 @@ function exportJson() {
   });
 }
 
+function openImportPicker() {
+  promptImportPlan({
+    normalizePlan: normalizePlanLocal,
+    onPlanLoaded: (normalized) => {
+      state = normalized;
+      state.uiState.firstRun = false;
+      state.uiState.hasStarted = true;
+      state.uiState.activeNav = "dashboard";
+      state.uiState.dashboardScenario = "base";
+      state.uiState.lastChangeSummary = null;
+      ui.activeNav = "dashboard";
+      savePlan();
+      renderAll();
+      const message = `Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`;
+      toast(message);
+      if (ui.isMobileLayout) {
+        alert(message);
+      }
+    },
+    onImportError: (message) => {
+      if (ui.isMobileLayout) {
+        alert(`Import error:\n${message}`);
+      }
+    },
+    toast,
+  });
+}
+
 async function importJsonFromFile() {
   await importPlanFromFileInput({
     fileInput: el.importJsonFile,
     normalizePlan: normalizePlanLocal,
     onPlanLoaded: (normalized) => {
-    state = normalized;
-    state.uiState.firstRun = false;
-    state.uiState.hasStarted = true;
-    state.uiState.activeNav = "dashboard";
-    state.uiState.dashboardScenario = "base";
-    state.uiState.lastChangeSummary = null;
-    ui.activeNav = "dashboard";
-    savePlan();
-    renderAll();
-    const message = `Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`;
-    toast(message);
-    if (ui.isMobileLayout) {
-      alert(message);
-    }
+      state = normalized;
+      state.uiState.firstRun = false;
+      state.uiState.hasStarted = true;
+      state.uiState.activeNav = "dashboard";
+      state.uiState.dashboardScenario = "base";
+      state.uiState.lastChangeSummary = null;
+      ui.activeNav = "dashboard";
+      savePlan();
+      renderAll();
+      const message = `Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`;
+      toast(message);
+      if (ui.isMobileLayout) {
+        alert(message);
+      }
     },
     onImportError: (message) => {
       if (ui.isMobileLayout) {

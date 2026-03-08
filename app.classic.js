@@ -2886,14 +2886,13 @@ function exportPlanJson(state, toast) {
   if (typeof toast === "function") toast("Plan exported.");
 }
 
-async function importPlanFromFileInput({
-  fileInput,
+async function importPlanFromFile({
+  file,
   normalizePlan,
   onPlanLoaded,
   toast,
   onImportError,
 }) {
-  const file = fileInput?.files?.[0];
   if (!file) return;
 
   try {
@@ -2908,9 +2907,60 @@ async function importPlanFromFileInput({
     if (typeof toast === "function") toast(`Import error: ${message}`);
     if (typeof onImportError === "function") onImportError(message);
     else if (shouldUseBlockingImportMessage()) alert(`Import error:\n${message}`);
+  }
+}
+
+async function importPlanFromFileInput({
+  fileInput,
+  normalizePlan,
+  onPlanLoaded,
+  toast,
+  onImportError,
+}) {
+  const file = fileInput?.files?.[0];
+  try {
+    await importPlanFromFile({
+      file,
+      normalizePlan,
+      onPlanLoaded,
+      toast,
+      onImportError,
+    });
   } finally {
     if (fileInput) fileInput.value = "";
   }
+}
+
+function promptImportPlan(options) {
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.accept = "application/json,.json";
+  picker.style.position = "fixed";
+  picker.style.left = "-9999px";
+  picker.style.opacity = "0";
+  document.body.appendChild(picker);
+
+  const cleanup = () => {
+    picker.value = "";
+    picker.remove();
+  };
+
+  picker.addEventListener("change", async () => {
+    const file = picker.files?.[0];
+    try {
+      await importPlanFromFile({
+        file,
+        normalizePlan: options.normalizePlan,
+        onPlanLoaded: options.onPlanLoaded,
+        toast: options.toast,
+        onImportError: options.onImportError,
+      });
+    } finally {
+      cleanup();
+    }
+  }, { once: true });
+
+  picker.click();
 }
 
 /* FILE: src/ui/fields.js */
@@ -9074,11 +9124,11 @@ function bindEvents() {
   el.exportJsonBtn?.addEventListener("click", exportJson);
   el.exportJsonBtnSecondary?.addEventListener("click", exportJson);
   el.exportJsonBtnToolsTop?.addEventListener("click", exportJson);
-  el.importJsonBtn?.addEventListener("click", () => el.importJsonFile?.click());
-  el.importJsonBtnSecondary?.addEventListener("click", () => el.importJsonFile?.click());
-  el.importJsonBtnToolsTop?.addEventListener("click", () => el.importJsonFile?.click());
-  el.importJsonBtnHome?.addEventListener("click", () => el.importJsonFile?.click());
-  el.landingImportBtn?.addEventListener("click", () => el.importJsonFile?.click());
+  el.importJsonBtn?.addEventListener("click", openImportPicker);
+  el.importJsonBtnSecondary?.addEventListener("click", openImportPicker);
+  el.importJsonBtnToolsTop?.addEventListener("click", openImportPicker);
+  el.importJsonBtnHome?.addEventListener("click", openImportPicker);
+  el.landingImportBtn?.addEventListener("click", openImportPicker);
   el.importJsonFile?.addEventListener("change", importJsonFromFile);
   el.loadDemoBtnSecondary?.addEventListener("click", () => {
     state = createDemoPlanLocal();
@@ -9331,7 +9381,7 @@ function handleDocumentClick(event) {
       return;
     }
     if (action === "tools-load-plan") {
-      el.importJsonFile?.click();
+      openImportPicker();
       return;
     }
     if (action === "tools-reset-plan") {
@@ -10678,25 +10728,53 @@ function exportJson() {
   });
 }
 
+function openImportPicker() {
+  promptImportPlan({
+    normalizePlan: normalizePlanLocal,
+    onPlanLoaded: (normalized) => {
+      state = normalized;
+      state.uiState.firstRun = false;
+      state.uiState.hasStarted = true;
+      state.uiState.activeNav = "dashboard";
+      state.uiState.dashboardScenario = "base";
+      state.uiState.lastChangeSummary = null;
+      ui.activeNav = "dashboard";
+      savePlan();
+      renderAll();
+      const message = `Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`;
+      toast(message);
+      if (ui.isMobileLayout) {
+        alert(message);
+      }
+    },
+    onImportError: (message) => {
+      if (ui.isMobileLayout) {
+        alert(`Import error:\n${message}`);
+      }
+    },
+    toast,
+  });
+}
+
 async function importJsonFromFile() {
   await importPlanFromFileInput({
     fileInput: el.importJsonFile,
     normalizePlan: normalizePlanLocal,
     onPlanLoaded: (normalized) => {
-    state = normalized;
-    state.uiState.firstRun = false;
-    state.uiState.hasStarted = true;
-    state.uiState.activeNav = "dashboard";
-    state.uiState.dashboardScenario = "base";
-    state.uiState.lastChangeSummary = null;
-    ui.activeNav = "dashboard";
-    savePlan();
-    renderAll();
-    const message = `Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`;
-    toast(message);
-    if (ui.isMobileLayout) {
-      alert(message);
-    }
+      state = normalized;
+      state.uiState.firstRun = false;
+      state.uiState.hasStarted = true;
+      state.uiState.activeNav = "dashboard";
+      state.uiState.dashboardScenario = "base";
+      state.uiState.lastChangeSummary = null;
+      ui.activeNav = "dashboard";
+      savePlan();
+      renderAll();
+      const message = `Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`;
+      toast(message);
+      if (ui.isMobileLayout) {
+        alert(message);
+      }
     },
     onImportError: (message) => {
       if (ui.isMobileLayout) {

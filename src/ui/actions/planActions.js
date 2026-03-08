@@ -149,14 +149,13 @@ export function exportPlanJson(state, toast) {
   if (typeof toast === "function") toast("Plan exported.");
 }
 
-export async function importPlanFromFileInput({
-  fileInput,
+async function importPlanFromFile({
+  file,
   normalizePlan,
   onPlanLoaded,
   toast,
   onImportError,
 }) {
-  const file = fileInput?.files?.[0];
   if (!file) return;
 
   try {
@@ -171,7 +170,58 @@ export async function importPlanFromFileInput({
     if (typeof toast === "function") toast(`Import error: ${message}`);
     if (typeof onImportError === "function") onImportError(message);
     else if (shouldUseBlockingImportMessage()) alert(`Import error:\n${message}`);
+  }
+}
+
+export async function importPlanFromFileInput({
+  fileInput,
+  normalizePlan,
+  onPlanLoaded,
+  toast,
+  onImportError,
+}) {
+  const file = fileInput?.files?.[0];
+  try {
+    await importPlanFromFile({
+      file,
+      normalizePlan,
+      onPlanLoaded,
+      toast,
+      onImportError,
+    });
   } finally {
     if (fileInput) fileInput.value = "";
   }
+}
+
+export function promptImportPlan(options) {
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.accept = "application/json,.json";
+  picker.style.position = "fixed";
+  picker.style.left = "-9999px";
+  picker.style.opacity = "0";
+  document.body.appendChild(picker);
+
+  const cleanup = () => {
+    picker.value = "";
+    picker.remove();
+  };
+
+  picker.addEventListener("change", async () => {
+    const file = picker.files?.[0];
+    try {
+      await importPlanFromFile({
+        file,
+        normalizePlan: options.normalizePlan,
+        onPlanLoaded: options.onPlanLoaded,
+        toast: options.toast,
+        onImportError: options.onImportError,
+      });
+    } finally {
+      cleanup();
+    }
+  }, { once: true });
+
+  picker.click();
 }
