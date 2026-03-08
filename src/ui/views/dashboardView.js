@@ -222,7 +222,7 @@ export function renderDashboardView(ctx) {
       { label: "Projected retirement income", value: formatCurrency(report.totalSpendable), sub: report.estimateTaxes ? "Net spendable income" : "Before tax estimate" },
       { label: "Savings at retirement", value: formatCurrency(balanceAtRetirement), sub: "Projected portfolio" },
       { label: "How long money lasts", value: moneyLasts, sub: model.kpis.depletionAge ? "Depletion estimate" : "Planning horizon covered" },
-      { label: "OAS clawback risk", value: risk, sub: report.clawback > 0 ? formatCurrency(report.clawback) : "No current clawback" },
+      { label: "OAS clawback risk", value: risk.label, sub: report.clawback > 0 ? formatCurrency(report.clawback) : "No current clawback", badgeClass: risk.className },
     ];
     el.readinessSummaryModule.innerHTML = `
       <section class="subsection readiness-summary">
@@ -236,7 +236,7 @@ export function renderDashboardView(ctx) {
           ${cards.map((card) => `
             <article class="readiness-card">
               <span class="label">${escapeHtml(card.label)}</span>
-              <strong>${escapeHtml(card.value)}</strong>
+              <strong class="${escapeHtml(card.badgeClass || "")}">${escapeHtml(card.value)}</strong>
               <span class="sub">${escapeHtml(card.sub)}</span>
             </article>
           `).join("")}
