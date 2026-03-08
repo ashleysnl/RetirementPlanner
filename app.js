@@ -23,6 +23,7 @@ import {
   createLocalId,
   createDefaultLearningProgress as createDefaultLearningProgressSchema,
   createDefaultPlan as createDefaultPlanSchema,
+  createBlankPlan as createBlankPlanSchema,
   createDemoPlan as createDemoPlanSchema,
   normalizePlan as normalizePlanSchema,
   ensureValidState as ensureValidStateSchema,
@@ -397,15 +398,7 @@ function bindEvents() {
     renderAll();
     toast("Demo plan loaded.");
   });
-  el.resetBtnHome?.addEventListener("click", () => {
-    const ok = confirm("Reset your local plan to defaults?");
-    if (!ok) return;
-    state = createDefaultPlanLocal();
-    ui.activeNav = "start";
-    savePlan();
-    renderAll();
-    toast("Plan reset.");
-  });
+  el.resetBtnHome?.addEventListener("click", resetPlanToBlank);
 
   el.exportJsonBtn?.addEventListener("click", exportJson);
   el.exportJsonBtnSecondary?.addEventListener("click", exportJson);
@@ -423,34 +416,10 @@ function bindEvents() {
     renderAll();
     toast("Demo plan loaded.");
   });
-  el.resetBtnSecondary?.addEventListener("click", () => {
-    const ok = confirm("Reset your local plan to defaults?");
-    if (!ok) return;
-    state = createDefaultPlanLocal();
-    ui.activeNav = "start";
-    savePlan();
-    renderAll();
-    toast("Plan reset.");
-  });
-  el.resetBtnToolsTop?.addEventListener("click", () => {
-    const ok = confirm("Reset your local plan to defaults?");
-    if (!ok) return;
-    state = createDefaultPlanLocal();
-    ui.activeNav = "start";
-    savePlan();
-    renderAll();
-    toast("Plan reset.");
-  });
+  el.resetBtnSecondary?.addEventListener("click", resetPlanToBlank);
+  el.resetBtnToolsTop?.addEventListener("click", resetPlanToBlank);
 
-  el.resetBtn?.addEventListener("click", () => {
-    const ok = confirm("Reset your local plan to defaults?");
-    if (!ok) return;
-    state = createDefaultPlanLocal();
-    ui.activeNav = "start";
-    savePlan();
-    renderAll();
-    toast("Plan reset.");
-  });
+  el.resetBtn?.addEventListener("click", resetPlanToBlank);
 
   el.tabButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -695,13 +664,7 @@ function handleDocumentClick(event) {
       return;
     }
     if (action === "tools-reset-plan") {
-      const ok = confirm("Reset your local plan to defaults?");
-      if (!ok) return;
-      state = createDefaultPlanLocal();
-      ui.activeNav = "start";
-      savePlan();
-      renderAll();
-      toast("Plan reset.");
+      resetPlanToBlank();
       return;
     }
     if (action === "tools-open-glossary") {
@@ -2058,6 +2021,7 @@ async function importJsonFromFile() {
     ui.activeNav = "dashboard";
     savePlan();
     renderAll();
+    toast(`Imported plan: retire at ${state.profile.retirementAge}, savings ${formatCurrency(state.savings.currentTotal)}.`);
     },
     toast,
   });
@@ -2077,6 +2041,16 @@ function savePlan() {
   } catch {
     toast("Could not save to local storage.");
   }
+}
+
+function resetPlanToBlank() {
+  const ok = confirm("Reset your local plan to a blank baseline?");
+  if (!ok) return;
+  state = createBlankPlanLocal();
+  ui.activeNav = "start";
+  savePlan();
+  renderAll();
+  toast("Plan reset to a blank baseline.");
 }
 
 function shareBaseUrl() {
@@ -2432,6 +2406,10 @@ function ensureValidStateLocal() {
 
 function createDefaultPlanLocal() {
   return createDefaultPlanSchema(schemaDeps);
+}
+
+function createBlankPlanLocal() {
+  return createBlankPlanSchema(schemaDeps);
 }
 
 function createDefaultLearningProgressLocal() {

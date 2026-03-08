@@ -2,6 +2,68 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function stripBom(text) {
+  return typeof text === "string" ? text.replace(/^\uFEFF/, "") : "";
+}
+
+function readFileAsText(file) {
+  if (!file) return Promise.resolve("");
+  if (typeof file.text === "function") {
+    return file.text().then(stripBom);
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read the selected file."));
+    reader.onload = () => resolve(stripBom(String(reader.result || "")));
+    reader.readAsText(file);
+  });
+}
+
+function hasOwnPath(obj, path) {
+  const keys = path.split(".");
+  let ref = obj;
+  for (const key of keys) {
+    if (!ref || typeof ref !== "object" || !Object.prototype.hasOwnProperty.call(ref, key)) return false;
+    ref = ref[key];
+  }
+  return true;
+}
+
+function getByPath(obj, path) {
+  const keys = path.split(".");
+  let ref = obj;
+  for (const key of keys) {
+    if (!ref || typeof ref !== "object") return undefined;
+    ref = ref[key];
+  }
+  return ref;
+}
+
+function verifyImportedCoreFields(parsed, normalized) {
+  const mismatches = [];
+  const checks = [
+    ["profile.retirementAge", (value) => Number(value), (value) => Number(value)],
+    ["profile.lifeExpectancy", (value) => Number(value), (value) => Number(value)],
+    ["profile.desiredSpending", (value) => Number(value), (value) => Number(value)],
+    ["savings.currentTotal", (value) => Number(value), (value) => Number(value)],
+    ["savings.annualContribution", (value) => Number(value), (value) => Number(value)],
+    ["income.pension.enabled", (value) => Boolean(value), (value) => Boolean(value)],
+    ["income.pension.amount", (value) => Number(value), (value) => Number(value)],
+  ];
+
+  checks.forEach(([path, parseExpected, parseActual]) => {
+    if (!hasOwnPath(parsed, path)) return;
+    const expected = parseExpected(getByPath(parsed, path));
+    const actual = parseActual(getByPath(normalized, path));
+    if (Number.isNaN(expected) || Number.isNaN(actual)) return;
+    if (expected !== actual) mismatches.push(`${path}: expected ${expected}, got ${actual}`);
+  });
+
+  if (mismatches.length) {
+    throw new Error(`Imported file did not round-trip cleanly. ${mismatches.slice(0, 3).join(" • ")}`);
+  }
+}
+
 function buildPortableUiState(uiState = {}) {
   return {
     hasStarted: Boolean(uiState.hasStarted),
@@ -87,9 +149,10 @@ export async function importPlanFromFileInput({
   if (!file) return;
 
   try {
-    const text = await file.text();
+    const text = await readFileAsText(file);
     const parsed = JSON.parse(text);
     const normalized = normalizePlan(sanitizeImportedPlan(parsed));
+    verifyImportedCoreFields(parsed, normalized);
     onPlanLoaded(normalized);
     if (typeof toast === "function") toast("Plan imported.");
   } catch (error) {

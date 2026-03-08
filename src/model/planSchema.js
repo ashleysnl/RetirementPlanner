@@ -239,6 +239,46 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
   };
 }
 
+export function createBlankPlan({ app, riskReturns, learnProgressItems }) {
+  const plan = createDefaultPlan({ app, riskReturns, learnProgressItems });
+  plan.profile.desiredSpending = 12000;
+  plan.savings.currentTotal = 0;
+  plan.savings.annualContribution = 0;
+  plan.savings.contributionIncrease = 0;
+  plan.savings.capitalInjects = [];
+  plan.income.pension.enabled = false;
+  plan.income.pension.amount = 0;
+  plan.income.pension.startAge = 65;
+  plan.income.cpp.amountAt65 = 0;
+  plan.income.cpp.startAge = 65;
+  plan.income.oas.amountAt65 = 0;
+  plan.income.oas.startAge = 65;
+  plan.income.spouse.enabled = false;
+  plan.income.spouse.pensionAmount = 0;
+  plan.income.spouse.pensionStartAge = 65;
+  plan.income.spouse.cppAmountAt65 = 0;
+  plan.income.spouse.cppStartAge = 65;
+  plan.income.spouse.oasAmountAt65 = 0;
+  plan.income.spouse.oasStartAge = 65;
+  plan.accounts = {
+    rrsp: 0,
+    tfsa: 0,
+    nonRegistered: 0,
+    cash: 0,
+  };
+  plan.strategy.meltdownEnabled = false;
+  plan.strategy.meltdownAmount = 0;
+  plan.strategy.meltdownIncomeCeiling = 0;
+  plan.uiState.firstRun = true;
+  plan.uiState.hasStarted = false;
+  plan.uiState.activeNav = "start";
+  plan.uiState.showScenarioCompare = false;
+  plan.uiState.dashboardScenario = "base";
+  plan.uiState.lastChangeSummary = null;
+  plan.notes = "";
+  return plan;
+}
+
 export function createDemoPlan({ app, riskReturns, learnProgressItems }) {
   const plan = createDefaultPlan({ app, riskReturns, learnProgressItems });
   plan.profile.birthYear = app.currentYear - 45;
