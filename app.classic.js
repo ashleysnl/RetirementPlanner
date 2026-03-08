@@ -8571,15 +8571,19 @@ const el = {
   landingImportBtn: document.getElementById("landingImportBtn"),
   exportJsonBtn: document.getElementById("exportJsonBtn"),
   exportJsonBtnSecondary: document.getElementById("exportJsonBtnSecondary"),
+  exportJsonBtnToolsTop: document.getElementById("exportJsonBtnToolsTop"),
   importJsonBtn: document.getElementById("importJsonBtn"),
   importJsonBtnSecondary: document.getElementById("importJsonBtnSecondary"),
+  importJsonBtnToolsTop: document.getElementById("importJsonBtnToolsTop"),
   loadDemoBtn: document.getElementById("loadDemoBtn"),
   loadDemoBtnHome: document.getElementById("loadDemoBtnHome"),
   resetBtnHome: document.getElementById("resetBtnHome"),
   loadDemoBtnSecondary: document.getElementById("loadDemoBtnSecondary"),
   resetBtn: document.getElementById("resetBtn"),
   resetBtnSecondary: document.getElementById("resetBtnSecondary"),
+  resetBtnToolsTop: document.getElementById("resetBtnToolsTop"),
   openGlossaryBtn: document.getElementById("openGlossaryBtn"),
+  openGlossaryBtnToolsTop: document.getElementById("openGlossaryBtnToolsTop"),
   importJsonFile: document.getElementById("importJsonFile"),
   importJsonBtnHome: document.getElementById("importJsonBtnHome"),
 
@@ -8854,8 +8858,10 @@ function bindEvents() {
 
   el.exportJsonBtn?.addEventListener("click", exportJson);
   el.exportJsonBtnSecondary?.addEventListener("click", exportJson);
+  el.exportJsonBtnToolsTop?.addEventListener("click", exportJson);
   el.importJsonBtn?.addEventListener("click", () => el.importJsonFile?.click());
   el.importJsonBtnSecondary?.addEventListener("click", () => el.importJsonFile?.click());
+  el.importJsonBtnToolsTop?.addEventListener("click", () => el.importJsonFile?.click());
   el.importJsonBtnHome?.addEventListener("click", () => el.importJsonFile?.click());
   el.landingImportBtn?.addEventListener("click", () => el.importJsonFile?.click());
   el.importJsonFile?.addEventListener("change", importJsonFromFile);
@@ -8867,6 +8873,15 @@ function bindEvents() {
     toast("Demo plan loaded.");
   });
   el.resetBtnSecondary?.addEventListener("click", () => {
+    const ok = confirm("Reset your local plan to defaults?");
+    if (!ok) return;
+    state = createDefaultPlanLocal();
+    ui.activeNav = "start";
+    savePlan();
+    renderAll();
+    toast("Plan reset.");
+  });
+  el.resetBtnToolsTop?.addEventListener("click", () => {
     const ok = confirm("Reset your local plan to defaults?");
     if (!ok) return;
     state = createDefaultPlanLocal();
@@ -9018,6 +9033,7 @@ function bindEvents() {
 
   el.openGlossary?.addEventListener("click", openGlossary);
   el.openGlossaryBtnTools?.addEventListener("click", openGlossary);
+  el.openGlossaryBtnToolsTop?.addEventListener("click", openGlossary);
   el.closeGlossaryBtn?.addEventListener("click", () => el.glossaryModal?.close());
   el.glossaryModal?.addEventListener("click", (event) => {
     if (event.target === el.glossaryModal) el.glossaryModal.close();
