@@ -3900,7 +3900,7 @@ function buildSummaryHtml(ctx) {
   return `
     <section class="print-summary report-shell">
       <section class="report-page report-cover">
-        <div class="report-header">
+        <div class="report-section report-header">
           <div>
             <p class="report-kicker">SimpleKit Retirement Planner</p>
             <h1>Canadian Retirement Planning Summary</h1>
@@ -3913,7 +3913,7 @@ function buildSummaryHtml(ctx) {
           </div>
         </div>
 
-        <div class="report-hero-card ${bandClass(planStatus.score.band)}">
+        <div class="report-section report-hero-card ${bandClass(planStatus.score.band)}">
           <div>
             <p class="report-label">Retirement status</p>
             <h2>${esc(planStatus.status)}</h2>
@@ -3925,7 +3925,7 @@ function buildSummaryHtml(ctx) {
           </div>
         </div>
 
-        <div class="report-scorecard-grid">
+        <div class="report-section report-scorecard-grid report-card-grid">
           ${snapshot.map((item) => `
             <article class="report-metric-card">
               <span class="report-metric-label">${esc(item.label)}</span>
@@ -3935,14 +3935,14 @@ function buildSummaryHtml(ctx) {
           `).join("")}
         </div>
 
-        <div class="report-grid-two">
-          <section class="report-panel">
+        <div class="report-section report-grid-two">
+          <section class="report-panel report-section">
             <h3>What this means</h3>
             <ul class="report-clean-list">
               ${meaning.map((line) => `<li>${esc(line)}</li>`).join("")}
             </ul>
           </section>
-          <section class="report-panel">
+          <section class="report-panel report-section">
             <h3>Retirement score snapshot</h3>
             <div class="report-mini-score-grid">
               <div><span>Coverage</span><strong>${planStatus.score.subs.coverage}/35</strong></div>
@@ -3955,7 +3955,7 @@ function buildSummaryHtml(ctx) {
           </section>
         </div>
 
-        <section class="report-cta-band">
+        <section class="report-section report-cta-section report-cta-band">
           <div class="report-cta-copy">
             <h3>Where to click next</h3>
             <p>Use the interactive planner to test retirement age, CPP timing, spending, inflation, and withdrawal strategy. If this report helped, you can also support future improvements.</p>
@@ -3970,15 +3970,11 @@ function buildSummaryHtml(ctx) {
               <strong>buymeacoffee.com/ashleysnl</strong>
             </a>
           </div>
-          <div class="report-qr-row">
-            ${plannerQr ? `<figure class="report-qr-card"><img class="print-qr" src="${plannerQr}" alt="QR code linking to the calculator" /><figcaption>Calculator</figcaption></figure>` : ""}
-            ${supportQr ? `<figure class="report-qr-card"><img class="print-qr" src="${supportQr}" alt="QR code linking to Buy Me a Coffee" /><figcaption>☕ Support</figcaption></figure>` : ""}
-          </div>
         </section>
       </section>
 
       <section class="report-page">
-        <section class="report-panel">
+        <section class="report-section report-panel report-chart-section">
           <h2>Portfolio Projection</h2>
           <p class="report-intro">This chart shows how savings are expected to build and then be drawn down over time under the current assumptions. Use it to spot whether the portfolio appears durable and when major retirement phases begin.</p>
           ${chartImages?.projection
@@ -3987,14 +3983,17 @@ function buildSummaryHtml(ctx) {
           }
         </section>
 
-        <section class="report-panel">
+      </section>
+
+      <section class="report-page">
+        <section class="report-section report-panel report-chart-section">
           <h2>Income Timeline / Income Map</h2>
           <p class="report-intro">The stacked bars show where retirement cash flow comes from each year. Pension, CPP, and OAS form the income floor. RRSP/RRIF withdrawals fill the remaining gap. The tax wedge shows the part of gross withdrawals that goes to tax instead of spending.</p>
           ${chartImages?.coverage
             ? `<figure class="print-chart"><img src="${chartImages.coverage}" alt="Income coverage chart" /><figcaption>The spending line is your after-tax target. The tax wedge helps explain why gross RRSP/RRIF withdrawals can exceed the net spending gap.</figcaption>${renderLegend(coverageLegend)}</figure>`
             : "<p class=\"report-footnote\">Income map chart was unavailable in this export.</p>"
           }
-          <div class="report-grid-two compact">
+          <div class="report-section report-grid-two compact">
             <div class="report-callout">
               <span class="report-callout-label">Retirement start</span>
               <strong>Age ${rowRet.age}</strong>
@@ -4015,9 +4014,9 @@ function buildSummaryHtml(ctx) {
       </section>
 
       <section class="report-page">
-        <section class="report-panel">
+        <section class="report-section report-panel">
           <h2>Retirement Watchlist</h2>
-          <div class="report-watchlist">
+          <div class="report-watchlist report-card-grid">
             ${(risks || []).slice(0, 5).map((risk) => `
               <article class="report-watch-card ${severityClass(risk.severity)}">
                 <div class="report-watch-head">
@@ -4031,9 +4030,9 @@ function buildSummaryHtml(ctx) {
           </div>
         </section>
 
-        <section class="report-panel">
+        <section class="report-section report-panel">
           <h2>Recommended Next Moves</h2>
-          <div class="report-actions">
+          <div class="report-actions report-card-grid">
             ${moves.map((move, index) => `
               <article class="report-action-card">
                 <span class="report-action-step">${index + 1}</span>
@@ -4046,7 +4045,7 @@ function buildSummaryHtml(ctx) {
           </div>
         </section>
 
-        <section class="report-cta-band report-cta-band-secondary">
+        <section class="report-section report-cta-section report-cta-band report-cta-band-secondary">
           <div class="report-cta-copy">
             <h3>Test another scenario online</h3>
             <p>Change retirement age, savings, inflation, pension income, and withdrawal strategy in the interactive planner to see how the outcome changes.</p>
@@ -4064,8 +4063,8 @@ function buildSummaryHtml(ctx) {
         </section>
       </section>
 
-      <section class="report-page">
-        <section class="report-panel">
+      <section class="report-page report-page-start">
+        <section class="report-section report-panel">
           <h2>Plan Inputs Summary</h2>
           <div class="report-summary-grid">
             ${inputs.summary.map((item) => `<div class="report-summary-item">${esc(item)}</div>`).join("")}
@@ -4073,11 +4072,14 @@ function buildSummaryHtml(ctx) {
           <p class="report-footnote">Annual retirement outputs in this report are shown in nominal dollars for the age/year shown. Spending starts as today's dollars in the planner and is inflated through the projection.</p>
         </section>
 
-        <section class="report-panel">
+      </section>
+
+      <section class="report-page report-page-start">
+        <section class="report-section report-panel">
           <h2>Appendix: Detailed Inputs</h2>
           <div class="report-appendix-grid">
             ${Object.entries(inputs.appendix).map(([title, items]) => `
-              <article class="report-appendix-card">
+              <article class="report-appendix-card report-appendix-section">
                 <h3>${esc(title)}</h3>
                 <ul class="report-clean-list">${fmtListItems(items)}</ul>
               </article>
@@ -4085,7 +4087,18 @@ function buildSummaryHtml(ctx) {
           </div>
         </section>
 
-        <section class="report-footer-panel">
+        <section class="report-section report-cta-section report-cta-band report-cta-band-secondary">
+          <div class="report-cta-copy">
+            <h3>Reopen this report online</h3>
+            <p>Scan or click to test another scenario in the calculator, or support the tool if this summary was useful.</p>
+          </div>
+          <div class="report-qr-row">
+            ${plannerQr ? `<figure class="report-qr-card"><img class="print-qr" src="${plannerQr}" alt="QR code linking to the calculator" /><figcaption>Calculator</figcaption></figure>` : ""}
+            ${supportQr ? `<figure class="report-qr-card"><img class="print-qr" src="${supportQr}" alt="QR code linking to Buy Me a Coffee" /><figcaption>☕ Support</figcaption></figure>` : ""}
+          </div>
+        </section>
+
+        <section class="report-section report-footer-panel">
           <div>
             <h3>Disclaimer</h3>
             <p>This is an educational planning estimate only. It is not tax, legal, investment, or financial advice. Results depend on the assumptions shown in this report and real-world outcomes will differ.</p>
@@ -4133,8 +4146,12 @@ function openPrintWindow(summaryHtml) {
         img{max-width:100%;height:auto}
         a{color:#0b4f8f;text-decoration:none}
         .report-shell{display:flex;flex-direction:column;gap:22px}
-        .report-page{display:flex;flex-direction:column;gap:18px;page-break-after:always}
+        .report-page{display:flex;flex-direction:column;gap:18px;page-break-after:always;break-after:page}
         .report-page:last-child{page-break-after:auto}
+        .report-page-start{page-break-before:always;break-before:page}
+        .report-section,.report-panel,.report-chart-section,.report-cta-section,.report-footer-panel,.report-appendix-section,.report-card-grid,.report-watch-card,.report-action-card,.report-callout,.report-metric-card,.report-meta-card,.report-hero-card,.print-chart,.print-chart img,.print-legend,.print-chart figcaption{break-inside:avoid;page-break-inside:avoid}
+        h1,h2,h3{break-after:avoid;page-break-after:avoid}
+        .report-panel > h2,.report-panel > h3,.report-intro,.report-footnote{break-after:avoid;page-break-after:avoid}
         .report-header{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:18px;align-items:start}
         .report-kicker{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
         .report-subtitle{margin-top:8px;color:var(--muted);max-width:52rem}
@@ -4165,17 +4182,17 @@ function openPrintWindow(summaryHtml) {
         .report-mini-score-grid span{display:block;font-size:12px;color:var(--muted)}
         .report-mini-score-grid strong{display:block;margin-top:4px;font-size:18px}
         .report-footnote,.print-chart figcaption{font-size:12px;color:var(--muted)}
-        .report-cta-band{padding:18px;border-radius:18px;background:linear-gradient(180deg,#f7fbff,#fff);display:grid;gap:16px}
+        .report-cta-band{padding:16px;border-radius:18px;background:linear-gradient(180deg,#f7fbff,#fff);display:grid;gap:12px}
         .report-cta-band-secondary{background:linear-gradient(180deg,#f8fbff,#fff)}
         .report-cta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
         .report-cta-card{display:block;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:#fff}
         .report-cta-card.primary{border-color:#9fc8f0;background:var(--brand-soft)}
         .report-cta-card span{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
         .report-cta-card strong{display:block;margin-top:8px;font-size:18px;color:var(--ink);word-break:break-word}
-        .report-qr-row{display:flex;gap:12px;flex-wrap:wrap}
+        .report-qr-row{display:flex;gap:10px;flex-wrap:wrap}
         .report-qr-card{display:flex;flex-direction:column;align-items:center;gap:6px}
-        .print-qr{width:120px;height:120px;border:1px solid var(--line);border-radius:10px;background:#fff}
-        .print-chart{display:grid;gap:8px}
+        .print-qr{width:104px;height:104px;border:1px solid var(--line);border-radius:10px;background:#fff}
+        .print-chart{display:grid;gap:6px}
         .print-chart img{display:block;border:1px solid var(--line);border-radius:14px}
         .print-legend{display:flex;flex-wrap:wrap;gap:12px}
         .print-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334155}
@@ -4208,6 +4225,11 @@ function openPrintWindow(summaryHtml) {
         @media print{
           body{padding:0;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
           a{text-decoration:none;color:#0b4f8f}
+          .report-page{min-height:auto}
+          .report-cta-band{padding:14px}
+          .report-panel{padding:16px}
+          .report-metric-card,.report-action-card,.report-watch-card,.report-appendix-card{padding:14px}
+          .print-chart img{max-height:300mm;object-fit:contain}
         }
       </style>
     </head><body>${summaryHtml}</body></html>
@@ -5323,7 +5345,7 @@ function buildClientSummaryHtml(ctx) {
   return `
     <section class="print-summary report-shell">
       <section class="report-page">
-        <div class="report-header">
+        <div class="report-section report-header">
           <div>
             <p class="report-kicker">SimpleKit Retirement Planner</p>
             <h1>Client Retirement Summary</h1>
@@ -5337,7 +5359,7 @@ function buildClientSummaryHtml(ctx) {
           </div>
         </div>
 
-        <div class="report-hero-card ${m.coverageRatio >= 1 ? "good" : "warn"}">
+        <div class="report-section report-hero-card ${m.coverageRatio >= 1 ? "good" : "warn"}">
           <div>
             <p class="report-label">Retirement readiness snapshot</p>
             <h2>${coverageBand}</h2>
@@ -5349,7 +5371,7 @@ function buildClientSummaryHtml(ctx) {
           </div>
         </div>
 
-        <div class="report-scorecard-grid">
+        <div class="report-section report-scorecard-grid report-card-grid">
           <article class="report-metric-card">
             <span class="report-metric-label">Guaranteed income</span>
             <strong>${formatCurrency(m.guaranteed)}</strong>
@@ -5372,7 +5394,7 @@ function buildClientSummaryHtml(ctx) {
           </article>
         </div>
 
-        <section class="report-cta-band">
+        <section class="report-section report-cta-section report-cta-band">
           <div class="report-cta-copy">
             <h3>Use the interactive planner next</h3>
             <p>Open the calculator to test retirement age, spending, inflation, CPP timing, and withdrawal strategy. If this report helped, you can support the tool’s upkeep as well.</p>
@@ -5387,15 +5409,11 @@ function buildClientSummaryHtml(ctx) {
               <strong>buymeacoffee.com/ashleysnl</strong>
             </a>
           </div>
-          <div class="report-qr-row">
-            ${plannerQr ? `<figure class="report-qr-card"><img class="print-qr" src="${plannerQr}" alt="QR code linking to the retirement calculator" /><figcaption>Calculator</figcaption></figure>` : ""}
-            ${supportQr ? `<figure class="report-qr-card"><img class="print-qr" src="${supportQr}" alt="QR code linking to Buy Me a Coffee" /><figcaption>☕ Support</figcaption></figure>` : ""}
-          </div>
         </section>
       </section>
 
       <section class="report-page">
-        <section class="report-panel">
+        <section class="report-section report-panel report-chart-section">
           <h2>Portfolio Projection</h2>
           <p class="report-intro">This chart shows how savings build and then get used over time under the current assumptions. It helps answer whether the plan appears durable through the full planning horizon.</p>
           ${chartImages?.projection
@@ -5407,7 +5425,10 @@ function buildClientSummaryHtml(ctx) {
           }
         </section>
 
-        <section class="report-panel">
+      </section>
+
+      <section class="report-page">
+        <section class="report-section report-panel report-chart-section">
           <h2>Income Timeline / Income Map</h2>
           <p class="report-intro">This chart shows where retirement income comes from each year. Guaranteed income forms the base. RRSP/RRIF withdrawals act as a top-up. The tax wedge shows the part of withdrawals that goes to tax instead of spending.</p>
           ${chartImages?.incomeMap
@@ -5423,7 +5444,7 @@ function buildClientSummaryHtml(ctx) {
           }
         </section>
 
-        <section class="report-panel">
+        <section class="report-section report-panel">
           <h2>Income Timeline</h2>
           <div class="report-actions">
             ${(summary.phases || []).map((phase, index) => {
@@ -5445,9 +5466,9 @@ function buildClientSummaryHtml(ctx) {
       </section>
 
       <section class="report-page">
-        <section class="report-panel">
+        <section class="report-section report-panel">
           <h2>Key Risks to Watch</h2>
-          <div class="report-watchlist">
+          <div class="report-watchlist report-card-grid">
             ${(risks || []).slice(0, 5).map((risk) => `
               <article class="report-watch-card ${severityClass(risk.severity)}">
                 <div class="report-watch-head">
@@ -5461,9 +5482,9 @@ function buildClientSummaryHtml(ctx) {
           </div>
         </section>
 
-        <section class="report-panel">
+        <section class="report-section report-panel">
           <h2>Recommended Next Moves</h2>
-          <div class="report-actions">
+          <div class="report-actions report-card-grid">
             ${(strategySuggestions || []).map((s, index) => `
               <article class="report-action-card">
                 <span class="report-action-step">${index + 1}</span>
@@ -5476,7 +5497,7 @@ function buildClientSummaryHtml(ctx) {
           </div>
         </section>
 
-        <section class="report-cta-band report-cta-band-secondary">
+        <section class="report-section report-cta-section report-cta-band report-cta-band-secondary">
           <div class="report-cta-copy">
             <h3>Keep planning online</h3>
             <p>Use the full planner to compare scenarios, revisit retirement age, and test different tax-aware withdrawal strategies.</p>
@@ -5494,15 +5515,26 @@ function buildClientSummaryHtml(ctx) {
         </section>
       </section>
 
-      <section class="report-page">
+      <section class="report-page report-page-start">
         ${Object.entries(detailedInputs).map(([title, items]) => `
-          <section class="report-panel">
+          <section class="report-section report-panel report-appendix-section">
             <h2>${esc(title)}</h2>
             <ul class="report-clean-list">${fmtListItems(items)}</ul>
           </section>
         `).join("")}
 
-        <section class="report-footer-panel">
+        <section class="report-section report-cta-section report-cta-band report-cta-band-secondary">
+          <div class="report-cta-copy">
+            <h3>Reopen this report online</h3>
+            <p>Scan or click to reopen the calculator, compare another scenario, or support the tool.</p>
+          </div>
+          <div class="report-qr-row">
+            ${plannerQr ? `<figure class="report-qr-card"><img class="print-qr" src="${plannerQr}" alt="QR code linking to the retirement calculator" /><figcaption>Calculator</figcaption></figure>` : ""}
+            ${supportQr ? `<figure class="report-qr-card"><img class="print-qr" src="${supportQr}" alt="QR code linking to Buy Me a Coffee" /><figcaption>☕ Support</figcaption></figure>` : ""}
+          </div>
+        </section>
+
+        <section class="report-section report-footer-panel">
           <div>
             <h3>Disclaimer</h3>
             <p>This is an educational planning estimate only. It is not tax, legal, investment, or financial advice. Results depend on the assumptions shown in this report and real-world outcomes will differ.</p>
@@ -5544,8 +5576,12 @@ function openClientSummaryPrintWindow(summaryHtml) {
         img{max-width:100%;height:auto}
         a{color:#0b4f8f;text-decoration:none}
         .report-shell{display:flex;flex-direction:column;gap:22px}
-        .report-page{display:flex;flex-direction:column;gap:18px;page-break-after:always}
+        .report-page{display:flex;flex-direction:column;gap:18px;page-break-after:always;break-after:page}
         .report-page:last-child{page-break-after:auto}
+        .report-page-start{page-break-before:always;break-before:page}
+        .report-section,.report-panel,.report-chart-section,.report-cta-section,.report-footer-panel,.report-appendix-section,.report-card-grid,.report-watch-card,.report-action-card,.report-metric-card,.report-meta-card,.report-hero-card,.print-chart,.print-chart img,.print-legend,.print-chart figcaption{break-inside:avoid;page-break-inside:avoid}
+        h1,h2,h3{break-after:avoid;page-break-after:avoid}
+        .report-panel > h2,.report-panel > h3,.report-intro,.report-footnote{break-after:avoid;page-break-after:avoid}
         .report-header{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:18px;align-items:start}
         .report-kicker{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
         .report-subtitle{margin-top:8px;color:var(--muted);max-width:52rem}
@@ -5581,16 +5617,16 @@ function openClientSummaryPrintWindow(summaryHtml) {
         .report-action-card{padding:16px;display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;align-items:start}
         .report-action-step{width:44px;height:44px;border-radius:999px;background:var(--brand-soft);display:grid;place-items:center;font-weight:700;color:var(--brand)}
         .report-clean-list{padding-left:18px;display:grid;gap:8px}
-        .report-cta-band{padding:18px;border-radius:18px;background:linear-gradient(180deg,#f7fbff,#fff);display:grid;gap:16px}
+        .report-cta-band{padding:16px;border-radius:18px;background:linear-gradient(180deg,#f7fbff,#fff);display:grid;gap:12px}
         .report-cta-band-secondary{background:linear-gradient(180deg,#f8fbff,#fff)}
         .report-cta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
         .report-cta-card{display:block;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:#fff}
         .report-cta-card.primary{border-color:#9fc8f0;background:var(--brand-soft)}
         .report-cta-card span{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
         .report-cta-card strong{display:block;margin-top:8px;font-size:18px;color:var(--ink);word-break:break-word}
-        .report-qr-row{display:flex;gap:12px;flex-wrap:wrap}
+        .report-qr-row{display:flex;gap:10px;flex-wrap:wrap}
         .report-qr-card{display:flex;flex-direction:column;align-items:center;gap:6px}
-        .print-qr{width:120px;height:120px;border:1px solid var(--line);border-radius:10px;background:#fff}
+        .print-qr{width:104px;height:104px;border:1px solid var(--line);border-radius:10px;background:#fff}
         .report-footer-panel{padding:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;background:linear-gradient(180deg,#fbfdff,#fff)}
         @page{margin:14mm}
         @media (max-width:900px){
@@ -5601,6 +5637,10 @@ function openClientSummaryPrintWindow(summaryHtml) {
         @media print{
           body{padding:0;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
           a{text-decoration:none;color:#0b4f8f}
+          .report-cta-band{padding:14px}
+          .report-panel{padding:14px}
+          .report-metric-card,.report-action-card,.report-watch-card{padding:14px}
+          .print-chart img{max-height:300mm;object-fit:contain}
         }
       </style>
     </head><body>${summaryHtml}</body></html>
