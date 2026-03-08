@@ -686,6 +686,28 @@ function handleDocumentClick(event) {
       setActiveNav("learn");
       return;
     }
+    if (action === "tools-save-plan") {
+      exportJson();
+      return;
+    }
+    if (action === "tools-load-plan") {
+      el.importJsonFile?.click();
+      return;
+    }
+    if (action === "tools-reset-plan") {
+      const ok = confirm("Reset your local plan to defaults?");
+      if (!ok) return;
+      state = createDefaultPlanLocal();
+      ui.activeNav = "start";
+      savePlan();
+      renderAll();
+      toast("Plan reset.");
+      return;
+    }
+    if (action === "tools-open-glossary") {
+      openGlossary();
+      return;
+    }
     if (action === "set-experience-mode") {
       const value = actionBtn.getAttribute("data-value") === "advanced" ? "advanced" : "beginner";
       state.uiState.experienceMode = value;
