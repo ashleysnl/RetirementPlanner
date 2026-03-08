@@ -20,6 +20,7 @@ function fmtListItems(items) {
 }
 
 function renderLegend(items) {
+  if (!Array.isArray(items) || !items.length) return "";
   return `
     <div class="print-legend">
       ${items.map((item) => `
@@ -36,6 +37,12 @@ function qrCodeUrl(value, size = 132) {
   const url = String(value || "").trim();
   if (!url) return "";
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}`;
+}
+
+function severityClass(severity) {
+  if (severity === "High") return "high";
+  if (severity === "Medium") return "medium";
+  return "low";
 }
 
 export function buildClientSummaryHtml(ctx) {
@@ -61,156 +68,260 @@ export function buildClientSummaryHtml(ctx) {
     ? state.savings.capitalInjects.filter((x) => x && x.enabled)
     : [];
   const detailedInputs = {
-    profile: [
+    "Plan inputs summary": [
       `Province: ${state.profile.province}`,
       `Year of birth: ${state.profile.birthYear}`,
       `Retirement age: ${state.profile.retirementAge}`,
       `Life expectancy: ${state.profile.lifeExpectancy}`,
       `After-tax spending target (today's dollars): ${formatCurrency(state.profile.desiredSpending)}`,
-      `Has spouse plan: ${yesNo(state.profile.hasSpouse)}`,
-    ],
-    assumptions: [
       `Inflation: ${formatPct(state.assumptions.inflation)}`,
       `Risk profile: ${state.assumptions.riskProfile}`,
+      `Current savings: ${formatCurrency(state.savings.currentTotal)}`,
+      `Annual contribution: ${formatCurrency(state.savings.annualContribution)}`,
+      `Private pension: ${state.income.pension.enabled ? `${formatCurrency(state.income.pension.amount)} from age ${state.income.pension.startAge}` : "Not modeled"}`,
+      `CPP: ${formatCurrency(state.income.cpp.amountAt65)} from age ${state.income.cpp.startAge}`,
+      `OAS: ${formatCurrency(state.income.oas.amountAt65)} from age ${state.income.oas.startAge}`,
+      `Withdrawal strategy: ${state.strategy.withdrawal}`,
+    ],
+    "Appendix: Assumptions": [
       `Conservative return: ${formatPct(state.assumptions.returns.conservative)}`,
       `Balanced return: ${formatPct(state.assumptions.returns.balanced)}`,
       `Aggressive return: ${formatPct(state.assumptions.returns.aggressive)}`,
       `Scenario spread: ${formatPct(state.assumptions.scenarioSpread)}`,
       `Tax brackets indexed with inflation: ${yesNo(state.assumptions.taxBracketInflation)}`,
     ],
-    savings: [
-      `Current savings: ${formatCurrency(state.savings.currentTotal)}`,
-      `Annual contribution: ${formatCurrency(state.savings.annualContribution)}`,
+    "Appendix: Savings and accounts": [
       `Contribution increase YoY: ${formatPct(state.savings.contributionIncrease || 0)}`,
       `Capital injections: ${injects.length ? injects.map((x) => `${x.label || "Lump sum"} ${formatCurrency(x.amount)} at age ${x.age}`).join("; ") : "None"}`,
-    ],
-    income: [
-      `Private pension enabled: ${yesNo(state.income.pension.enabled)}`,
-      `Private pension amount: ${formatCurrency(state.income.pension.amount)}`,
-      `Private pension start age: ${state.income.pension.startAge}`,
-      `CPP amount at 65: ${formatCurrency(state.income.cpp.amountAt65)}`,
-      `CPP start age: ${state.income.cpp.startAge}`,
-      `OAS amount at 65: ${formatCurrency(state.income.oas.amountAt65)}`,
-      `OAS start age: ${state.income.oas.startAge}`,
-      `Spousal income enabled: ${yesNo(spouse.enabled)}`,
-      `Spouse pension amount / start age: ${formatCurrency(spouse.pensionAmount || 0)} / ${spouse.pensionStartAge || "-"}`,
-      `Spouse CPP amount / start age: ${formatCurrency(spouse.cppAmountAt65 || 0)} / ${spouse.cppStartAge || "-"}`,
-      `Spouse OAS amount / start age: ${formatCurrency(spouse.oasAmountAt65 || 0)} / ${spouse.oasStartAge || "-"}`,
-    ],
-    accounts: [
       `RRSP/RRIF: ${formatCurrency(state.accounts.rrsp)}`,
       `TFSA: ${formatCurrency(state.accounts.tfsa)}`,
       `Non-registered: ${formatCurrency(state.accounts.nonRegistered)}`,
       `Cash: ${formatCurrency(state.accounts.cash)}`,
     ],
-    strategy: [
-      `Withdrawal strategy: ${state.strategy.withdrawal}`,
+    "Appendix: Income and strategy": [
+      `Private pension enabled: ${yesNo(state.income.pension.enabled)}`,
+      `CPP amount at 65 / start age: ${formatCurrency(state.income.cpp.amountAt65)} / ${state.income.cpp.startAge}`,
+      `OAS amount at 65 / start age: ${formatCurrency(state.income.oas.amountAt65)} / ${state.income.oas.startAge}`,
+      `Spousal income enabled: ${yesNo(spouse.enabled)}`,
+      `Spouse pension amount / start age: ${formatCurrency(spouse.pensionAmount || 0)} / ${spouse.pensionStartAge || "-"}`,
+      `Spouse CPP amount / start age: ${formatCurrency(spouse.cppAmountAt65 || 0)} / ${spouse.cppStartAge || "-"}`,
+      `Spouse OAS amount / start age: ${formatCurrency(spouse.oasAmountAt65 || 0)} / ${spouse.oasStartAge || "-"}`,
       `Estimate taxes: ${yesNo(state.strategy.estimateTaxes !== false)}`,
       `OAS clawback modeling: ${yesNo(state.strategy.oasClawbackModeling)}`,
       `Apply RRIF minimums: ${yesNo(state.strategy.applyRrifMinimums)}`,
       `RRIF conversion age: ${state.strategy.rrifConversionAge}`,
       `RRSP meltdown enabled: ${yesNo(state.strategy.meltdownEnabled)}`,
-      `Meltdown amount per year: ${formatCurrency(state.strategy.meltdownAmount || 0)}`,
-      `Meltdown age range: ${state.strategy.meltdownStartAge || "-"} to ${state.strategy.meltdownEndAge || "-"}`,
-      `Meltdown taxable income ceiling: ${formatCurrency(state.strategy.meltdownIncomeCeiling || 0)}`,
+      `Meltdown amount / range: ${formatCurrency(state.strategy.meltdownAmount || 0)} | ${state.strategy.meltdownStartAge || "-"} to ${state.strategy.meltdownEndAge || "-"}`,
+      `Meltdown income ceiling: ${formatCurrency(state.strategy.meltdownIncomeCeiling || 0)}`,
     ],
   };
+
   const plannerHref = esc(toolUrl || "https://retirement.simplekit.app");
   const supportHref = esc(supportUrl || "https://buymeacoffee.com/ashleysnl");
   const plannerQr = qrCodeUrl(toolUrl || "https://retirement.simplekit.app");
   const supportQr = qrCodeUrl(supportUrl || "https://buymeacoffee.com/ashleysnl");
+  const coverageBand = m.coverageRatio >= 1 ? "Strong" : m.coverageRatio >= 0.85 ? "Mostly on track" : "Needs review";
 
   return `
-    <section class="print-summary client-summary-print">
-      <h1>Canadian Retirement Tax Simulator - Client Summary</h1>
-      <p><strong>Prepared for:</strong> ${esc(prefs.preparedFor || "-")} | <strong>Scenario:</strong> ${esc(prefs.scenarioLabel || "Current plan")}</p>
-      <p><strong>Prepared by:</strong> ${esc(prefs.preparedBy || "-")} | <strong>Date:</strong> ${esc(dateValue)}</p>
-      <p><strong>Basis note:</strong> Annual retirement amounts below are shown in nominal dollars for the specific age/year shown. Your spending input remains a today's-dollars assumption in the planner and is inflated in the projection.</p>
-
-      <h2>Retirement Readiness Snapshot (Age ${row.age})</h2>
-      <ul>
-        <li>Guaranteed-income coverage: ${formatPct(m.coverageRatio)}</li>
-        <li>Guaranteed income for this year after estimated tax: ${formatCurrency(m.guaranteed)}</li>
-        <li>Guaranteed income for this year before tax: ${formatCurrency(m.guaranteedGross)}</li>
-        <li>Gross RRSP/RRIF withdrawal needed for this year: ${formatCurrency(m.grossWithdrawal)}</li>
-        <li>${m.estimateTaxes ? `Estimated tax + clawback drag: ${formatCurrency(m.taxWedge)}` : "Tax estimates: Off"}</li>
-        <li>Net spending available for this year: ${formatCurrency(m.netSpendingAvailable)}</li>
-      </ul>
-      ${chartImages?.projection
-        ? `<figure class="print-chart"><img src="${chartImages.projection}" alt="Projection chart" /><figcaption>Projection chart (from current client summary view)</figcaption>${renderLegend([
-          { label: "Portfolio balance", color: "#0f6abf" },
-          { label: "Stress band (best/worst)", color: "#7aa7d8" },
-        ])}</figure>`
-        : ""
-      }
-
-      <h2>Income Timeline</h2>
-      <ul>
-        ${(summary.phases || []).map((phase) => {
-          const range = Number(phase.startAge) === Number(phase.endAge)
-            ? `Age ${phase.startAge}`
-            : `Age ${phase.startAge}-${phase.endAge}`;
-          return `<li><strong>${phaseTitle(phase.key)} (${range})</strong>: ${esc(phase.why || "")}</li>`;
-        }).join("")}
-      </ul>
-      ${chartImages?.incomeMap
-        ? `<figure class="print-chart"><img src="${chartImages.incomeMap}" alt="Retirement income map chart" /><figcaption>Retirement income map (from current client summary view)</figcaption>${renderLegend([
-          { label: "Pension", color: "#f59e0b" },
-          { label: "CPP", color: "#16a34a" },
-          { label: "OAS", color: "#0ea5a8" },
-          { label: "RRSP/RRIF", color: "#0f6abf" },
-          { label: "Tax wedge", color: "#d9485f" },
-          { label: "Spending target", color: "#111827" },
-        ])}</figure>`
-        : ""
-      }
-
-      <h2>Key Risks</h2>
-      <ul>
-        ${(risks || []).slice(0, 5).map((risk) => `<li><strong>${esc(risk.title)} (${esc(risk.severity)})</strong>: ${esc(risk.detail)}</li>`).join("")}
-      </ul>
-
-      <h2>Strategy Suggestions</h2>
-      <ul>
-        ${(strategySuggestions || []).map((s) => `<li><strong>${esc(s.title)}</strong>: ${esc(s.desc)}</li>`).join("")}
-      </ul>
-
-      <h2>Links</h2>
-      <div class="print-link-grid">
-        <div class="print-link-card">
-          <strong>Open the calculator</strong>
-          <p><a href="${plannerHref}" target="_blank" rel="noopener noreferrer">${plannerHref}</a></p>
-          ${plannerQr ? `<img class="print-qr" src="${plannerQr}" alt="QR code linking to the retirement calculator" />` : ""}
+    <section class="print-summary report-shell">
+      <section class="report-page">
+        <div class="report-header">
+          <div>
+            <p class="report-kicker">SimpleKit Retirement Planner</p>
+            <h1>Client Retirement Summary</h1>
+            <p class="report-subtitle">A presentation-friendly summary of the current plan, built from the same assumptions and calculations used in the interactive planner.</p>
+          </div>
+          <div class="report-meta-card">
+            <div><span>Prepared for</span><strong>${esc(prefs.preparedFor || "-")}</strong></div>
+            <div><span>Scenario</span><strong>${esc(prefs.scenarioLabel || "Current plan")}</strong></div>
+            <div><span>Prepared by</span><strong>${esc(prefs.preparedBy || "-")}</strong></div>
+            <div><span>Date</span><strong>${esc(dateValue)}</strong></div>
+          </div>
         </div>
-        <div class="print-link-card">
-          <strong>☕ Support this free tool</strong>
-          <p><a href="${supportHref}" target="_blank" rel="noopener noreferrer">${supportHref}</a></p>
-          ${supportQr ? `<img class="print-qr" src="${supportQr}" alt="QR code linking to Buy Me a Coffee support page" />` : ""}
+
+        <div class="report-hero-card ${m.coverageRatio >= 1 ? "good" : "warn"}">
+          <div>
+            <p class="report-label">Retirement readiness snapshot</p>
+            <h2>${coverageBand}</h2>
+            <p>At age ${row.age}, guaranteed income covers ${formatPct(m.coverageRatio)} of the spending target. ${m.netGap > 0 ? `The rest comes from RRSP/RRIF withdrawals, with about ${formatCurrency(m.taxWedge)} going to tax and clawback.` : "Guaranteed income appears to cover the target without required withdrawals in that year."}</p>
+          </div>
+          <div class="report-score">
+            <strong>${Math.round(m.coverageRatio * 100)}%</strong>
+            <span>Coverage</span>
+          </div>
         </div>
-      </div>
 
-      <h2>Detailed Plan Inputs</h2>
-      <h3>Profile</h3>
-      <ul>${fmtListItems(detailedInputs.profile)}</ul>
-      <h3>Assumptions</h3>
-      <ul>${fmtListItems(detailedInputs.assumptions)}</ul>
-      <h3>Savings</h3>
-      <ul>${fmtListItems(detailedInputs.savings)}</ul>
-      <h3>Income Sources</h3>
-      <ul>${fmtListItems(detailedInputs.income)}</ul>
-      <h3>Accounts</h3>
-      <ul>${fmtListItems(detailedInputs.accounts)}</ul>
-      <h3>Strategy Settings</h3>
-      <ul>${fmtListItems(detailedInputs.strategy)}</ul>
+        <div class="report-scorecard-grid">
+          <article class="report-metric-card">
+            <span class="report-metric-label">Guaranteed income</span>
+            <strong>${formatCurrency(m.guaranteed)}</strong>
+            <span class="report-metric-sub">${m.estimateTaxes ? "After estimated tax" : "Tax estimates off"}</span>
+          </article>
+          <article class="report-metric-card">
+            <span class="report-metric-label">Savings withdrawals needed</span>
+            <strong>${formatCurrency(m.grossWithdrawal)}</strong>
+            <span class="report-metric-sub">Gross RRSP/RRIF withdrawal</span>
+          </article>
+          <article class="report-metric-card">
+            <span class="report-metric-label">Estimated tax drag</span>
+            <strong>${m.estimateTaxes ? formatCurrency(m.taxWedge) : "Off"}</strong>
+            <span class="report-metric-sub">${m.estimateTaxes ? `Effective rate ${formatPct(m.effectiveRate)}` : "Planning estimate disabled"}</span>
+          </article>
+          <article class="report-metric-card">
+            <span class="report-metric-label">Net spending available</span>
+            <strong>${formatCurrency(m.netSpendingAvailable)}</strong>
+            <span class="report-metric-sub">Spendable income for this year</span>
+          </article>
+        </div>
 
-      <p><strong>Planning estimate only.</strong> Not tax, legal, or financial advice.</p>
-      <p>Methodology: ${esc(methodologyUrl)}</p>
+        <section class="report-cta-band">
+          <div class="report-cta-copy">
+            <h3>Use the interactive planner next</h3>
+            <p>Open the calculator to test retirement age, spending, inflation, CPP timing, and withdrawal strategy. If this report helped, you can support the tool’s upkeep as well.</p>
+          </div>
+          <div class="report-cta-grid">
+            <a class="report-cta-card primary" href="${plannerHref}" target="_blank" rel="noopener noreferrer">
+              <span>Open the Interactive Calculator</span>
+              <strong>${plannerHref}</strong>
+            </a>
+            <a class="report-cta-card" href="${supportHref}" target="_blank" rel="noopener noreferrer">
+              <span>Support this Free Tool</span>
+              <strong>buymeacoffee.com/ashleysnl</strong>
+            </a>
+          </div>
+          <div class="report-qr-row">
+            ${plannerQr ? `<figure class="report-qr-card"><img class="print-qr" src="${plannerQr}" alt="QR code linking to the retirement calculator" /><figcaption>Calculator</figcaption></figure>` : ""}
+            ${supportQr ? `<figure class="report-qr-card"><img class="print-qr" src="${supportQr}" alt="QR code linking to Buy Me a Coffee" /><figcaption>☕ Support</figcaption></figure>` : ""}
+          </div>
+        </section>
+      </section>
+
+      <section class="report-page">
+        <section class="report-panel">
+          <h2>Portfolio Projection</h2>
+          <p class="report-intro">This chart shows how savings build and then get used over time under the current assumptions. It helps answer whether the plan appears durable through the full planning horizon.</p>
+          ${chartImages?.projection
+            ? `<figure class="print-chart"><img src="${chartImages.projection}" alt="Projection chart" /><figcaption>Projection chart from the current client summary view.</figcaption>${renderLegend([
+              { label: "Portfolio balance", color: "#0f6abf" },
+              { label: "Stress band (best/worst)", color: "#7aa7d8" },
+            ])}</figure>`
+            : "<p class=\"report-footnote\">Projection chart was unavailable in this export.</p>"
+          }
+        </section>
+
+        <section class="report-panel">
+          <h2>Income Timeline / Income Map</h2>
+          <p class="report-intro">This chart shows where retirement income comes from each year. Guaranteed income forms the base. RRSP/RRIF withdrawals act as a top-up. The tax wedge shows the part of withdrawals that goes to tax instead of spending.</p>
+          ${chartImages?.incomeMap
+            ? `<figure class="print-chart"><img src="${chartImages.incomeMap}" alt="Retirement income map chart" /><figcaption>Retirement income map from the current client summary view.</figcaption>${renderLegend([
+              { label: "Pension", color: "#f59e0b" },
+              { label: "CPP", color: "#16a34a" },
+              { label: "OAS", color: "#0ea5a8" },
+              { label: "RRSP/RRIF", color: "#0f6abf" },
+              { label: "Tax wedge", color: "#d9485f" },
+              { label: "Spending target", color: "#111827" },
+            ])}</figure>`
+            : "<p class=\"report-footnote\">Income map chart was unavailable in this export.</p>"
+          }
+        </section>
+
+        <section class="report-panel">
+          <h2>Income Timeline</h2>
+          <div class="report-actions">
+            ${(summary.phases || []).map((phase, index) => {
+              const range = Number(phase.startAge) === Number(phase.endAge)
+                ? `Age ${phase.startAge}`
+                : `Age ${phase.startAge}-${phase.endAge}`;
+              return `
+                <article class="report-action-card">
+                  <span class="report-action-step">${index + 1}</span>
+                  <div>
+                    <h3>${esc(phaseTitle(phase.key))} (${range})</h3>
+                    <p>${esc(phase.why || "")}</p>
+                  </div>
+                </article>
+              `;
+            }).join("")}
+          </div>
+        </section>
+      </section>
+
+      <section class="report-page">
+        <section class="report-panel">
+          <h2>Key Risks to Watch</h2>
+          <div class="report-watchlist">
+            ${(risks || []).slice(0, 5).map((risk) => `
+              <article class="report-watch-card ${severityClass(risk.severity)}">
+                <div class="report-watch-head">
+                  <h3>${esc(risk.title)}</h3>
+                  <span class="report-severity">${esc(risk.severity)}</span>
+                </div>
+                <p>${esc(risk.detail)}</p>
+                <p class="report-footnote">Why it matters: ${esc(risk.actionLabel || "This area is worth reviewing in the planner.")}</p>
+              </article>
+            `).join("")}
+          </div>
+        </section>
+
+        <section class="report-panel">
+          <h2>Recommended Next Moves</h2>
+          <div class="report-actions">
+            ${(strategySuggestions || []).map((s, index) => `
+              <article class="report-action-card">
+                <span class="report-action-step">${index + 1}</span>
+                <div>
+                  <h3>${esc(s.title)}</h3>
+                  <p>${esc(s.desc)}</p>
+                </div>
+              </article>
+            `).join("")}
+          </div>
+        </section>
+
+        <section class="report-cta-band report-cta-band-secondary">
+          <div class="report-cta-copy">
+            <h3>Keep planning online</h3>
+            <p>Use the full planner to compare scenarios, revisit retirement age, and test different tax-aware withdrawal strategies.</p>
+          </div>
+          <div class="report-cta-grid">
+            <a class="report-cta-card primary" href="${plannerHref}" target="_blank" rel="noopener noreferrer">
+              <span>Explore Your Plan Online</span>
+              <strong>retirement.simplekit.app</strong>
+            </a>
+            <a class="report-cta-card" href="${supportHref}" target="_blank" rel="noopener noreferrer">
+              <span>Found this helpful?</span>
+              <strong>Buy me a coffee</strong>
+            </a>
+          </div>
+        </section>
+      </section>
+
+      <section class="report-page">
+        ${Object.entries(detailedInputs).map(([title, items]) => `
+          <section class="report-panel">
+            <h2>${esc(title)}</h2>
+            <ul class="report-clean-list">${fmtListItems(items)}</ul>
+          </section>
+        `).join("")}
+
+        <section class="report-footer-panel">
+          <div>
+            <h3>Disclaimer</h3>
+            <p>This is an educational planning estimate only. It is not tax, legal, investment, or financial advice. Results depend on the assumptions shown in this report and real-world outcomes will differ.</p>
+          </div>
+          <div>
+            <h3>Methodology</h3>
+            <p>Government benefits, taxes, withdrawal logic, RRIF rules, and scenario methods are explained in the methodology section online.</p>
+            <p><a href="${esc(methodologyUrl)}" target="_blank" rel="noopener noreferrer">${esc(methodologyUrl)}</a></p>
+          </div>
+        </section>
+      </section>
     </section>
   `;
 }
 
 export function openClientSummaryPrintWindow(summaryHtml) {
-  const w = window.open("", "_blank", "width=980,height=860");
+  const w = window.open("", "_blank");
   if (!w) return false;
   const printWhenReady = () => {
     try { w.focus(); } catch {}
@@ -220,31 +331,86 @@ export function openClientSummaryPrintWindow(summaryHtml) {
   w.document.write(`
     <html><head><title>Client Summary</title>
       <style>
-        body{font-family:Arial,sans-serif;padding:20px;color:#132033}
-        h1,h2{margin:0 0 10px}
-        ul{margin:0 0 14px;padding-left:18px}
-        li{margin:0 0 6px}
-        .print-chart{margin:10px 0 16px}
-        .print-chart img{display:block;max-width:100%;height:auto;border:1px solid #dbe5f2;border-radius:8px}
-        .print-chart figcaption{font-size:11px;color:#5f6b7d;margin-top:4px}
-        .print-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
-        .print-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#334155}
-        .print-legend-swatch{width:10px;height:10px;border-radius:999px;display:inline-block;border:1px solid rgba(0,0,0,0.08)}
-        .print-link-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:10px 0 16px}
-        .print-link-card{border:1px solid #dbe5f2;border-radius:10px;padding:12px;background:#fff}
-        .print-link-card p{margin:6px 0 0;word-break:break-word}
-        .print-link-card a{color:#0b4f8f;text-decoration:none}
-        .print-link-card a:hover{text-decoration:underline}
-        .print-qr{display:block;margin-top:10px;width:132px;height:132px;border:1px solid #dbe5f2;border-radius:8px;background:#fff}
-        @media (max-width:700px){.print-link-grid{grid-template-columns:1fr}}
-        @media print { body{color:#000;background:#fff} }
+        :root{
+          --ink:#132033;
+          --muted:#5f6b7d;
+          --line:#dbe5f2;
+          --soft:#f6f9fd;
+          --panel:#ffffff;
+          --brand:#0f6abf;
+          --brand-soft:#eaf4ff;
+        }
+        *{box-sizing:border-box}
+        body{font-family:Arial,sans-serif;margin:0;padding:24px;color:var(--ink);background:#fff;line-height:1.45}
+        h1,h2,h3,p,ul,figure{margin:0}
+        img{max-width:100%;height:auto}
+        a{color:#0b4f8f;text-decoration:none}
+        .report-shell{display:flex;flex-direction:column;gap:22px}
+        .report-page{display:flex;flex-direction:column;gap:18px;page-break-after:always}
+        .report-page:last-child{page-break-after:auto}
+        .report-header{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);gap:18px;align-items:start}
+        .report-kicker{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
+        .report-subtitle{margin-top:8px;color:var(--muted);max-width:52rem}
+        .report-meta-card,.report-panel,.report-footer-panel,.report-hero-card,.report-cta-band,.report-watch-card,.report-action-card,.report-metric-card{border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+        .report-meta-card{padding:16px;display:grid;gap:10px}
+        .report-meta-card span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+        .report-meta-card strong{font-size:15px}
+        .report-hero-card{padding:20px 22px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start;background:linear-gradient(180deg,#eef8f3,#fff)}
+        .report-hero-card.warn{background:linear-gradient(180deg,#fff2ef,#fff)}
+        .report-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+        .report-score{min-width:124px;text-align:center;padding:14px 12px;border-radius:14px;background:#fff;border:1px solid var(--line)}
+        .report-score strong{display:block;font-size:40px;line-height:1;color:var(--brand)}
+        .report-score span{display:block;margin-top:6px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+        .report-scorecard-grid,.report-watchlist,.report-actions,.report-cta-grid{display:grid;gap:14px}
+        .report-scorecard-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+        .report-metric-card,.report-panel{padding:16px}
+        .report-metric-label{display:block;font-size:12px;color:var(--muted);margin-bottom:8px}
+        .report-metric-card strong{display:block;font-size:24px;line-height:1.15}
+        .report-metric-sub{display:block;margin-top:8px;font-size:12px;color:var(--muted)}
+        .report-intro,.report-footnote,.print-chart figcaption{font-size:12px;color:var(--muted)}
+        .print-chart{display:grid;gap:8px}
+        .print-chart img{display:block;border:1px solid var(--line);border-radius:14px}
+        .print-legend{display:flex;flex-wrap:wrap;gap:12px}
+        .print-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334155}
+        .print-legend-swatch{width:10px;height:10px;border-radius:999px;display:inline-block;border:1px solid rgba(0,0,0,.08)}
+        .report-watchlist{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .report-watch-card{padding:16px}
+        .report-watch-card.high{background:#fff3f1}
+        .report-watch-card.medium{background:#fff9e8}
+        .report-watch-card.low{background:#f4fbf7}
+        .report-watch-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px}
+        .report-severity{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+        .report-action-card{padding:16px;display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;align-items:start}
+        .report-action-step{width:44px;height:44px;border-radius:999px;background:var(--brand-soft);display:grid;place-items:center;font-weight:700;color:var(--brand)}
+        .report-clean-list{padding-left:18px;display:grid;gap:8px}
+        .report-cta-band{padding:18px;border-radius:18px;background:linear-gradient(180deg,#f7fbff,#fff);display:grid;gap:16px}
+        .report-cta-band-secondary{background:linear-gradient(180deg,#f8fbff,#fff)}
+        .report-cta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .report-cta-card{display:block;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:#fff}
+        .report-cta-card.primary{border-color:#9fc8f0;background:var(--brand-soft)}
+        .report-cta-card span{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+        .report-cta-card strong{display:block;margin-top:8px;font-size:18px;color:var(--ink);word-break:break-word}
+        .report-qr-row{display:flex;gap:12px;flex-wrap:wrap}
+        .report-qr-card{display:flex;flex-direction:column;align-items:center;gap:6px}
+        .print-qr{width:120px;height:120px;border:1px solid var(--line);border-radius:10px;background:#fff}
+        .report-footer-panel{padding:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;background:linear-gradient(180deg,#fbfdff,#fff)}
+        @page{margin:14mm}
+        @media (max-width:900px){
+          .report-header,.report-scorecard-grid,.report-watchlist,.report-cta-grid,.report-footer-panel{grid-template-columns:1fr}
+          .report-hero-card{flex-direction:column}
+          .report-score{min-width:auto}
+        }
+        @media print{
+          body{padding:0;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+          a{text-decoration:none;color:#0b4f8f}
+        }
       </style>
     </head><body>${summaryHtml}</body></html>
   `);
   w.document.close();
   if (typeof w.addEventListener === "function") {
-    w.addEventListener("load", () => setTimeout(printWhenReady, 120), { once: true });
+    w.addEventListener("load", () => setTimeout(printWhenReady, 140), { once: true });
   }
-  setTimeout(printWhenReady, 220);
+  setTimeout(printWhenReady, 260);
   return true;
 }

@@ -2073,6 +2073,7 @@ function openPrintSummary() {
   const rowRet = findRowByAgeLocal(ui.lastModel.base.rows, state.profile.retirementAge) || ui.lastModel.base.rows[0];
   const row65 = findRowByAgeLocal(ui.lastModel.base.rows, 65) || rowRet;
   const row71 = findRowByAgeLocal(ui.lastModel.base.rows, 71) || rowRet;
+  const chartImages = capturePlannerCharts();
   const html = buildSummaryHtml({
     state,
     rowRet,
@@ -2082,6 +2083,11 @@ function openPrintSummary() {
     formatCurrency,
     formatPct,
     methodologyUrl: `${shareBaseUrl()}#methodology`,
+    toolUrl: shareBaseUrl(),
+    supportUrl: SUPPORT_URL,
+    chartImages,
+    projectionLegend: getBalanceLegendItems(ui.showStressBand),
+    coverageLegend: getCoverageLegendItems(),
   });
   el.printSummaryContent.innerHTML = html;
   el.printSummaryModal.showModal();
@@ -2093,6 +2099,7 @@ function printSummaryNow() {
   const rowRet = findRowByAgeLocal(ui.lastModel.base.rows, state.profile.retirementAge) || ui.lastModel.base.rows[0];
   const row65 = findRowByAgeLocal(ui.lastModel.base.rows, 65) || rowRet;
   const row71 = findRowByAgeLocal(ui.lastModel.base.rows, 71) || rowRet;
+  const chartImages = capturePlannerCharts();
   const html = buildSummaryHtml({
     state,
     rowRet,
@@ -2102,6 +2109,11 @@ function printSummaryNow() {
     formatCurrency,
     formatPct,
     methodologyUrl: `${shareBaseUrl()}#methodology`,
+    toolUrl: shareBaseUrl(),
+    supportUrl: SUPPORT_URL,
+    chartImages,
+    projectionLegend: getBalanceLegendItems(ui.showStressBand),
+    coverageLegend: getCoverageLegendItems(),
   });
   const ok = openPrintWindow(html);
   if (!ok) toast("Could not open print window.");
@@ -2164,6 +2176,21 @@ function captureClientSummaryCharts() {
   return {
     projection: toDataUrl(projectionCanvas),
     incomeMap: toDataUrl(incomeMapCanvas),
+  };
+}
+
+function capturePlannerCharts() {
+  const toDataUrl = (canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement)) return "";
+    try {
+      return canvas.toDataURL("image/png");
+    } catch {
+      return "";
+    }
+  };
+  return {
+    projection: toDataUrl(el.mainChart),
+    coverage: toDataUrl(el.coverageChart),
   };
 }
 

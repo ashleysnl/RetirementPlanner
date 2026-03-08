@@ -1,6 +1,6 @@
 import { getReportMetrics } from "../../model/reportMetrics.js";
-import { computeCoverageScore } from "../../model/score.js";
 import { findPeakTaxYear } from "../../model/peakTax.js";
+import { buildPlanStatus } from "../../model/planStatus.js";
 
 export function renderDashboardView(ctx) {
   const {
@@ -30,7 +30,8 @@ export function renderDashboardView(ctx) {
   const model = ui.lastModel;
   if (!model) return;
   const beginnerMode = state.uiState.experienceMode !== "advanced";
-  const planScore = computeCoverageScore(state, model);
+  const planStatus = buildPlanStatus(state, model);
+  const planScore = planStatus.score;
 
   const retireRows = model.base.rows.filter((row) => row.age >= state.profile.retirementAge);
   const minAge = retireRows[0]?.age ?? state.profile.retirementAge;
@@ -85,14 +86,14 @@ export function renderDashboardView(ctx) {
     if (!el.dashboardStatus) return;
     const gap = model.kpis.firstYearGap;
     const depletionAge = model.kpis.depletionAge;
-    let label = planScore.band;
+    let label = planStatus.status;
     let css = "status-pill borderline";
 
     if (gap >= 0 && !depletionAge && planScore.total >= 80) {
-      label = "Very Strong";
+      label = planStatus.status;
       css = "status-pill on-track";
     } else if (gap < -10000 || depletionAge || planScore.total < 60) {
-      label = "Needs Attention";
+      label = planStatus.status;
       css = "status-pill off-track";
     }
 
@@ -160,31 +161,33 @@ export function renderDashboardView(ctx) {
     }
     const report = getReportMetrics(state, row);
     const depletionAge = model.kpis.depletionAge;
-    let verdict = "You’re close";
     let verdictClass = "verdict-moderate";
-    let explainer = "Based on your current assumptions, small adjustments could materially improve this plan.";
-    if (report.netGap <= 0 && !depletionAge && planScore.total >= 80) {
-      verdict = "Yes — your plan appears strong";
+    let verdict = planStatus.status;
+    let explainer = planStatus.summary;
+    if (planStatus.status === "On Track" || planStatus.status === "Strong but Tax-Inefficient" || planStatus.status === "Sustainable but Clawback Exposure") {
       verdictClass = "verdict-strong";
-      explainer = "Guaranteed income and projected savings appear sufficient under your current assumptions.";
-    } else if (report.netGap > 10000 || (depletionAge && depletionAge < state.profile.lifeExpectancy)) {
-      verdict = "Not yet — this plan likely needs adjustment";
+    } else if (planStatus.status === "Shortfall Likely") {
       verdictClass = "verdict-attention";
-      explainer = "The current retirement age or spending target creates a funding gap or early depletion risk.";
     }
     const warning = depletionAge ? `<span class="insight-warning">Savings run out around age ${depletionAge}</span>` : "";
     el.canIRetireModule.innerHTML = `
       <section class="subsection verdict-hero ${verdictClass}">
         <div class="verdict-hero-main">
           <div>
-            <p class="eyebrow muted">Can I retire?</p>
+            <p class="eyebrow muted">Plan status</p>
             <h3>${verdict}</h3>
             <p class="verdict-copy">${explainer}</p>
             <p class="small-copy muted">Based on retirement age ${state.profile.retirementAge} and your current assumptions. ${warning}</p>
+            <details>
+              <summary>Why this status?</summary>
+              <ul class="plain-list small-copy muted">
+                ${planStatus.keyDrivers.map((driver) => `<li>${escapeHtml(driver)}</li>`).join("")}
+              </ul>
+            </details>
           </div>
           <div class="verdict-badge-block">
             <span class="verdict-score">${planScore.total}/100</span>
-            <span class="coverage-badge ${report.netGap <= 0 && !depletionAge ? "coverage-good" : ""}">${planScore.band}</span>
+            <span class="coverage-badge ${report.netGap <= 0 && !depletionAge ? "coverage-good" : ""}">${planStatus.status}</span>
           </div>
         </div>
       </section>
@@ -246,6 +249,10 @@ export function renderDashboardView(ctx) {
     const selectedRow = findRowByAge(model.base.rows, ui.selectedAge || state.profile.retirementAge) || retireRow;
     const peakTax = findPeakTaxYear(state, model);
     const replacement = retireRow.spending > 0 ? (retireRow.guaranteedNet + retireRow.netFromWithdrawal) / retireRow.spending : 1;
+    const action = planStatus.nextBestAction;
+    const actionHtml = action?.href
+      ? `<a class="btn btn-secondary" href="${escapeHtml(action.href)}">${escapeHtml(action.label)}</a>`
+      : `<button class="btn btn-secondary" type="button" data-action="${escapeHtml(action?.action || "open-scenario-compare")}">${escapeHtml(action?.label || "Compare scenarios")}</button>`;
     const insights = [
       {
         title: "Guaranteed income floor",
@@ -283,6 +290,24 @@ export function renderDashboardView(ctx) {
       <section class="subsection">
         <div class="section-head-tight">
           <div>
+            <h3>Biggest Risk & Next Best Action</h3>
+            <p class="muted">A quick planner-style read on what matters most right now.</p>
+          </div>
+        </div>
+        <div class="comparison-card-grid">
+          <article class="comparison-card">
+            <strong>Biggest risk</strong>
+            <p>${escapeHtml(planStatus.biggestRisk?.title || "No immediate critical risk detected.")}</p>
+            <p class="small-copy muted">${escapeHtml(planStatus.biggestRisk?.detail || "Keep validating the plan under alternate scenarios.")}</p>
+          </article>
+          <article class="comparison-card">
+            <strong>Next best action</strong>
+            <p>${escapeHtml(action?.detail || "Compare scenarios to pressure-test your plan.")}</p>
+            <div class="landing-actions">${actionHtml}</div>
+          </article>
+        </div>
+        <div class="section-head-tight section-head-insights">
+          <div>
             <h3>Key Insights</h3>
             <p class="muted">Plain-English interpretation of what the current plan is saying.</p>
           </div>
@@ -297,6 +322,7 @@ export function renderDashboardView(ctx) {
         </div>
       </section>
     `;
+    bindInlineTooltipTriggers(el.keyInsightsModule);
   }
 
   function renderIncomeStack() {

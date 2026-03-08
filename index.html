@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Canadian Retirement Tax Simulator for OAS clawback, RRIF minimums, and gross vs net withdrawals with CPP, OAS, pensions, and RRSP/RRIF planning." />
+  <meta name="description" content="Canadian Retirement Planner with tax-aware modeling for CPP, OAS, pensions, RRSP/RRIF withdrawals, OAS clawback, and retirement income decisions." />
   <meta name="theme-color" content="#0f6abf" />
-  <title>Canadian Retirement Tax Simulator - OAS Clawback + RRIF Planner</title>
-  <meta property="og:title" content="Canadian Retirement Tax Simulator" />
-  <meta property="og:description" content="See how CPP, OAS, pensions, and RRSP/RRIF withdrawals interact — including tax drag, RRIF minimums, and OAS clawback." />
+  <title>Canadian Retirement Planner - Tax-aware CPP, OAS, RRIF & Retirement Income Planning</title>
+  <meta property="og:title" content="Canadian Retirement Planner" />
+  <meta property="og:description" content="Model retirement income, taxes, OAS clawback, and RRIF withdrawals in one place." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://retirement.simplekit.app" />
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
@@ -31,9 +31,9 @@
     <header class="hero" aria-label="Planner header">
       <div class="hero-content">
         <p class="eyebrow">Canadian Retirement Planner • Local-first • Educational • Updated for 2026</p>
-        <h1 id="appTitle">Canadian Retirement Tax Simulator</h1>
-        <p class="hero-subtitle">OAS Clawback + RRIF Withdrawal Strategy Planner.</p>
-        <p class="hero-proof">No accounts. No cloud sync. Your plan stays on this device.</p>
+        <h1 id="appTitle">Canadian Retirement Planner</h1>
+        <p class="hero-subtitle">Tax-aware planning for CPP, OAS, pensions, RRSP/RRIF withdrawals, and retirement income decisions.</p>
+        <p class="hero-proof">No accounts. No cloud sync. Your plan stays on this device. Planning estimate only.</p>
       </div>
         <div class="hero-actions no-print" aria-label="Plan actions">
           <span class="offline-badge">Local-first</span>
@@ -52,9 +52,9 @@
 
     <main>
       <section id="landingPanel" class="panel landing-panel" aria-labelledby="landingTitle">
-        <h2 id="landingTitle">Canadian Retirement Tax Simulator</h2>
-        <p class="muted">See how CPP, OAS, pensions, and RRSP/RRIF withdrawals interact — including taxes, RRIF minimums, and OAS clawback.</p>
-        <p class="small-copy muted">Built for Canadians planning RRSP/RRIF withdrawals, pensions, CPP, and OAS.</p>
+        <h2 id="landingTitle">Canadian Retirement Planner</h2>
+        <p class="muted">Model retirement income, taxes, OAS clawback, and RRIF withdrawals in one place.</p>
+        <p class="small-copy muted">The flagship planner for Canadians coordinating CPP, OAS, pensions, savings withdrawals, and retirement timing decisions.</p>
         <div class="landing-actions no-print">
           <button id="startSimpleBtn" class="btn btn-primary" type="button">Start Simple Plan (60 seconds)</button>
           <button class="btn btn-secondary" type="button" data-action="open-learn">Learn the basics first</button>
@@ -62,19 +62,27 @@
           <button id="landingImportBtn" class="btn btn-secondary" type="button">Load plan</button>
         </div>
         <div class="preview-kpi">
-          <div class="preview-kpi-item"><strong>Retirement Gap</strong><span>What you need from savings</span></div>
-          <div class="preview-kpi-item"><strong>Gross vs Net</strong><span>Tax drag visualized</span></div>
+          <div class="preview-kpi-item"><strong>Retirement Gap</strong><span>What still needs to come from savings</span></div>
+          <div class="preview-kpi-item"><strong>Taxes on Withdrawals</strong><span>See how taxes reduce spendable income</span></div>
           <div class="preview-kpi-item"><strong>OAS Clawback Risk</strong><span>Estimate + explanation</span></div>
         </div>
         <p class="small-copy muted">
-          Quick tools:
+          Focused calculators:
           <a href="./oas-clawback-calculator.html">OAS clawback calculator</a> |
           <a href="./rrif-withdrawal-calculator.html">RRIF withdrawal calculator</a> |
           <a href="./cpp-timing-calculator-canada.html">CPP timing</a> |
           <a href="./retirement-tax-calculator-canada.html">Retirement tax</a>
         </p>
+        <div class="subsection flagship-card">
+          <h3>Why use the full planner?</h3>
+          <p class="muted">CPP, OAS, pensions, taxes, clawback, and RRSP/RRIF withdrawals interact. A focused calculator shows one issue. The full planner shows how they work together.</p>
+          <div class="landing-actions no-print">
+            <button id="startSimpleBtnSecondary" class="btn btn-primary" type="button" data-nav-target="start">Start Simple Plan</button>
+            <button class="btn btn-secondary" type="button" data-nav-target="dashboard">Open Full Planner</button>
+          </div>
+        </div>
         <div class="subsection">
-          <h3>Calculator pages</h3>
+          <h3>Focused calculator pages</h3>
           <p class="small-copy muted">
             <a href="./canadian-retirement-income-calculator.html">Canadian retirement income calculator</a> |
             <a href="./cpp-timing-calculator-canada.html">CPP timing calculator Canada</a> |
@@ -90,13 +98,13 @@
 
       <section id="appPanel" class="app-panel" hidden>
         <nav class="tabs no-print" aria-label="App sections">
-          <button type="button" class="tab-btn" data-nav-target="home">Home</button>
+          <button type="button" class="tab-btn" data-nav-target="home">Planner Home</button>
           <button type="button" class="tab-btn" data-nav-target="start">Start</button>
-          <button type="button" class="tab-btn active" data-nav-target="dashboard">Calculator</button>
+          <button type="button" class="tab-btn active" data-nav-target="dashboard">Planner</button>
           <button type="button" class="tab-btn" data-nav-target="plan">Plan Inputs</button>
           <button type="button" class="tab-btn" data-nav-target="learn">Learn the Basics</button>
-          <button type="button" class="tab-btn" data-nav-target="tools">Tools</button>
-          <button type="button" class="tab-btn desktop-only-tab" data-nav-target="advanced">Advanced Settings</button>
+          <button type="button" class="tab-btn" data-nav-target="tools">Planning Tools</button>
+          <button type="button" class="tab-btn desktop-only-tab" data-nav-target="advanced">Advanced Inputs</button>
           <button type="button" class="tab-btn desktop-only-tab" data-nav-target="methodology">Methodology</button>
           <button type="button" class="tab-btn desktop-only-tab" data-nav-target="about">About</button>
           <button type="button" class="tab-btn desktop-only-tab" data-nav-target="support">Support</button>
@@ -104,8 +112,8 @@
 
         <section class="panel nav-panel" data-nav-panel="home" aria-labelledby="homeHeading" hidden>
           <div class="panel-header">
-            <h2 id="homeHeading">Canadian Retirement Tax Simulator</h2>
-            <p>See how CPP, OAS, pensions, and RRSP/RRIF withdrawals interact — including taxes, RRIF minimums, and OAS clawback.</p>
+            <h2 id="homeHeading">Canadian Retirement Planner</h2>
+            <p>Build your full retirement plan first, then use focused calculators to investigate clawback, RRIF withdrawals, CPP timing, and taxes in more detail.</p>
           </div>
           <div class="landing-actions no-print">
             <button class="btn btn-primary" type="button" data-nav-target="start">Start Simple Plan (60 seconds)</button>
@@ -114,16 +122,24 @@
           </div>
           <div class="preview-kpi">
             <div class="preview-kpi-item"><strong>Retirement Gap</strong><span>What must come from savings</span></div>
-            <div class="preview-kpi-item"><strong>Gross vs Net</strong><span>Tax drag visualized clearly</span></div>
+            <div class="preview-kpi-item"><strong>Taxes on Withdrawals</strong><span>See what you keep after tax</span></div>
             <div class="preview-kpi-item"><strong>OAS Clawback Risk</strong><span>Estimate + why it happens</span></div>
           </div>
           <p class="small-copy muted">
-            Niche calculators:
+            Focused calculators:
             <a href="./oas-clawback-calculator.html">OAS clawback</a> |
             <a href="./rrif-withdrawal-calculator.html">RRIF withdrawals</a> |
             <a href="./rrsp-withdrawal-strategy-canada.html">RRSP strategy</a> |
             <a href="./canadian-retirement-income-calculator.html">Income calculator</a>
           </p>
+          <div class="subsection flagship-card">
+            <h3>Why use the full planner?</h3>
+            <p class="muted">Focused calculators are useful for one decision. The full planner shows how timing, taxes, savings, CPP, OAS, and pensions work together in one retirement plan.</p>
+            <div class="landing-actions">
+              <button class="btn btn-primary" type="button" data-nav-target="start">Start Simple Plan</button>
+              <button class="btn btn-secondary" type="button" data-nav-target="dashboard">Open Full Planner</button>
+            </div>
+          </div>
           <p class="small-copy muted">
             More pages:
             <a href="./cpp-timing-calculator-canada.html">CPP timing</a> |
@@ -150,7 +166,7 @@
 
         <section class="panel nav-panel active" data-nav-panel="dashboard" aria-labelledby="dashboardHeading">
           <div class="panel-header">
-            <h2 id="dashboardHeading">Simple Dashboard</h2>
+            <h2 id="dashboardHeading">Planner Results</h2>
             <p>Results first, interpretation second, advanced detail when you need it.</p>
             <p class="small-copy"><button class="text-link-btn" type="button" data-action="open-learn">New to retirement planning? Learn the basics first →</button></p>
             <div id="dashboardStatus" class="status-pill"></div>
@@ -189,21 +205,17 @@
             <div id="methodologySummaryModule"></div>
 
             <div class="subsection">
-              <h3>At a glance</h3>
+              <h3>Key numbers</h3>
               <p id="kpiContext" class="small-copy muted"></p>
               <div id="kpiGrid" class="metric-grid metric-grid-wide"></div>
               <div id="peakTaxYearModule"></div>
-              <div class="support-inline-callout">
-                <p class="small-copy">If this simulator helped you understand retirement taxes and clawback risk, consider supporting development.</p>
-                <a class="btn btn-secondary" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">☕ Support / Buy Me a Coffee</a>
-              </div>
             </div>
 
             <div id="retirementScoreCard" class="subsection" hidden></div>
 
             <div class="chart-wrap">
               <div class="chart-head-row">
-                <h3>Projection</h3>
+                <h3>Retirement savings projection</h3>
                 <label class="inline-check small-copy no-print">
                   <input id="dashboardStressToggle" type="checkbox" checked />
                   Show stress band
@@ -218,7 +230,7 @@
 
             <div class="chart-wrap">
               <div class="chart-head-row">
-                <h3>Coverage</h3>
+                <h3>Income coverage</h3>
                 <label class="inline-check small-copy no-print">
                   <input id="dollarModeToggle" type="checkbox" />
                   Show in today's dollars
@@ -265,7 +277,7 @@
 
             <div class="subsection">
               <h3>Shareable results</h3>
-              <p class="small-copy muted">Share this tool with a friend who is planning retirement income.</p>
+              <p class="small-copy muted">Share this planner with someone who needs a clearer retirement income picture.</p>
               <p class="small-copy muted">If this was helpful, consider supporting the tool ☕</p>
               <div class="landing-actions">
                 <button id="copyShareLinkBtn" class="btn btn-secondary" type="button">Copy share link</button>
@@ -369,7 +381,7 @@
           </div>
 
           <div class="subsection">
-            <h3>SEO Calculator Pages</h3>
+            <h3>Focused calculator pages</h3>
             <p class="small-copy muted">
               <a href="./canadian-retirement-income-calculator.html">Canadian retirement income calculator</a> |
               <a href="./cpp-timing-calculator-canada.html">CPP timing calculator Canada</a> |

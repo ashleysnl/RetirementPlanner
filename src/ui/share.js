@@ -114,7 +114,7 @@ export function buildShareSummary({ state, row, formatCurrency, formatPct, link,
   const age = safeNumber(row?.age, state.profile.retirementAge);
   const scenario = String(state.uiState.selectedScenarioLabel || "Current plan");
   return [
-    "Canadian Retirement Tax Simulator - Summary",
+    "Canadian Retirement Planner - Summary",
     `Scenario: ${scenario}`,
     `Age: ${age}`,
     `Retirement age: ${state.profile.retirementAge}`,

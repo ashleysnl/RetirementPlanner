@@ -51,18 +51,19 @@ export function getCoverageLegendItems() {
 export function buildNextActions(model, advancedUnlocked) {
   const actions = [];
   if (model.kpis.firstYearGap < 0) {
-    actions.push("Increase annual contribution or adjust retirement spending target.");
-    actions.push("Consider delaying retirement age by 1-2 years.");
+    actions.push("Test a later retirement age or a lower spending target first.");
+    actions.push("If the gap still remains, increase annual savings or add more guaranteed income.");
   } else {
-    actions.push("You currently show a first-year surplus. Validate assumptions with stress tests.");
+    actions.push("Your base case looks workable. Pressure-test it with the stress check before relying on it.");
   }
 
   if (model.kpis.depletionAge) {
-    actions.push(`Savings deplete at age ${model.kpis.depletionAge}. Test lower spending or higher guaranteed income.`);
+    actions.push(`Savings deplete at age ${model.kpis.depletionAge}. Compare lower spending, later retirement, or stronger income timing.`);
   } else {
-    actions.push("Balance remains through plan horizon under base assumptions.");
+    actions.push("Savings remain through the planning horizon under the base assumptions.");
   }
 
-  if (!advancedUnlocked) actions.push("Finish guided setup to unlock tax and withdrawal strategy comparisons.");
+  actions.push("Use the niche calculators when you want to go deeper on one issue, then bring the result back into the full planner.");
+  if (!advancedUnlocked) actions.push("Finish guided setup to unlock tax-aware strategy comparisons and advanced assumptions.");
   return actions;
 }

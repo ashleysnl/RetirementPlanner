@@ -1554,6 +1554,11 @@ textarea {
   gap: 8px;
 }
 
+.flagship-card {
+  border-color: #dcecff;
+  background: linear-gradient(180deg, #f7fbff, #ffffff);
+}
+
 .learn-rrif-out {
   margin-top: 12px;
 }
