@@ -1474,10 +1474,14 @@ function loadPlanFromStorage(storageKey, normalizePlan, createDefaultPlan) {
   const storages = [];
   try {
     if (typeof localStorage !== "undefined") storages.push(localStorage);
-  } catch {}
+  } catch (error) {
+    void error;
+  }
   try {
     if (typeof sessionStorage !== "undefined") storages.push(sessionStorage);
-  } catch {}
+  } catch (error) {
+    void error;
+  }
 
   for (const storage of storages) {
     try {
@@ -1485,7 +1489,8 @@ function loadPlanFromStorage(storageKey, normalizePlan, createDefaultPlan) {
       if (!raw) continue;
       const parsed = JSON.parse(raw);
       return normalizePlan(parsed);
-    } catch {
+    } catch (error) {
+      void error;
       // try next storage
     }
   }
@@ -1501,14 +1506,18 @@ function savePlanToStorage(storageKey, plan) {
       localStorage.setItem(storageKey, serialized);
       if (localStorage.getItem(storageKey) === serialized) saved = true;
     }
-  } catch {}
+  } catch (error) {
+    void error;
+  }
 
   try {
     if (typeof sessionStorage !== "undefined") {
       sessionStorage.setItem(storageKey, serialized);
       if (sessionStorage.getItem(storageKey) === serialized) saved = true;
     }
-  } catch {}
+  } catch (error) {
+    void error;
+  }
 
   return saved;
 }
@@ -1516,9 +1525,13 @@ function savePlanToStorage(storageKey, plan) {
 function clearPlanFromStorage(storageKey) {
   try {
     if (typeof localStorage !== "undefined") localStorage.removeItem(storageKey);
-  } catch {}
+  } catch (error) {
+    void error;
+  }
   try {
     if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(storageKey);
+  } catch (error) {
+    void error;
   }
 }
 
