@@ -1,6 +1,7 @@
-function plannerCard(title, description, content, open = false) {
+function plannerCard(id, title, description, content, openState = {}, defaultOpen = false) {
+  const open = Object.prototype.hasOwnProperty.call(openState, id) ? !!openState[id] : defaultOpen;
   return `
-    <details class="accordion planner-card planner-card-guided" ${open ? "open" : ""}>
+    <details class="accordion planner-card planner-card-guided" data-planner-card-id="${id}" ${open ? "open" : ""}>
       <summary>${title}</summary>
       <div class="accordion-content">
         <p class="small-copy muted">${description}</p>
@@ -26,6 +27,7 @@ function detailPlannerHint() {
 export function buildPlanInputsHtml(ctx) {
   const {
     state,
+    ui,
     provinces,
     selectField,
     numberField,
@@ -80,10 +82,10 @@ export function buildPlanInputsHtml(ctx) {
 
   return `
     <p class="what-affects"><strong>Simple-first editing:</strong> make one or two changes, then go back to Results to see the story update.</p>
-    ${plannerCard("Your basics", "Age, timing, income, and savings for a fast first answer.", basics, true)}
-    ${plannerCard("Lifestyle target", "Retirement income target in today's dollars, plus inflation.", lifestyle, true)}
-    ${plannerCard("Canadian income sources", "CPP, OAS, and optional workplace pension.", income)}
-    ${plannerCard("Advanced assumptions", "Only the highest-impact assumptions stay here in simple mode.", assumptions)}
+    ${plannerCard("basics", "Your basics", "Age, timing, income, and savings for a fast first answer.", basics, ui.planCardOpen, true)}
+    ${plannerCard("lifestyle", "Lifestyle target", "Retirement income target in today's dollars, plus inflation.", lifestyle, ui.planCardOpen, true)}
+    ${plannerCard("income", "Canadian income sources", "CPP, OAS, and optional workplace pension.", income, ui.planCardOpen)}
+    ${plannerCard("assumptions", "Advanced assumptions", "Only the highest-impact assumptions stay here in simple mode.", assumptions, ui.planCardOpen)}
     ${detailPlannerHint()}
   `;
 }
