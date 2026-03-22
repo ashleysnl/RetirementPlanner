@@ -58,6 +58,10 @@ summary:focus-visible,
   margin: 24px auto 40px;
 }
 
+.shell-header-wrap {
+  margin-bottom: 14px;
+}
+
 .hero {
   display: block;
   background: linear-gradient(135deg, #0a3565, var(--brand) 55%, var(--brand-2));
@@ -69,6 +73,38 @@ summary:focus-visible,
 
 .hero-content {
   min-width: 0;
+}
+
+.hero-platform-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.hero-platform-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-platform-separator {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.hero-home-link {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.hero-home-link:hover {
+  text-decoration: underline;
 }
 
 .eyebrow {
@@ -324,6 +360,16 @@ summary:focus-visible,
   margin: 12px 0 0;
   padding-left: 18px;
   color: rgba(255, 255, 255, 0.92);
+}
+
+.shell-bridge-stack {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.planner-reference-panel {
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
 }
 
 .section-head,
@@ -754,7 +800,8 @@ summary:focus-visible,
   .section-head,
   .section-head-tight,
   .plan-top-actions,
-  .planner-onboarding {
+  .planner-onboarding,
+  .hero-platform-row {
     flex-direction: column;
     align-items: stretch;
   }
@@ -789,6 +836,16 @@ summary:focus-visible,
   .panel-header p,
   .small-copy {
     line-height: 1.45;
+  }
+
+  .hero-platform-copy {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .hero-platform-separator {
+    display: none;
   }
 
   .table-scroll {
@@ -887,6 +944,10 @@ body.mobile-layout .bottom-tabs {
 
 #appPanel .nav-panel {
   margin-top: 14px;
+}
+
+#appPanel > .seo-panel {
+  grid-column: 2;
 }
 
 .metric-grid {
