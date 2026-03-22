@@ -126,6 +126,7 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
     profile: {
       province: app.defaultProvince,
       birthYear: app.currentYear - 35,
+      annualIncome: 90000,
       retirementAge: 65,
       lifeExpectancy: 92,
       desiredSpending: 60000,
@@ -228,6 +229,15 @@ export function createDefaultPlan({ app, riskReturns, learnProgressItems }) {
         preparedBy: "",
         summaryDate: "",
       },
+      guided: {
+        lifestylePreset: "comfortable",
+        retirementIncomeMode: "percent",
+        retirementIncomePercent: 0.7,
+        estimateRetirementAge: false,
+        savingsContributionMode: "annual",
+        rrspShare: 0.6,
+        useCanadianDefaults: true,
+      },
       learn: createDefaultLearnState(),
       learningProgress: createDefaultLearningProgress(learnProgressItems),
       unlocked: {
@@ -284,6 +294,7 @@ export function createDemoPlan({ app, riskReturns, learnProgressItems }) {
   plan.profile.birthYear = app.currentYear - 45;
   plan.profile.retirementAge = 63;
   plan.profile.lifeExpectancy = 94;
+  plan.profile.annualIncome = 105000;
   plan.profile.desiredSpending = 70000;
   plan.savings.currentTotal = 380000;
   plan.savings.annualContribution = 12000;
@@ -362,6 +373,10 @@ export function normalizePlan(input, { app, provinces, riskReturns, learnProgres
         ...base.uiState.clientSummary,
         ...(migrated.uiState?.clientSummary || {}),
       },
+      guided: {
+        ...base.uiState.guided,
+        ...(migrated.uiState?.guided || {}),
+      },
       learn: normalizeLearnState(migrated.uiState?.learn || base.uiState.learn),
       learningProgress: {
         ...createDefaultLearningProgress(learnProgressItems),
@@ -376,6 +391,7 @@ export function normalizePlan(input, { app, provinces, riskReturns, learnProgres
 
 export function ensureValidState(state, { app, provinces, learnProgressItems }) {
   state.profile.birthYear = clamp(Number(state.profile.birthYear), 1940, app.currentYear - 18);
+  state.profile.annualIncome = Math.max(0, Number(state.profile.annualIncome || 0));
   state.profile.retirementAge = clamp(Number(state.profile.retirementAge), 50, 75);
   state.profile.lifeExpectancy = clamp(Number(state.profile.lifeExpectancy), state.profile.retirementAge + 1, 105);
   state.profile.desiredSpending = Math.max(12000, Number(state.profile.desiredSpending));
@@ -457,6 +473,17 @@ export function ensureValidState(state, { app, provinces, learnProgressItems }) 
     preparedBy: String(state.uiState.clientSummary?.preparedBy || ""),
     summaryDate: String(state.uiState.clientSummary?.summaryDate || ""),
   };
+  state.uiState.guided = {
+    lifestylePreset: ["basic", "comfortable", "higher"].includes(state.uiState.guided?.lifestylePreset)
+      ? state.uiState.guided.lifestylePreset
+      : "comfortable",
+    retirementIncomeMode: state.uiState.guided?.retirementIncomeMode === "dollar" ? "dollar" : "percent",
+    retirementIncomePercent: clamp(normalizePct(state.uiState.guided?.retirementIncomePercent ?? 0.7), 0.3, 1.2),
+    estimateRetirementAge: Boolean(state.uiState.guided?.estimateRetirementAge),
+    savingsContributionMode: state.uiState.guided?.savingsContributionMode === "percent" ? "percent" : "annual",
+    rrspShare: clamp(normalizePct(state.uiState.guided?.rrspShare ?? 0.6), 0, 1),
+    useCanadianDefaults: Boolean(state.uiState.guided?.useCanadianDefaults ?? true),
+  };
   const defaultProgress = createDefaultLearningProgress(learnProgressItems);
   state.uiState.learningProgress = {
     ...defaultProgress,
@@ -532,6 +559,18 @@ function validatePlan(plan, { app, provinces, learnProgressItems }) {
     summaryDate: String(plan.uiState.clientSummary?.summaryDate || ""),
   };
   if (!plan.version) plan.version = app.version;
+  plan.profile.annualIncome = Math.max(0, Number(plan.profile.annualIncome || 0));
+  plan.uiState.guided = {
+    lifestylePreset: ["basic", "comfortable", "higher"].includes(plan.uiState.guided?.lifestylePreset)
+      ? plan.uiState.guided.lifestylePreset
+      : "comfortable",
+    retirementIncomeMode: plan.uiState.guided?.retirementIncomeMode === "dollar" ? "dollar" : "percent",
+    retirementIncomePercent: clamp(normalizePct(plan.uiState.guided?.retirementIncomePercent ?? 0.7), 0.3, 1.2),
+    estimateRetirementAge: Boolean(plan.uiState.guided?.estimateRetirementAge),
+    savingsContributionMode: plan.uiState.guided?.savingsContributionMode === "percent" ? "percent" : "annual",
+    rrspShare: clamp(normalizePct(plan.uiState.guided?.rrspShare ?? 0.6), 0, 1),
+    useCanadianDefaults: Boolean(plan.uiState.guided?.useCanadianDefaults ?? true),
+  };
 }
 
 function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
@@ -565,6 +604,17 @@ function migratePlan(plan, { app, riskReturns, learnProgressItems }) {
   if (!Array.isArray(next.uiState.scenarios)) next.uiState.scenarios = [];
   if (next.uiState.lastChangeSummary == null) next.uiState.lastChangeSummary = null;
   if (!next.uiState.timingSim) next.uiState.timingSim = { cppStartAge: 65, oasStartAge: 65, linkTiming: false };
+  if (!next.uiState.guided) {
+    next.uiState.guided = {
+      lifestylePreset: "comfortable",
+      retirementIncomeMode: "percent",
+      retirementIncomePercent: 0.7,
+      estimateRetirementAge: false,
+      savingsContributionMode: "annual",
+      rrspShare: 0.6,
+      useCanadianDefaults: true,
+    };
+  }
   if (!next.savings) next.savings = createDefaultPlan({ app, riskReturns, learnProgressItems }).savings;
   if (!Array.isArray(next.savings.capitalInjects)) next.savings.capitalInjects = [];
   if (!next.accounts) next.accounts = createDefaultPlan({ app, riskReturns, learnProgressItems }).accounts;

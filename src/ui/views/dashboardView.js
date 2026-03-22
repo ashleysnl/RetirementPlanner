@@ -229,20 +229,25 @@ export function renderDashboardView(ctx) {
     const report = getReportMetrics(state, row);
     const balanceAtRetirement = Math.max(0, Number(row.balanceStart || row.balance || 0));
     const moneyLasts = model.kpis.depletionAge ? `Age ${model.kpis.depletionAge}` : `Beyond ${state.profile.lifeExpectancy}`;
-    const risk = getOasRiskLevel(row.oasClawback || 0);
+    const currentAge = app.currentYear - Number(state.profile.birthYear || app.currentYear);
+    const yearsToRetirement = Math.max(0, state.profile.retirementAge - currentAge);
+    const statusCard = report.netGap > 0
+      ? { label: "Shortfall or surplus", value: `-${formatCurrency(report.netGap)}`, sub: "First retirement year after tax" }
+      : { label: "Shortfall or surplus", value: `+${formatCurrency(report.surplus)}`, sub: "Covered before extra withdrawals" };
     const cards = [
-      { label: "Target retirement age", value: `Age ${state.profile.retirementAge}`, sub: dashboardScenario === "base" ? "Current plan" : `Scenario: ${dashboardScenario.replace("-", " ")}` },
-      { label: "Projected retirement income", value: formatCurrency(report.totalSpendable), sub: report.estimateTaxes ? "Net spendable income" : "Before tax estimate" },
-      { label: "Savings at retirement", value: formatCurrency(balanceAtRetirement), sub: "Projected portfolio" },
-      { label: "How long money lasts", value: moneyLasts, sub: model.kpis.depletionAge ? "Depletion estimate" : "Planning horizon covered" },
-      { label: "OAS clawback risk", value: risk.label, sub: report.clawback > 0 ? formatCurrency(report.clawback) : "No current clawback", badgeClass: risk.className },
+      { label: "Retirement readiness", value: planStatus.status, sub: dashboardScenario === "base" ? "Base plan" : `Scenario: ${dashboardScenario.replace("-", " ")}` },
+      { label: "Monthly retirement income", value: formatCurrency(report.totalSpendable / 12), sub: report.estimateTaxes ? "Estimated spendable income" : "Before tax estimate" },
+      statusCard,
+      { label: "Years until retirement", value: String(Math.max(0, yearsToRetirement)), sub: `Target age ${state.profile.retirementAge}` },
+      { label: "Projected portfolio value", value: formatCurrency(balanceAtRetirement), sub: "At retirement" },
+      { label: "Money lasts", value: moneyLasts, sub: model.kpis.depletionAge ? "Projection under current assumptions" : "No depletion in plan horizon" },
     ];
     el.readinessSummaryModule.innerHTML = `
       <section class="subsection readiness-summary">
         <div class="section-head-tight">
           <div>
-            <h3>Retirement Readiness</h3>
-            <p class="muted">Your plan in one view, using the currently selected scenario.</p>
+            <h3>Top numbers</h3>
+            <p class="muted">The simplest read of your current retirement plan.</p>
           </div>
         </div>
         <div class="readiness-grid">
@@ -345,21 +350,21 @@ export function renderDashboardView(ctx) {
     }
     const report = getReportMetrics(state, row);
     const guaranteedPct = Math.round((report.coverageRatio || 0) * 100);
-    const topMessage = model.kpis.depletionAge
-      ? `Your current plan covers retirement spending for now, but savings are projected to run out around age ${model.kpis.depletionAge}.`
-      : `Your current plan appears to cover retirement spending through age ${state.profile.lifeExpectancy} under the base assumptions.`;
+    const topMessage = report.netGap > 0
+      ? `Your first retirement-year gap is about ${formatCurrency(report.netGap)} after tax.`
+      : `Your first retirement year appears funded under the current assumptions.`;
     const pressurePoint = report.dragAmount > Math.max(5000, report.grossWithdrawal * 0.18)
-      ? `Taxes and possible clawback reduce spendable income by about ${formatCurrency(report.dragAmount)} in the first retirement year.`
-      : report.netGap > 0
-        ? `You still need about ${formatCurrency(report.netGap)} after tax from savings in the first retirement year.`
-        : `Guaranteed income and withdrawals currently support the early-retirement spending target.`;
+      ? `Taxes and clawback reduce spendable income by about ${formatCurrency(report.dragAmount)} in that first retirement year.`
+      : model.kpis.depletionAge
+        ? `The main pressure point is longevity: savings are projected to run out around age ${model.kpis.depletionAge}.`
+        : `Guaranteed income covers about ${guaranteedPct}% of your retirement target before extra savings withdrawals.`;
     const nextMove = planStatus.nextBestAction?.detail || "Compare one simple scenario before editing advanced settings.";
     el.resultsNarrativeModule.innerHTML = `
       <section class="subsection results-narrative-hero">
         <div class="section-head-tight">
           <div>
-            <h3>What you should know first</h3>
-            <p class="muted">A simpler reading of the plan before you get into charts and controls.</p>
+            <h3>What is driving this result</h3>
+            <p class="muted">The plain-language version before you get into charts and deeper tools.</p>
           </div>
           <span class="coverage-badge ${report.netGap <= 0 && !model.kpis.depletionAge ? "coverage-good" : ""}">${planStatus.status}</span>
         </div>
@@ -373,7 +378,7 @@ export function renderDashboardView(ctx) {
             <p>${escapeHtml(pressurePoint)}</p>
           </article>
           <article class="comparison-card">
-            <strong>Best next move</strong>
+            <strong>What would improve it</strong>
             <p>${escapeHtml(nextMove)}</p>
           </article>
         </div>
@@ -470,7 +475,8 @@ export function renderDashboardView(ctx) {
       });
     }
 
-    const savingYears = Math.max(0, state.profile.retirementAge - state.profile.age);
+    const currentAgeForSavings = app.currentYear - Number(state.profile.birthYear || app.currentYear);
+    const savingYears = Math.max(0, state.profile.retirementAge - currentAgeForSavings);
     if (savingYears >= 3 && (depletionAge || report.netGap > 0)) {
       const currentRetirementRow = findRowByAge(model.base.rows, state.profile.retirementAge) || retirementRow;
       const previewRetirementRow = findRowByAge(saveMorePreview.model.base.rows, saveMorePreview.plan.profile.retirementAge) || currentRetirementRow;
@@ -568,14 +574,14 @@ export function renderDashboardView(ctx) {
       <section class="subsection advisor-section">
         <div class="section-head-tight">
           <div>
-            <h3>How to improve your plan</h3>
-            <p class="muted">Use these planning experiments to improve the current result before opening advanced settings.</p>
+            <h3>What should I do next?</h3>
+            <p class="muted">These are the clearest ways to improve this result before opening the full detailed planner.</p>
           </div>
           <a class="small-copy muted advisor-support-note" href="${escapeHtml(supportUrl || "https://buymeacoffee.com/ashleysnl")}" target="_blank" rel="noopener noreferrer">☕ This free tool is community-supported.</a>
         </div>
         <div class="comparison-card-grid advisor-summary-grid">
           <article class="comparison-card advisor-summary-card">
-            <strong>Biggest risk</strong>
+            <strong>What is holding this back</strong>
             <p>${escapeHtml(planStatus.biggestRisk?.title || "No immediate critical issue stands out in the current base view.")}</p>
             <p class="small-copy muted">${escapeHtml(planStatus.biggestRisk?.detail || "Keep validating the plan under alternate scenarios.")}</p>
           </article>
@@ -705,32 +711,41 @@ export function renderDashboardView(ctx) {
     }
     const report = getReportMetrics(state, row);
     const depletionAge = model.kpis.depletionAge;
+    const earlierAge = state.profile.retirementAge > 52 ? state.profile.retirementAge - 1 : state.profile.retirementAge;
+    const earlierRow = findRowByAge(model.base.rows, earlierAge) || row;
     let verdictClass = "verdict-moderate";
-    let verdict = planStatus.status;
+    let bigAnswer = "You are close, but this plan needs a review.";
     let explainer = planStatus.summary;
-    if (planStatus.status === "On Track" || planStatus.status === "Strong but Tax-Inefficient" || planStatus.status === "Sustainable but Clawback Exposure") {
+    if (report.netGap <= 0 && !depletionAge) {
       verdictClass = "verdict-strong";
-    } else if (planStatus.status === "Shortfall Likely") {
+      bigAnswer = "You are on track.";
+    } else if (report.netGap > 0) {
       verdictClass = "verdict-attention";
+      bigAnswer = `You may be short by ${formatCurrency(report.netGap)} per year.`;
+    } else if (depletionAge) {
+      verdictClass = "verdict-attention";
+      bigAnswer = `Your plan may run short around age ${depletionAge}.`;
     }
-    const warning = depletionAge ? `<span class="insight-warning">Savings run out around age ${depletionAge}</span>` : "";
+    const earlierPossible = !depletionAge && earlierAge < state.profile.retirementAge && Number(earlierRow.netGap || 0) <= 0;
+    const warning = depletionAge ? `<span class="insight-warning">Current projection runs out around age ${depletionAge}</span>` : "";
     el.canIRetireModule.innerHTML = `
       <section class="subsection verdict-hero ${verdictClass}">
         <div class="verdict-hero-main">
           <div>
-            <p class="eyebrow muted">Plan status</p>
-            <h3>${verdict}</h3>
+            <p class="eyebrow muted">Big answer</p>
+            <h3>${bigAnswer}</h3>
             <p class="verdict-copy">${explainer}</p>
-            <p class="small-copy muted">Based on retirement age ${state.profile.retirementAge} and your current assumptions. ${warning}</p>
+            <p class="small-copy muted">Based on retirement age ${state.profile.retirementAge}, your current savings, and your current lifestyle target. ${warning}</p>
+            ${earlierPossible ? `<p class="small-copy muted">Good news: this projection also suggests you may be able to retire earlier at age ${earlierAge}.</p>` : ""}
             <details>
-              <summary>Why this status?</summary>
+              <summary>What is driving this result?</summary>
               <ul class="plain-list small-copy muted">
                 ${planStatus.keyDrivers.map((driver) => `<li>${escapeHtml(driver)}</li>`).join("")}
               </ul>
             </details>
           </div>
           <div class="verdict-badge-block">
-            <span class="verdict-score">${planScore.total}/100</span>
+            <span class="verdict-score">${formatCurrency(report.totalSpendable / 12)}</span>
             <span class="coverage-badge ${report.netGap <= 0 && !depletionAge ? "coverage-good" : ""}">${planStatus.status}</span>
           </div>
         </div>

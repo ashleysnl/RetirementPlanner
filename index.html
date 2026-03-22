@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Plan retirement income in Canada with tax-aware modeling for CPP, OAS, pensions, RRSP and RRIF withdrawals, and long-term spending decisions." />
+  <meta name="description" content="Estimate your retirement readiness in minutes. Start simple, then refine your plan with this Canadian retirement calculator." />
   <meta name="robots" content="index,follow,max-image-preview:large" />
   <meta name="theme-color" content="#0f6abf" />
-  <title>Canadian Retirement Planner | CPP, OAS, RRIF & Income Planning | SimpleKit</title>
-  <meta property="og:title" content="Canadian Retirement Planner | SimpleKit" />
-  <meta property="og:description" content="Plan Canadian retirement income with CPP, OAS, pensions, RRSP and RRIF withdrawal modeling." />
+  <title>Canadian Retirement Planner - Simple, Guided Retirement Calculator | SimpleKit</title>
+  <meta property="og:title" content="Canadian Retirement Planner - Simple, Guided Retirement Calculator | SimpleKit" />
+  <meta property="og:description" content="Estimate your retirement readiness in minutes with a guided Canadian retirement calculator." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://simplekit.app/retirement-planner/" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Canadian Retirement Planner | SimpleKit" />
-  <meta name="twitter:description" content="Use this Canadian retirement planner to compare retirement income, withdrawals, government benefits, and tax-aware tradeoffs." />
+  <meta name="twitter:title" content="Canadian Retirement Planner - Simple, Guided Retirement Calculator | SimpleKit" />
+  <meta name="twitter:description" content="Estimate your retirement readiness in minutes with a guided Canadian retirement calculator." />
   <link rel="canonical" href="https://simplekit.app/retirement-planner/" />
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
   <link rel="shortcut icon" href="icons/favicon.svg" />
@@ -33,7 +33,7 @@
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      "name": "Canadian Retirement Planner",
+      "name": "Canadian Retirement Planner - Simple, Guided Retirement Calculator",
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Web",
       "inLanguage": "en-CA",
@@ -42,37 +42,38 @@
         "name": "Canada"
       },
       "url": "https://simplekit.app/retirement-planner/",
-      "description": "A Canadian retirement planner with tax-aware modeling for CPP, OAS, pensions, RRSP and RRIF withdrawals."
+      "description": "A guided Canadian retirement planner with tax-aware modeling for CPP, OAS, pensions, RRSP and RRIF withdrawals."
     }
   </script>
 </head>
 <body>
   <div id="bootErrorNotice" class="panel" style="display:none;"></div>
   <div class="page-shell">
-    <header class="hero" aria-label="Planner header">
+    <header id="heroHeader" class="hero" aria-label="Planner header">
       <div class="hero-content hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">SimpleKit retirement planning</p>
-          <h1 id="appTitle">Free Canadian Retirement Planner</h1>
-          <p class="hero-subtitle">Model pensions, CPP, OAS, RRSP/RRIF withdrawals, taxes, and inflation in one place.</p>
+          <h1 id="appTitle">Canadian Retirement Planner — Simple, Guided Retirement Calculator</h1>
+          <p class="hero-subtitle">Can you afford to retire — and when?</p>
+          <p class="hero-proof">Start with a few simple inputs. Refine later if you want.</p>
           <div class="hero-actions no-print" aria-label="Hero actions">
-            <button id="startSimpleBtn" class="btn btn-primary" type="button">Start My Plan</button>
-            <button id="loadDemoBtn" class="btn btn-secondary" type="button">Load Demo</button>
+            <button id="startSimpleBtn" class="btn btn-primary" type="button">Start your plan</button>
+            <button class="btn btn-secondary" type="button" data-action="see-how-it-works">See how it works</button>
           </div>
           <p class="hero-link-row no-print"><button class="text-link-btn hero-link" type="button" data-action="open-learn">Learn the basics first</button></p>
           <div class="hero-trust-strip" aria-label="Trust notes">
-            <span class="hero-benefit">No signup</span>
-            <span class="hero-benefit">Local-first</span>
-            <span class="hero-benefit">Planning estimate only</span>
+            <span class="hero-benefit">Beginner-friendly</span>
+            <span class="hero-benefit">Canada-specific</span>
+            <span class="hero-benefit">Based on real assumptions</span>
           </div>
         </div>
         <aside class="hero-side-card" aria-label="Why this planner helps">
-          <h2>See the full retirement picture</h2>
-          <p class="muted-light">Built for Canada with tax-aware modelling for retirement income decisions, not just a single calculator.</p>
+          <h2>Simple first. Powerful underneath.</h2>
+          <p class="muted-light">Get a real answer in under a minute, then open the detailed planner only if you want deeper assumptions, tax strategy, and income timing controls.</p>
           <ul class="hero-side-list">
-            <li>Estimate if your spending target is covered</li>
-            <li>Understand when CPP and OAS change the plan</li>
-            <li>See how taxes and withdrawals shape your paycheque</li>
+            <li>Answer whether you are on track to retire</li>
+            <li>Understand what CPP, OAS, and savings will cover</li>
+            <li>See the clearest next move to improve your outcome</li>
           </ul>
         </aside>
       </div>
@@ -82,25 +83,25 @@
       <section id="landingPanel" class="panel landing-panel" aria-labelledby="landingTitle">
         <div class="section-head">
           <div>
-            <h2 id="landingTitle">Start with a guided plan, then go deeper only when you need to</h2>
-            <p class="muted">The planner is organized into a simple flow: build your plan, review the story in the results, test scenarios, then explore the deeper tools.</p>
+            <h2 id="landingTitle">Build a retirement plan without feeling buried in assumptions</h2>
+            <p class="muted">Start with your basics, choose a lifestyle target, and get a plain-language answer before opening advanced controls.</p>
           </div>
         </div>
         <div class="landing-grid">
           <article class="subsection flagship-card">
-            <h3>1. Build your base plan</h3>
-            <p class="muted">Use the guided setup to enter only the essentials first. Beginner mode stays on by default.</p>
+            <h3>1. Start simple</h3>
+            <p class="muted">Use fewer than five inputs to get a first retirement answer. Beginner mode stays on by default.</p>
             <div class="landing-actions no-print">
-              <button class="btn btn-primary" type="button" data-nav-target="plan">Start My Plan</button>
+              <button class="btn btn-primary" type="button" data-nav-target="plan">Start your plan</button>
             </div>
           </article>
           <article class="subsection">
-            <h3>2. Understand your outcome</h3>
-            <p class="muted">See whether you are on track, where income comes from, what taxes do, and what to adjust next.</p>
+            <h3>2. Get the big answer</h3>
+            <p class="muted">See whether you are on track, how much monthly income you can expect, and what is driving the result.</p>
           </article>
           <article class="subsection">
-            <h3>3. Compare scenarios</h3>
-            <p class="muted">Try retire later, delay CPP, save more, or add inflation stress without rebuilding your plan from scratch.</p>
+            <h3>3. Refine only if needed</h3>
+            <p class="muted">Open the detailed planner for taxes, account strategy, CPP timing, inflation stress, and deeper scenario work.</p>
           </article>
         </div>
         <div class="landing-secondary-grid">
@@ -358,14 +359,14 @@
             <div class="section-head">
               <div>
                 <p class="section-kicker">Guided setup</p>
-                <h2 id="guidedHeading">Build your plan step by step</h2>
-                <p>Start simple. Enter the essentials first, unlock advanced controls only when you need more precision.</p>
+                <h2 id="guidedHeading">Build your retirement plan step by step</h2>
+                <p>Start with the simplest version of your plan. Detailed assumptions stay available when you want them.</p>
               </div>
             </div>
             <div class="plan-top-actions no-print">
               <div class="mode-switch" aria-label="Experience mode">
-                <button class="mode-switch-btn" type="button" data-action="set-experience-mode" data-value="beginner">Beginner Mode</button>
-                <button class="mode-switch-btn" type="button" data-action="set-experience-mode" data-value="advanced">Advanced Mode</button>
+                <button class="mode-switch-btn" type="button" data-action="set-experience-mode" data-value="beginner">Simple planner</button>
+                <button class="mode-switch-btn" type="button" data-action="set-experience-mode" data-value="advanced">Detailed planner</button>
               </div>
               <div class="landing-actions">
                 <button id="importJsonBtnHome" class="btn btn-secondary" type="button">Load plan</button>
@@ -379,41 +380,41 @@
             <div class="section-head-tight">
               <div>
                 <h3>Recommended path</h3>
-                <p class="muted">Complete enough to get a useful answer, then move to Results. You do not need every field before seeing value.</p>
+                <p class="muted">Get a first answer fast. You do not need every field before this becomes useful.</p>
               </div>
             </div>
             <div class="comparison-card-grid">
               <article class="comparison-card">
                 <strong>1. Enter the essentials</strong>
-                <p class="small-copy muted">Retirement age, spending target, savings, and pension/CPP/OAS are enough for a first pass.</p>
+                <p class="small-copy muted">Age, savings, annual income, and a retirement target are enough for a strong first pass.</p>
               </article>
               <article class="comparison-card">
                 <strong>2. Read the outcome</strong>
-                <p class="small-copy muted">Go to Results to see if you are on track, what income comes from where, and what the gap is.</p>
+                <p class="small-copy muted">Go to Results to see whether you are on track, short, or ahead, in plain language.</p>
               </article>
               <article class="comparison-card">
-                <strong>3. Compare one change at a time</strong>
-                <p class="small-copy muted">Use Scenarios or Tools only after the base plan makes sense.</p>
+                <strong>3. Refine one thing at a time</strong>
+                <p class="small-copy muted">Use scenarios or the detailed planner only after the simple plan feels right.</p>
               </article>
             </div>
           </section>
 
-          <section class="subsection guided-stepper-shell">
+          <section id="guidedSetupSection" class="subsection guided-stepper-shell" tabindex="-1">
             <div class="planner-onboarding">
               <div>
                 <h3>What this setup covers</h3>
-                <p class="muted">About you, income sources, savings, retirement spending, benefits, taxes and assumptions, then your first result.</p>
+                <p class="muted">Your basics, lifestyle, savings, advanced assumptions if you want them, then your first result.</p>
               </div>
               <button class="btn btn-secondary no-print" type="button" data-action="open-learn">Learn the basics first</button>
             </div>
             <div class="wizard-progress" aria-label="Wizard progress">
               <div id="wizardProgressBar" class="wizard-progress-fill"></div>
             </div>
-            <p id="wizardStepLabel" class="small-copy muted">Step 1 of 7</p>
+            <p id="wizardStepLabel" class="small-copy muted">Step 1 of 5</p>
             <div id="wizardBody" class="wizard-body"></div>
             <div class="wizard-actions no-print sticky-mobile-actions">
               <button id="wizardBackBtn" class="btn btn-secondary" type="button">Back</button>
-              <button class="btn btn-secondary" type="button" data-nav-target="results">View Results</button>
+              <button class="btn btn-secondary" type="button" data-nav-target="results">See result</button>
               <button id="wizardNextBtn" class="btn btn-primary" type="button">Next</button>
             </div>
           </section>
@@ -421,11 +422,11 @@
           <section class="subsection plan-inputs-shell">
             <div class="section-head-tight">
               <div>
-                <h3 id="inputsHeading">Direct plan editing</h3>
-                <p class="muted">Prefer editing by section instead of using the stepper? Use the cards below.</p>
+                <h3 id="inputsHeading">Edit key assumptions directly</h3>
+                <p class="muted">Prefer section editing instead of the stepper? Use these simple cards, then jump back to Results.</p>
               </div>
               <div class="landing-actions no-print">
-                <button class="btn btn-primary" type="button" data-nav-target="results">View Results</button>
+                <button class="btn btn-primary" type="button" data-nav-target="results">See result</button>
               </div>
             </div>
             <div id="planInputsPanel"></div>
@@ -584,6 +585,40 @@
                 <a class="btn btn-secondary" href="https://buymeacoffee.com/ashleysnl" target="_blank" rel="noopener noreferrer">Become a monthly supporter</a>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section class="panel seo-panel" aria-labelledby="howPlannerWorksHeading">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Planner guide</p>
+              <h2 id="howPlannerWorksHeading">How this retirement planner works</h2>
+              <p class="muted">This planner starts with a guided setup, then uses the same tax-aware projection engine underneath the full SimpleKit retirement tool.</p>
+            </div>
+          </div>
+          <div class="comparison-card-grid">
+            <article class="comparison-card">
+              <strong>Start with the basics</strong>
+              <p class="muted">Enter your age, current savings, annual income, and retirement target to get a strong first estimate in under a minute.</p>
+            </article>
+            <article class="comparison-card">
+              <strong>Refine when you want</strong>
+              <p class="muted">Detailed assumptions stay hidden until you open them, so beginners get clarity first and advanced users still get depth.</p>
+            </article>
+            <article class="comparison-card">
+              <strong>Read the result in plain language</strong>
+              <p class="muted">The top of the results explains whether you are on track, what income you can expect, and what would improve the outcome.</p>
+            </article>
+          </div>
+          <div class="comparison-card-grid">
+            <article class="comparison-card">
+              <h3>What assumptions matter most</h3>
+              <p class="muted">Retirement age, lifestyle target, savings rate, and inflation usually move the answer more than minor tweaks. Government benefits and taxes matter too, but they do not need to overwhelm the first run.</p>
+            </article>
+            <article class="comparison-card">
+              <h3>How to improve your retirement outcome</h3>
+              <p class="muted">Common wins include saving more each year, retiring a little later, reducing the target lifestyle, or improving account drawdown strategy. The planner highlights these in the result itself.</p>
+            </article>
           </div>
         </section>
       </section>
