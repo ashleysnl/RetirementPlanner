@@ -10220,14 +10220,8 @@ function scrollDashboardToTop() {
 
 function scrollPlanToGuidedSetup() {
   const guidedSetup = document.getElementById("guidedSetupSection") || document.querySelector(".guided-stepper-shell");
-  const scroller = document.scrollingElement || document.documentElement || document.body;
   if (guidedSetup instanceof HTMLElement) {
-    const top = Math.max(0, guidedSetup.getBoundingClientRect().top + window.scrollY - 12);
-    window.scrollTo(0, top);
-    window.scrollTo({ top, behavior: "smooth" });
-    if (scroller) scroller.scrollTop = top;
-    document.documentElement.scrollTop = top;
-    document.body.scrollTop = top;
+    guidedSetup.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
       guidedSetup.focus({ preventScroll: true });
     } catch {}
@@ -10235,33 +10229,17 @@ function scrollPlanToGuidedSetup() {
   }
   const planPanel = document.querySelector('[data-nav-panel="plan"]');
   if (planPanel instanceof HTMLElement) {
-    const top = Math.max(0, planPanel.getBoundingClientRect().top + window.scrollY - 12);
-    window.scrollTo(0, top);
-    window.scrollTo({ top, behavior: "smooth" });
-    if (scroller) scroller.scrollTop = top;
-    document.documentElement.scrollTop = top;
-    document.body.scrollTop = top;
+    planPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 
 function queueGuidedSetupScroll() {
-  const delays = [0, 80, 180, 320, 520];
+  const delays = [0, 120, 260, 520];
   delays.forEach((delay) => {
     setTimeout(() => {
       scrollPlanToGuidedSetup();
     }, delay);
   });
-  setTimeout(() => {
-    const guidedSetup = document.getElementById("guidedSetupSection");
-    if (!guidedSetup) return;
-    const url = new URL(window.location.href);
-    url.hash = "guidedSetupSection";
-    window.location.hash = "guidedSetupSection";
-    setTimeout(() => {
-      const cleanUrl = `${url.pathname}${url.search}#plan`;
-      window.history.replaceState({}, "", cleanUrl);
-    }, 180);
-  }, 40);
 }
 
 function getDashboardScenario() {
@@ -11616,4 +11594,3 @@ function registerServiceWorker() {
     // ignore registration errors in local file mode
   });
 }
-
