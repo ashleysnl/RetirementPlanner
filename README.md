@@ -43,6 +43,8 @@ Static, local-first retirement planning app built with the existing template the
 ## File Structure
 
 - `index.html` - Main layout, navigation, wizard, dashboard sections, modals
+- `assets/css/styles.css` - GitHub Pages-safe stylesheet entry that imports the shared planner styles
+- `assets/js/app.js` - GitHub Pages-safe module entry that boots the planner from a repo subpath
 - Hash navigation supports direct section tabs (example: `#learn`)
 - Mobile-first bottom tab navigation: Start / Dashboard / Plan / Learn / Tools
 - Floating support button wired from `SUPPORT_URL` constant
@@ -85,6 +87,14 @@ For every JS change:
    - Branch: `main` (or default), folder `/ (root)`
 4. Save and wait for deployment.
 5. Open the published Pages URL.
+
+### GitHub Pages Pathing Notes
+
+- The published entry uses `./assets/css/styles.css` and `./assets/js/app.js` so the planner renders correctly from `https://ashleysnl.github.io/RetirementPlanner/`.
+- Shared SimpleKit shell resources stay absolute:
+  - `https://core.simplekit.app/core.css`
+  - `https://core.simplekit.app/core.js`
+- Repo-owned icons, manifests, and local HTML links should stay relative with `./...` paths.
 
 ## Data Model
 

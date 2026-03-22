@@ -3,26 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Estimate your retirement readiness in minutes. Start simple, then refine your plan with this Canadian retirement calculator." />
+  <meta name="description" content="Estimate your retirement readiness in minutes with a calm, guided Canadian retirement planner for CPP, OAS, savings, taxes, and retirement income decisions." />
   <meta name="robots" content="index,follow,max-image-preview:large" />
   <meta name="theme-color" content="#0f6abf" />
   <title>Canadian Retirement Planner - Simple, Guided Retirement Calculator | SimpleKit</title>
   <meta property="og:title" content="Canadian Retirement Planner - Simple, Guided Retirement Calculator | SimpleKit" />
-  <meta property="og:description" content="Estimate your retirement readiness in minutes with a guided Canadian retirement calculator." />
+  <meta property="og:description" content="Estimate your retirement readiness in minutes with a calm, guided Canadian retirement planner for CPP, OAS, savings, taxes, and retirement income decisions." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://simplekit.app/retirement-planner/" />
+  <meta property="og:site_name" content="SimpleKit" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Canadian Retirement Planner - Simple, Guided Retirement Calculator | SimpleKit" />
-  <meta name="twitter:description" content="Estimate your retirement readiness in minutes with a guided Canadian retirement calculator." />
+  <meta name="twitter:description" content="Estimate your retirement readiness in minutes with a calm, guided Canadian retirement planner for CPP, OAS, savings, taxes, and retirement income decisions." />
   <link rel="canonical" href="https://simplekit.app/retirement-planner/" />
-  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
-  <link rel="shortcut icon" href="icons/favicon.svg" />
-  <link rel="mask-icon" href="icons/mask-icon.svg" color="#0f6abf" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="./icons/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="./icons/favicon.svg" />
+  <link rel="mask-icon" href="./icons/mask-icon.svg" color="#0f6abf" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="preconnect" href="https://core.simplekit.app" />
   <link rel="stylesheet" href="https://core.simplekit.app/core.css" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="./assets/css/styles.css" />
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-6SS26QC3C9"></script>
   <script>
@@ -38,6 +39,11 @@
       "name": "Canadian Retirement Planner - Simple, Guided Retirement Calculator",
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "CAD"
+      },
       "inLanguage": "en-CA",
       "areaServed": {
         "@type": "Country",
@@ -65,6 +71,7 @@
   <script src="https://core.simplekit.app/core.js" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#mainContent">Skip to main content</a>
   <div id="bootErrorNotice" class="panel" style="display:none;"></div>
   <div class="page-shell">
     <div class="shell-header-wrap">
@@ -109,7 +116,7 @@
       </div>
     </header>
 
-    <main>
+    <main id="mainContent">
       <section id="landingPanel" class="panel landing-panel" aria-labelledby="landingTitle">
         <div class="section-head">
           <div>
@@ -186,6 +193,7 @@
             </div>
           </div>
 
+          <p id="resultLiveSummary" class="sr-only" aria-live="polite"></p>
           <div id="clientSummaryModeMount" hidden></div>
 
           <div id="plannerDashboardContent">
@@ -872,7 +880,7 @@
         bootClassicFallbackTriggered = true;
         bootTriedClassic = true;
         bootLog("fallback", "module not ready quickly, trying classic");
-        appendScript(resolvePath("app.classic.js"), "");
+        appendScript(resolvePath("./app.classic.js"), "");
         setTimeout(checkBootReady, 220);
         return;
       }
@@ -985,9 +993,9 @@
     hideBootError();
     // Try module entry first, fallback to classic bundle for legacy/cached environments.
     bootTriedModule = true;
-    appendScript(resolvePath("src/main.js"), "module", function () {
+    appendScript(resolvePath("./assets/js/app.js"), "module", function () {
       bootTriedClassic = true;
-      appendScript(resolvePath("app.classic.js"), "");
+      appendScript(resolvePath("./app.classic.js"), "");
     });
     setTimeout(checkBootReady, 180);
 
@@ -1004,7 +1012,7 @@
         bootClassicFallbackTriggered = true;
         bootTriedClassic = true;
         bootLog("fallback", "window error during module boot, trying classic");
-        appendScript(resolvePath("app.classic.js"), "");
+        appendScript(resolvePath("./app.classic.js"), "");
       }
       if (
         src &&

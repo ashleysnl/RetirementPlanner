@@ -8999,6 +8999,7 @@ const el = {
   nextActions: document.getElementById("nextActions"),
   basicsSummary: document.getElementById("basicsSummary"),
   dashboardStatus: document.getElementById("dashboardStatus"),
+  resultLiveSummary: document.getElementById("resultLiveSummary"),
   retirementScoreCard: document.getElementById("retirementScoreCard"),
   copyShareLinkBtn: document.getElementById("copyShareLinkBtn"),
   copyMinimalLinkBtn: document.getElementById("copyMinimalLinkBtn"),
@@ -10319,6 +10320,16 @@ function renderDashboard() {
   renderDashboardPresetBanner();
   renderDashboardSharedScenarioBanner();
   renderClientSummaryModeModule();
+  syncDashboardLiveSummary();
+}
+
+function syncDashboardLiveSummary() {
+  if (!el.resultLiveSummary) return;
+  const status = (el.dashboardStatus?.textContent || "").trim();
+  const verdict = (document.querySelector("#canIRetireModule h3")?.textContent || "").trim();
+  const summary = [status, verdict].filter(Boolean).join(". ");
+  if (!summary || el.resultLiveSummary.textContent === summary) return;
+  el.resultLiveSummary.textContent = summary;
 }
 
 function syncClientSummaryModeUi() {
@@ -11594,3 +11605,4 @@ function registerServiceWorker() {
     // ignore registration errors in local file mode
   });
 }
+
