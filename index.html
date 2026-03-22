@@ -20,6 +20,8 @@
   <link rel="mask-icon" href="icons/mask-icon.svg" color="#0f6abf" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="preconnect" href="https://core.simplekit.app" />
+  <link rel="stylesheet" href="https://core.simplekit.app/core.css" />
   <link rel="stylesheet" href="styles.css" />
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-6SS26QC3C9"></script>
@@ -45,20 +47,48 @@
       "description": "A guided Canadian retirement planner with tax-aware modeling for CPP, OAS, pensions, RRSP and RRIF withdrawals."
     }
   </script>
+  <script>
+    window.SimpleKitPage = {
+      pageType: "tool",
+      activeNavHref: "https://simplekit.app/tools/",
+      toolId: "retirement-planner",
+      showSupportCta: true,
+      showRelatedTools: false,
+      showFooterToolLinks: true,
+      footerNote: "The flagship retirement planner connects back to the wider SimpleKit platform while preserving the full planning experience.",
+      supportTitle: "Support the flagship SimpleKit planner",
+      supportCopy: "If this planner helped you make a clearer retirement decision, support helps maintain the shared shell, Canadian tax rules, and ongoing planner improvements.",
+      supportPrimaryLabel: "Support SimpleKit",
+      supportSecondaryLabel: "Explore all tools"
+    };
+  </script>
+  <script src="https://core.simplekit.app/core.js" defer></script>
 </head>
 <body>
   <div id="bootErrorNotice" class="panel" style="display:none;"></div>
   <div class="page-shell">
+    <div class="shell-header-wrap">
+      <div data-simplekit-header></div>
+    </div>
     <header id="heroHeader" class="hero" aria-label="Planner header">
+      <div class="hero-platform-row">
+        <div class="hero-platform-copy">
+          <a class="hero-home-link" href="https://simplekit.app/">Back to SimpleKit home</a>
+          <span class="hero-platform-separator" aria-hidden="true">•</span>
+          <a class="hero-home-link" href="https://simplekit.app/tools/">Explore all tools</a>
+        </div>
+        <span class="offline-badge">Flagship retirement planner</span>
+      </div>
       <div class="hero-content hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">SimpleKit retirement planning</p>
           <h1 id="appTitle">Canadian Retirement Planner — Simple, Guided Retirement Calculator</h1>
-          <p class="hero-subtitle">Can you afford to retire — and when?</p>
-          <p class="hero-proof">Start with a few simple inputs. Refine later if you want.</p>
+          <p class="hero-subtitle">Build a premium Canadian retirement plan with a calm guided flow up front and deeper controls underneath.</p>
+          <p class="hero-proof">Model retirement timing, CPP, OAS, withdrawals, taxes, and scenario tradeoffs in one polished planner that still feels approachable.</p>
           <div class="hero-actions no-print" aria-label="Hero actions">
             <button id="startSimpleBtn" class="btn btn-primary" type="button">Start your plan</button>
             <button class="btn btn-secondary" type="button" data-action="see-how-it-works">See how it works</button>
+            <a class="btn btn-secondary" href="https://simplekit.app/tools/">Explore all SimpleKit tools</a>
           </div>
           <p class="hero-link-row no-print"><button class="text-link-btn hero-link" type="button" data-action="open-learn">Learn the basics first</button></p>
           <div class="hero-trust-strip" aria-label="Trust notes">
@@ -663,11 +693,31 @@
         </div>
       </section>
 
-
-    <footer class="app-footer no-print" aria-label="Footer">
-      <strong>Planning-level estimate only.</strong>
-      <span class="muted">Not tax, legal, or financial advice.</span>
-      <button class="text-link-btn" type="button" data-nav-target="tools">Methodology & Sources</button>
+    <section class="panel planner-reference-panel no-print" aria-labelledby="plannerReferencesHeading">
+      <div class="panel-header">
+        <div>
+          <p class="section-kicker">Planner references</p>
+          <h2 id="plannerReferencesHeading">Keep your plan grounded in the bigger SimpleKit ecosystem</h2>
+        </div>
+        <p>Use the shared shell to move across tools, then return here when you want the most complete retirement view.</p>
+      </div>
+      <div class="comparison-card-grid">
+        <article class="comparison-card">
+          <strong>Back to SimpleKit home</strong>
+          <p class="muted">Jump to the main hub if you want the full calculator library, featured tools, and the latest platform updates.</p>
+          <div class="landing-actions">
+            <a class="btn btn-secondary" href="https://simplekit.app/">Go to SimpleKit home</a>
+            <a class="btn btn-secondary" href="https://simplekit.app/tools/">Explore all tools</a>
+          </div>
+        </article>
+        <article class="comparison-card">
+          <strong>Planning-level estimate only</strong>
+          <p class="muted">This tool is designed to support retirement planning decisions, not replace personalized tax, legal, or financial advice.</p>
+          <div class="landing-actions">
+            <button class="btn btn-secondary" type="button" data-nav-target="tools">Methodology &amp; Sources</button>
+          </div>
+        </article>
+      </div>
       <div class="associate-links" aria-label="Associate links">
         <span class="muted small-copy">Associate links:</span>
         <a href="https://amzn.to/4aXpF60" target="_blank" rel="noopener noreferrer nofollow sponsored">Die With Zero</a>
@@ -678,7 +728,12 @@
         <span class="muted small-copy">Reference Links:</span>
         <div id="dashboardReferences" class="footer-reference-row"></div>
       </div>
-    </footer>
+    </section>
+
+    <section class="shell-bridge-stack no-print" aria-label="SimpleKit platform support">
+      <div data-simplekit-support></div>
+      <div data-simplekit-footer></div>
+    </section>
   </div>
 
   <input id="importJsonFile" type="file" accept="application/json" hidden />
