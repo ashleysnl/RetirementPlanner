@@ -160,7 +160,7 @@ export function drawIncomeMapCanvas(ctx) {
   if (rect.width < 40) return { hitZones: [] };
 
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(900, Math.floor(rect.width * dpr));
+  canvas.width = canvas.closest('[data-v2-pilot]') ? Math.max(1, Math.round(rect.width * dpr)) : Math.max(900, Math.floor(rect.width * dpr));
   canvas.height = Math.floor(360 * dpr);
   const g = canvas.getContext("2d");
   if (!g) return { hitZones: [] };
@@ -279,7 +279,7 @@ export function drawIncomeMapCanvas(ctx) {
   }
 
   g.fillStyle = "#5f6b7d";
-  g.font = "12px Avenir Next";
+  g.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "12px Avenir Next";
   g.fillText(formatCurrency(0), 8, h - 10);
   g.fillText(formatCurrency(maxY), 8, pad.top + 4);
   const step = Math.max(1, Math.ceil((visibleRows.length - 1) / Math.max(3, Math.floor(innerW / 110))));
