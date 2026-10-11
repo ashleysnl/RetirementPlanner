@@ -20,7 +20,7 @@ export function drawLearnMultiLineChart(canvas, seriesList, options = {}, format
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 40) return;
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(640, Math.floor(rect.width * dpr));
+  canvas.width = canvas.closest('[data-v2-pilot]') ? Math.max(1, Math.round(rect.width * dpr)) : Math.max(640, Math.floor(rect.width * dpr));
   canvas.height = Math.floor(220 * dpr);
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -73,7 +73,7 @@ export function drawLearnMultiLineChart(canvas, seriesList, options = {}, format
   });
 
   ctx.fillStyle = "#5f6b7d";
-  ctx.font = "12px Avenir Next";
+  ctx.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "12px Avenir Next";
   const yMinLabel = safeFormat(formatCurrency, 0, "0");
   const yMaxLabel = safeFormat(formatCompactCurrency, maxY, String(Math.round(maxY)));
   ctx.fillText(yMinLabel, 8, h - 10);

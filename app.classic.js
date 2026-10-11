@@ -3101,7 +3101,7 @@ function drawPortfolioChart({
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 40) return;
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(800, Math.floor(rect.width * dpr));
+  canvas.width = canvas.closest('[data-v2-pilot]') ? Math.max(1, Math.round(rect.width * dpr)) : Math.max(800, Math.floor(rect.width * dpr));
   canvas.height = Math.floor(320 * dpr);
 
   const ctx = canvas.getContext("2d");
@@ -3166,7 +3166,7 @@ function drawPortfolioChart({
   plotLine(ctx, balancePoints, balanceGradient, 2.8);
 
   ctx.fillStyle = "#5f6b7d";
-  ctx.font = "12px Avenir Next";
+  ctx.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "12px Avenir Next";
   ctx.fillText(formatCurrency(0), 8, h - 10);
   ctx.fillText(formatCompactCurrency(maxY), 8, pad.top + 4);
 
@@ -3201,7 +3201,7 @@ function drawIncomeCoverageChart({
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 40) return;
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(800, Math.floor(rect.width * dpr));
+  canvas.width = canvas.closest('[data-v2-pilot]') ? Math.max(1, Math.round(rect.width * dpr)) : Math.max(800, Math.floor(rect.width * dpr));
   canvas.height = Math.floor(340 * dpr);
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -3281,7 +3281,7 @@ function drawIncomeCoverageChart({
           ctx.fillStyle = "rgba(255,255,255,0.86)";
           ctx.fillRect(cx + 1, yTop + 1, Math.max(1, barW - 2), 12);
           ctx.fillStyle = "#7f1d1d";
-          ctx.font = "10px Avenir Next";
+          ctx.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "10px Avenir Next";
           ctx.fillText("Tax", cx + 3, yTop + Math.min(11, hSeg - 2));
         }
       }
@@ -3306,7 +3306,7 @@ function drawIncomeCoverageChart({
   }
 
   ctx.fillStyle = "#5f6b7d";
-  ctx.font = "12px Avenir Next";
+  ctx.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "12px Avenir Next";
   ctx.fillText(formatCurrency(0), 8, h - 10);
   ctx.fillText(formatCompactCurrency(maxY), 8, pad.top + 4);
   const step = Math.max(1, Math.ceil((rows.length - 1) / Math.max(3, Math.floor(innerW / 110))));
@@ -3512,7 +3512,7 @@ function drawLearnMultiLineChart(canvas, seriesList, options = {}, formatCurrenc
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 40) return;
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(640, Math.floor(rect.width * dpr));
+  canvas.width = canvas.closest('[data-v2-pilot]') ? Math.max(1, Math.round(rect.width * dpr)) : Math.max(640, Math.floor(rect.width * dpr));
   canvas.height = Math.floor(220 * dpr);
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -3565,7 +3565,7 @@ function drawLearnMultiLineChart(canvas, seriesList, options = {}, formatCurrenc
   });
 
   ctx.fillStyle = "#5f6b7d";
-  ctx.font = "12px Avenir Next";
+  ctx.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "12px Avenir Next";
   const yMinLabel = safeFormat(formatCurrency, 0, "0");
   const yMaxLabel = safeFormat(formatCompactCurrency, maxY, String(Math.round(maxY)));
   ctx.fillText(yMinLabel, 8, h - 10);
@@ -5032,7 +5032,7 @@ function drawIncomeMapCanvas(ctx) {
   if (rect.width < 40) return { hitZones: [] };
 
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(900, Math.floor(rect.width * dpr));
+  canvas.width = canvas.closest('[data-v2-pilot]') ? Math.max(1, Math.round(rect.width * dpr)) : Math.max(900, Math.floor(rect.width * dpr));
   canvas.height = Math.floor(360 * dpr);
   const g = canvas.getContext("2d");
   if (!g) return { hitZones: [] };
@@ -5151,7 +5151,7 @@ function drawIncomeMapCanvas(ctx) {
   }
 
   g.fillStyle = "#5f6b7d";
-  g.font = "12px Avenir Next";
+  g.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "12px Avenir Next";
   g.fillText(formatCurrency(0), 8, h - 10);
   g.fillText(formatCurrency(maxY), 8, pad.top + 4);
   const step = Math.max(1, Math.ceil((visibleRows.length - 1) / Math.max(3, Math.floor(innerW / 110))));

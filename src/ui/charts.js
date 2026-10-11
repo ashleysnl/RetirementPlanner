@@ -11,7 +11,7 @@ export function drawPortfolioChart({
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 40) return;
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(800, Math.floor(rect.width * dpr));
+  canvas.width = canvas.closest('[data-v2-pilot]') ? Math.max(1, Math.round(rect.width * dpr)) : Math.max(800, Math.floor(rect.width * dpr));
   canvas.height = Math.floor(320 * dpr);
 
   const ctx = canvas.getContext("2d");
@@ -76,7 +76,7 @@ export function drawPortfolioChart({
   plotLine(ctx, balancePoints, balanceGradient, 2.8);
 
   ctx.fillStyle = "#5f6b7d";
-  ctx.font = "12px Avenir Next";
+  ctx.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "12px Avenir Next";
   ctx.fillText(formatCurrency(0), 8, h - 10);
   ctx.fillText(formatCompactCurrency(maxY), 8, pad.top + 4);
 
@@ -111,7 +111,7 @@ export function drawIncomeCoverageChart({
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 40) return;
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(800, Math.floor(rect.width * dpr));
+  canvas.width = canvas.closest('[data-v2-pilot]') ? Math.max(1, Math.round(rect.width * dpr)) : Math.max(800, Math.floor(rect.width * dpr));
   canvas.height = Math.floor(340 * dpr);
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -191,7 +191,7 @@ export function drawIncomeCoverageChart({
           ctx.fillStyle = "rgba(255,255,255,0.86)";
           ctx.fillRect(cx + 1, yTop + 1, Math.max(1, barW - 2), 12);
           ctx.fillStyle = "#7f1d1d";
-          ctx.font = "10px Avenir Next";
+          ctx.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "10px Avenir Next";
           ctx.fillText("Tax", cx + 3, yTop + Math.min(11, hSeg - 2));
         }
       }
@@ -216,7 +216,7 @@ export function drawIncomeCoverageChart({
   }
 
   ctx.fillStyle = "#5f6b7d";
-  ctx.font = "12px Avenir Next";
+  ctx.font = canvas.closest('[data-v2-pilot]') ? '12px ' + getComputedStyle(canvas).fontFamily : "12px Avenir Next";
   ctx.fillText(formatCurrency(0), 8, h - 10);
   ctx.fillText(formatCompactCurrency(maxY), 8, pad.top + 4);
   const step = Math.max(1, Math.ceil((rows.length - 1) / Math.max(3, Math.floor(innerW / 110))));

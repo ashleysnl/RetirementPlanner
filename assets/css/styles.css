@@ -1,4 +1,4 @@
-@import url("../../styles.css");
+/* Base stylesheet is loaded explicitly in index.html. */
 
 .skip-link {
   position: absolute;
